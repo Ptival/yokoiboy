@@ -1,0 +1,3 @@
+[submodule "gameboy-disassembler"]
+	path = gameboy-disassembler
+	url = git@github.com:ericwoude/gameboy-disassembler.git
