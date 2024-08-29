@@ -3,19 +3,9 @@ name = "rustyboi"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-bevy = "0.13.2"
-bevy_egui = "0.27.0"
-bevy_pixel_buffer = "0.7.2"
-#byteorder = "1.4.3"
-#egui = "0.27.2"
-#egui-wgpu = "0.27.2"
-#egui-winit = "0.27.2"
-#env_logger = "0.11.3"
-#error-iter = "0.4.1"
-#log = "0.4.21"
-#serde = { version = "1.0", features = ["derive"] }
-#serde_json = "1.0"
-winit = "0.30.0"
+circular-queue = "0.2.6"
+iced = { version = "0.12.1", features = [ "image" ] }
+iced_aw = "0.9.3"
+pixels = "0.13.0"
+rand = "0.8.5"
