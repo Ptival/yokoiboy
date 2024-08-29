@@ -1,3 +1,6 @@
 [submodule "gameboy-disassembler"]
 	path = gameboy-disassembler
 	url = git@github.com:ericwoude/gameboy-disassembler.git
+[submodule "gb-test-roms"]
+	path = gb-test-roms
+	url = https://github.com/retrio/gb-test-roms.git

@@ -87,105 +87,105 @@ impl Registers {
         }
     }
 
-    pub fn set_a(&mut self, a: u8) -> &mut Self {
-        self.af = u16_from_u8s(a, self.get_f());
+    pub fn write_a(&mut self, a: u8) -> &mut Self {
+        self.af = u16_from_u8s(a, self.read_f());
         self
     }
 
-    fn set_f(&mut self, f: u8) -> &mut Self {
-        self.af = u16_from_u8s(self.get_a(), f);
+    fn write_f(&mut self, f: u8) -> &mut Self {
+        self.af = u16_from_u8s(self.read_a(), f);
         self
     }
 
-    pub fn set_b(&mut self, b: u8) -> &mut Self {
-        self.bc = u16_from_u8s(b, self.get_c());
+    pub fn write_b(&mut self, b: u8) -> &mut Self {
+        self.bc = u16_from_u8s(b, self.read_c());
         self
     }
 
-    pub fn set_c(&mut self, c: u8) -> &mut Self {
-        self.bc = u16_from_u8s(self.get_b(), c);
+    pub fn write_c(&mut self, c: u8) -> &mut Self {
+        self.bc = u16_from_u8s(self.read_b(), c);
         self
     }
 
-    pub fn set_d(&mut self, d: u8) -> &mut Self {
-        self.de = u16_from_u8s(d, self.get_e());
+    pub fn write_d(&mut self, d: u8) -> &mut Self {
+        self.de = u16_from_u8s(d, self.read_e());
         self
     }
 
-    pub fn set_e(&mut self, e: u8) -> &mut Self {
-        self.de = u16_from_u8s(self.get_d(), e);
+    pub fn write_e(&mut self, e: u8) -> &mut Self {
+        self.de = u16_from_u8s(self.read_d(), e);
         self
     }
 
-    pub fn set_h(&mut self, h: u8) -> &mut Self {
-        self.hl = u16_from_u8s(h, self.get_l());
+    pub fn write_h(&mut self, h: u8) -> &mut Self {
+        self.hl = u16_from_u8s(h, self.read_l());
         self
     }
 
-    pub fn set_l(&mut self, l: u8) -> &mut Self {
-        self.hl = u16_from_u8s(self.get_h(), l);
+    pub fn write_l(&mut self, l: u8) -> &mut Self {
+        self.hl = u16_from_u8s(self.read_h(), l);
         self
     }
 
-    pub fn get_a(&self) -> u8 {
+    pub fn read_a(&self) -> u8 {
         higher_u8(self.af)
     }
 
-    pub fn get_f(&self) -> u8 {
+    pub fn read_f(&self) -> u8 {
         lower_u8(self.af)
     }
 
-    pub fn get_b(&self) -> u8 {
+    pub fn read_b(&self) -> u8 {
         higher_u8(self.bc)
     }
 
-    pub fn get_c(&self) -> u8 {
+    pub fn read_c(&self) -> u8 {
         lower_u8(self.bc)
     }
 
-    pub fn get_d(&self) -> u8 {
+    pub fn read_d(&self) -> u8 {
         higher_u8(self.de)
     }
 
-    pub fn get_e(&self) -> u8 {
+    pub fn read_e(&self) -> u8 {
         lower_u8(self.de)
     }
 
-    pub fn get_h(&self) -> u8 {
+    pub fn read_h(&self) -> u8 {
         higher_u8(self.hl)
     }
 
-    pub fn get_l(&self) -> u8 {
+    pub fn read_l(&self) -> u8 {
         lower_u8(self.hl)
     }
 
-    pub fn get_r8(&self, r8: &R8) -> u8 {
+    pub fn read_r8(&self, r8: &R8) -> u8 {
         match r8 {
-            R8::A => self.get_a(),
-            R8::B => self.get_b(),
-            R8::C => self.get_c(),
-            R8::D => self.get_d(),
-            R8::E => self.get_e(),
-            R8::F => self.get_f(),
-            R8::H => self.get_h(),
-            R8::L => self.get_l(),
+            R8::A => self.read_a(),
+            R8::B => self.read_b(),
+            R8::C => self.read_c(),
+            R8::D => self.read_d(),
+            R8::E => self.read_e(),
+            R8::F => self.read_f(),
+            R8::H => self.read_h(),
+            R8::L => self.read_l(),
         }
     }
 
-    pub fn set_r8(&mut self, r8: &R8, value: u8) -> &mut Self {
+    pub fn write_r8(&mut self, r8: &R8, value: u8) -> &mut Self {
         match r8 {
-            R8::A => self.set_a(value),
-            R8::B => self.set_b(value),
-            R8::C => self.set_c(value),
-            R8::D => self.set_d(value),
-            R8::E => self.set_e(value),
-            R8::F => self.set_f(value),
-            R8::H => self.set_h(value),
-            R8::L => self.set_l(value),
+            R8::A => self.write_a(value),
+            R8::B => self.write_b(value),
+            R8::C => self.write_c(value),
+            R8::D => self.write_d(value),
+            R8::E => self.write_e(value),
+            R8::F => self.write_f(value),
+            R8::H => self.write_h(value),
+            R8::L => self.write_l(value),
         }
     }
 
-    pub fn get_r16(&self, r16: &R16) -> u16 {
+    pub fn read_r16(&self, r16: &R16) -> u16 {
         match r16 {
             R16::AF => self.af,
             R16::BC => self.bc,
@@ -196,7 +196,7 @@ impl Registers {
         }
     }
 
-    pub fn set_r16(&mut self, r16: &R16, value: u16) -> &mut Self {
+    pub fn write_r16(&mut self, r16: &R16, value: u16) -> &mut Self {
         match r16 {
             R16::AF => self.af = value,
             R16::BC => self.bc = value,
@@ -209,11 +209,11 @@ impl Registers {
     }
 
     pub fn get_bit(&self, r8: &R8, bit: &u8) -> bool {
-        (self.get_r8(r8) & (1 << bit)) != 0
+        (self.read_r8(r8) & (1 << bit)) != 0
     }
 
     pub fn get_flag(&self, flag: Flag) -> bool {
-        self.get_f() & (1 << flag.get_bit()) != 0
+        self.read_f() & (1 << flag.get_bit()) != 0
     }
 
     pub fn set_flag(&mut self, flag: Flag) -> &mut Self {
@@ -226,9 +226,9 @@ impl Registers {
 
     pub fn write_flag(&mut self, flag: Flag, value: bool) -> &mut Self {
         if value {
-            self.set_f(self.get_f() | (1 << flag.get_bit()))
+            self.write_f(self.read_f() | (1 << flag.get_bit()))
         } else {
-            self.set_f(self.get_f() & !(1 << flag.get_bit()))
+            self.write_f(self.read_f() & !(1 << flag.get_bit()))
         }
     }
 }

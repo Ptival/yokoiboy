@@ -1,16 +1,12 @@
+use std::cmp;
+
 use circular_queue::CircularQueue;
 use cpu::CPU;
 use iced::{
     self, alignment, executor,
     keyboard::{self, key::Named, Key},
-    mouse,
-    widget::{
-        canvas::{Frame, Geometry, Path, Program},
-        container,
-        image::Handle,
-        text, Button, Canvas, Column, Container, Image, Row,
-    },
-    Application, Color, Command, Length, Rectangle, Renderer, Settings, Theme,
+    widget::{container, image::Handle, text, Button, Column, Container, Image, Row},
+    Application, Color, Command, Settings, Theme,
 };
 use iced_aw::{grid_row, Grid};
 use ppu::PPU;
@@ -18,8 +14,8 @@ use registers::Flag;
 
 pub mod conditions;
 pub mod cpu;
+pub mod instruction;
 pub mod memory;
-pub mod opcodes;
 pub mod ppu;
 pub mod registers;
 
@@ -47,38 +43,22 @@ impl DebuggerWindow {
             ""
         })
     }
-}
 
-#[derive(Debug)]
-struct Circle {
-    radius: f32,
-}
+    fn step(&mut self) {
+        // Arbitrarily stepping the CPU then the PPU
+        let mut next_cpu = self.current_cpu().execute_one_instruction().expect("sad");
+        self.ppu.step(&mut next_cpu);
 
-// Then, we implement the `Program` trait
-impl Program<Message> for Circle {
-    type State = ();
+        if next_cpu.memory.read_u8(0xFF02) == 0x81 {
+            let char = next_cpu.memory.read_u8(0xFF01);
+            print!("{}", char);
+            next_cpu.memory.write_u8(0xFF02, 0x01);
+        }
 
-    fn draw(
-        &self,
-        _state: &(),
-        renderer: &Renderer,
-        _theme: &Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<Geometry> {
-        // We prepare a new `Frame`
-        let mut frame = Frame::new(renderer, bounds.size());
-
-        // We create a `Path` representing a simple circle
-        let circle = Path::circle(frame.center(), self.radius);
-
-        // And fill it with some color
-        frame.fill(&circle, Color::BLACK);
-
-        // Finally, we produce the geometry
-        vec![frame.into_geometry()]
+        self.cpu_snaps.push(next_cpu);
     }
 }
+
 #[derive(Clone, Debug, Hash)]
 enum Message {
     RunNextInstruction,
@@ -94,7 +74,18 @@ impl iced::Application for DebuggerWindow {
     fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         (
             Self {
-                breakpoints: vec![0x000C],
+                breakpoints: vec![
+                    // 0x0028,
+                    // 0x0034,
+                    // 0x0042,
+                    // 0x0051,
+                    // 0x0055, 0x006A,
+                    // 0x0070,
+                    0x008C,
+                    0x008E, // not yet
+                    0x00FF, // goal
+                    //0x00A3
+                ],
                 cpu_snaps: flags,
                 ppu: PPU::new(),
             },
@@ -118,21 +109,19 @@ impl iced::Application for DebuggerWindow {
             Message::RunNextInstruction => {
                 for r in 0..160 {
                     for c in 0..144 {
-                        self.ppu.rendered_pixels[(r * 144 + c)*4] = rand::random();
-                        self.ppu.rendered_pixels[(r * 144 + c)*4 + 1] = rand::random();
-                        self.ppu.rendered_pixels[(r * 144 + c)*4 + 2] = rand::random();
-                        self.ppu.rendered_pixels[(r * 144 + c)*4 + 3] = 255
+                        self.ppu.rendered_pixels[(r * 144 + c) * 4] = rand::random();
+                        self.ppu.rendered_pixels[(r * 144 + c) * 4 + 1] = rand::random();
+                        self.ppu.rendered_pixels[(r * 144 + c) * 4 + 2] = rand::random();
+                        self.ppu.rendered_pixels[(r * 144 + c) * 4 + 3] = 255
                     }
                 }
-                println!("{:?}", &self.ppu.rendered_pixels[0..20]);
-                let next_cpu = self.current_cpu().execute_one_instruction().expect("sad");
-                self.cpu_snaps.push(next_cpu);
+                self.step();
                 Command::none()
             }
             Message::RunUntilBreakpoint => {
+                self.step();
                 while !self.breakpoints.contains(&self.current_cpu().registers.pc) {
-                    let next_cpu = self.current_cpu().execute_one_instruction().expect("sad");
-                    self.cpu_snaps.push(next_cpu);
+                    self.step()
                 }
                 Command::none()
             }
@@ -176,33 +165,26 @@ impl iced::Application for DebuggerWindow {
             ]);
         }
 
-        let memory = text(cpu.memory.show_memory_row(0));
         let af_row = Row::new().push(text("AF: ")).push(text(&format!(
             "{:02X} {:02X}",
-            cpu.registers.get_a(),
-            cpu.registers.get_f()
+            cpu.registers.read_a(),
+            cpu.registers.read_f()
         )));
         let bc_row = Row::new().push(text("BC: ")).push(text(&format!(
             "{:02X} {:02X}",
-            cpu.registers.get_b(),
-            cpu.registers.get_c()
+            cpu.registers.read_b(),
+            cpu.registers.read_c()
         )));
         let de_row = Row::new().push(text("DE: ")).push(text(&format!(
             "{:02X} {:02X}",
-            cpu.registers.get_d(),
-            cpu.registers.get_e()
+            cpu.registers.read_d(),
+            cpu.registers.read_e()
         )));
         let hl_row = Row::new().push(text("HL: ")).push(text(&format!(
             "{:02X} {:02X}",
-            cpu.registers.get_h(),
-            cpu.registers.get_l()
+            cpu.registers.read_h(),
+            cpu.registers.read_l()
         )));
-        let sp_row = Row::new()
-            .push(text("SP: "))
-            .push(text(&format!("0x{:04X}", cpu.registers.sp)));
-        let pc_row = Row::new()
-            .push(text("PC: "))
-            .push(text(&format!("0x{:04X}", cpu.registers.pc)));
         let flag_row = Row::new()
             .push(text("Flags: "))
             .push(text(&format!(
@@ -221,30 +203,47 @@ impl iced::Application for DebuggerWindow {
                 "[C={}]",
                 cpu.registers.get_flag(Flag::C) as u8
             )));
+
+        let dmg_row = Row::new().push(text(format!("DMG: {}", cpu.memory.is_dmg_boot_rom_on())));
+
+        let ly_row = Row::new()
+            .push(text("LY: "))
+            .push(text(&format!("{}", self.ppu.read_ly(cpu))));
+
         let register_column = Column::new()
             .push(af_row)
             .push(bc_row)
             .push(de_row)
             .push(hl_row)
-            .push(sp_row)
-            .push(pc_row)
-            .push(flag_row);
+            .push(flag_row)
+            .push(dmg_row)
+            .push(ly_row);
 
         let run_next_instruction_button =
             Button::new("Run next instruction").on_press(Message::RunNextInstruction);
         let run_until_breakpoint_button =
             Button::new("Run until breakpoint").on_press(Message::RunUntilBreakpoint);
 
+        let mut stack_grid = Grid::new();
+        stack_grid = stack_grid.push(grid_row![text("Stack:")]);
+        // Note: the stack stops at 0xFFFE, as 0xFFFF is used for interrupt enable
+        for stack_addr in cmp::max(cpu.registers.sp, 0xFF80)..=0xFFFE {
+            stack_grid = stack_grid.push(grid_row![
+                text(format!("0x{:04X}:", stack_addr)),
+                text(format!("{:02X}", cpu.memory.read_u8(stack_addr))),
+            ]);
+        }
+
         let column = Column::new()
             .push(instructions_grid)
-            .push(memory)
             .push(register_column)
+            .push(stack_grid)
             .push(run_next_instruction_button)
             .push(run_until_breakpoint_button);
 
         let mut grid = Grid::new().vertical_alignment(alignment::Vertical::Top);
         let debugger = Container::new(column)
-            .height(600)
+            .height(700)
             .width(400)
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center)
@@ -273,7 +272,11 @@ fn main() -> Result<(), iced::Error> {
     let mut cpu = CPU::new();
     cpu.memory
         .load_boot_rom(String::from("dmg_boot.bin"))
-        .expect("sad");
+        .expect("Failed to load boot ROM")
+        .load_rom(String::from(
+            "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
+        ))
+        .expect("Failed to load ROM");
     queue.push(cpu);
     DebuggerWindow::run(Settings::with_flags(queue))
 }

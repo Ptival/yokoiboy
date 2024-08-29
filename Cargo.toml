@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 circular-queue = "0.2.6"
 iced = { version = "0.12.1", features = [ "image" ] }
+# iced = { git = "https://github.com/iced-rs/iced.git", features = [ "canvas", "tokio" ] }
+# iced_aw = { git = "https://github.com/iced-rs/iced_aw" }
 iced_aw = "0.9.3"
-pixels = "0.13.0"
 rand = "0.8.5"
