@@ -48,7 +48,7 @@ impl Default for DebuggerWindow {
         queue.push(cpu);
         Self {
             breakpoints: vec![
-                0x000C,
+                // 0x000C,
                 // 0x0028,
                 // 0x0034,
                 // 0x0042,
@@ -56,9 +56,11 @@ impl Default for DebuggerWindow {
                 // 0x0055, 0x006A,
                 // 0x0070,
                 // 0x008C,
-                0x00E8, // not yet
-                0x00FF, // goal
-                        //0x00A3
+                // 0x00E8, // not yet
+                // 0x00F1, // passed logo check
+                // 0x00FC, // passed header checksum check
+                // 0x00FF, // goal
+                //0x00A3
             ],
             cpu_snaps: queue,
             ppu: PPU::new(),

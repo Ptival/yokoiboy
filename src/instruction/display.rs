@@ -5,6 +5,9 @@ use super::type_def::Instruction;
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Instruction::ADD_A_mHL => {
+                write!(f, "ADD A [HL]")
+            }
             Instruction::BIT_u3_r8(bit, reg) => {
                 write!(f, "BIT {}, {}", bit, reg)
             }
@@ -92,7 +95,69 @@ impl fmt::Display for Instruction {
             Instruction::XOR_r8(r8) => {
                 write!(f, "XOR {}", r8)
             }
-            _ => write!(f, "{:?}", self),
+            Instruction::IllegalOrTODO(opcode) => {
+                write!(f, "TODO: {:02X}", opcode)
+            }
+            Instruction::ADC_A_r8(r8) => {
+                write!(f, "ADC A, {}", r8)
+            }
+            Instruction::ADC_A_u8(u8) => {
+                write!(f, "ADC A, {:02X}", u8)
+            }
+            Instruction::ADD_A_r8(r8) => {
+                write!(f, "ADD A, {}", r8)
+            }
+            Instruction::AND_L => {
+                write!(f, "AND L")
+            }
+            Instruction::CALL_Z_a16(imm16) => {
+                write!(f, "CALL Z {:04X}", imm16.as_u16())
+            }
+            Instruction::EI => {
+                write!(f, "EI")
+            }
+            Instruction::JP_u16(imm16) => {
+                write!(f, "JP {}", imm16.as_u16())
+            }
+            Instruction::JR_r8(r8) => {
+                write!(f, "JP {}", r8)
+            }
+            Instruction::JR_i8(i8) => {
+                write!(f, "JR {:02X}", i8)
+            }
+            Instruction::LD_mu16_SP(imm16) => {
+                write!(f, "LD [{:04X}] SP", imm16.as_u16())
+            }
+            Instruction::LD_H_mHL => {
+                write!(f, "LD H, [HL]")
+            }
+            Instruction::LD_L_mHL => {
+                write!(f, "LD L, [HL]")
+            }
+            Instruction::NOP => {
+                write!(f, "NOP")
+            }
+            Instruction::Prefix => {
+                write!(f, "TODO")
+            }
+            Instruction::RET_cc(cc) => {
+                write!(f, "RET {}", cc)
+            }
+            Instruction::RET => {
+                write!(f, "RET")
+            }
+            Instruction::RETI => {
+                write!(f, "RETI")
+            }
+            Instruction::RLA => {
+                write!(f, "RLA")
+            }
+            Instruction::SBC_A_A => {
+                write!(f, "SBC A, A")
+            }
+            Instruction::SBC_A_C => {
+                write!(f, "SBC A, C")
+            }
         }
     }
 }

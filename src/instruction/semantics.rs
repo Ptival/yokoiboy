@@ -27,7 +27,7 @@ fn sub_borrows(a: impl Into<u16>, b: impl Into<u16>, bit: u8) -> bool {
 }
 
 fn compare(cpu: &mut CPU, a: u8, b: u8) {
-    println!("Comparing {:02X} and {:02X}", a, b);
+    // println!("Comparing {:02X} and {:02X}", a, b);
     cpu.registers
         .write_flag(Flag::Z, a == b)
         .set_flag(Flag::N)
@@ -35,19 +35,28 @@ fn compare(cpu: &mut CPU, a: u8, b: u8) {
         .write_flag(Flag::C, sub_borrows(a, b, 8));
 }
 
+fn add(cpu: &mut CPU, a: u8, b: u8) {
+    let res = a.wrapping_add(b);
+    cpu.registers
+        .write_a(res)
+        .write_flag(Flag::Z, res == 0)
+        .unset_flag(Flag::N)
+        .write_flag(Flag::H, add_produces_carry(a, b, 4))
+        .write_flag(Flag::C, add_produces_carry(a, b, 8));
+}
+
 impl Instruction {
     pub fn execute(self: &Instruction, cpu: &mut CPU) {
         match self {
+            Instruction::ADD_A_mHL => {
+                add(
+                    cpu,
+                    cpu.registers.read_a(),
+                    cpu.memory.read_u8(cpu.registers.hl),
+                );
+            }
             Instruction::ADD_A_r8(r8) => {
-                let a = cpu.registers.read_a();
-                let r8 = cpu.registers.read_r8(r8);
-                let res = a.wrapping_add(r8);
-                cpu.registers
-                    .write_a(res)
-                    .write_flag(Flag::Z, res == 0)
-                    .unset_flag(Flag::N)
-                    .write_flag(Flag::H, add_produces_carry(a, r8, 4))
-                    .write_flag(Flag::C, add_produces_carry(a, r8, 8));
+                add(cpu, cpu.registers.read_a(), cpu.registers.read_r8(r8));
             }
             Instruction::BIT_u3_r8(bit, reg) => {
                 cpu.registers
