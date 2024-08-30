@@ -71,8 +71,8 @@ impl Memory {
     pub fn read_slice(&self, address: u16, size: usize) -> &[u8] {
         let address = address as usize;
         if self.is_dmg_boot_rom_on() {
-            if address <= 0xFF && (address + size) > 0xFF {
-                panic!("read_slice is unhappy about returning a slice across the boot ROM and the real memory...")
+            if address <= 0xFF && (address + size - 1) > 0xFF {
+                panic!("Cannot return a slice overlapping the DMG boot ROM and the main memory")
             }
             if address + size <= 0xFF {
                 return &self.boot_rom[address..address + size];
@@ -82,6 +82,9 @@ impl Memory {
     }
 
     pub fn write_u8(&mut self, address: u16, value: u8) -> &Self {
+        if 0x104 <= address && address <= 0x133 {
+            println!("BAD!!!");
+        }
         self.raw[address as usize] = value;
         self
     }
@@ -96,22 +99,13 @@ impl Memory {
     // }
 
     pub fn show_memory_row(&self, from: u16) -> String {
-        let from = from as usize;
-        let raw = self.raw;
-        if from + 7 >= raw.len() {
+        if from as usize + 7 >= self.raw.len() {
             return String::from("TODO"); // We can still display a bit
         }
+        let slice = self.read_slice(from, 8);
         format!(
-            "{:08x}: {:2X} {:2X} {:2X} {:2X}  {:2X} {:2X} {:2X} {:2X}",
-            0,
-            raw[from + 0],
-            raw[from + 1],
-            raw[from + 2],
-            raw[from + 3],
-            raw[from + 4],
-            raw[from + 5],
-            raw[from + 6],
-            raw[from + 7]
+            "{:04x}: {:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
+            from, slice[0], slice[1], slice[2], slice[3], slice[4], slice[5], slice[6], slice[7]
         )
     }
 }

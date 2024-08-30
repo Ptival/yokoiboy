@@ -1,12 +1,18 @@
-use std::cmp;
+use std::{cmp, fmt::Debug};
 
 use circular_queue::CircularQueue;
 use cpu::CPU;
 use iced::{
-    self, alignment, executor,
+    self,
+    advanced::image::{Bytes, Handle},
+    alignment,
+    border::Radius,
     keyboard::{self, key::Named, Key},
-    widget::{container, image::Handle, text, Button, Column, Container, Image, Row},
-    Application, Color, Command, Settings, Theme,
+    widget::{
+        container::{self, Style},
+        text, Button, Column, Container, Image, Row,
+    },
+    Border, Color, Task,
 };
 use iced_aw::{grid_row, Grid};
 use ppu::PPU;
@@ -26,6 +32,38 @@ struct DebuggerWindow {
     pub breakpoints: Vec<u16>,
     pub cpu_snaps: CircularQueue<CPU>,
     pub ppu: PPU,
+}
+
+impl Default for DebuggerWindow {
+    fn default() -> Self {
+        let mut queue = CircularQueue::with_capacity(CPU_SNAPS_CAPACITY);
+        let mut cpu = CPU::new();
+        cpu.memory
+            .load_boot_rom(String::from("dmg_boot.bin"))
+            .expect("Failed to load boot ROM")
+            .load_rom(String::from(
+                "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
+            ))
+            .expect("Failed to load ROM");
+        queue.push(cpu);
+        Self {
+            breakpoints: vec![
+                0x000C,
+                // 0x0028,
+                // 0x0034,
+                // 0x0042,
+                // 0x0051,
+                // 0x0055, 0x006A,
+                // 0x0070,
+                // 0x008C,
+                0x00E8, // not yet
+                0x00FF, // goal
+                        //0x00A3
+            ],
+            cpu_snaps: queue,
+            ppu: PPU::new(),
+        }
+    }
 }
 
 impl DebuggerWindow {
@@ -65,46 +103,15 @@ enum Message {
     RunUntilBreakpoint,
 }
 
-impl iced::Application for DebuggerWindow {
-    type Executor = executor::Default;
-    type Flags = CircularQueue<CPU>;
-    type Message = Message;
-    type Theme = Theme;
-
-    fn new(flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
-        (
-            Self {
-                breakpoints: vec![
-                    // 0x0028,
-                    // 0x0034,
-                    // 0x0042,
-                    // 0x0051,
-                    // 0x0055, 0x006A,
-                    // 0x0070,
-                    0x008C,
-                    0x008E, // not yet
-                    0x00FF, // goal
-                    //0x00A3
-                ],
-                cpu_snaps: flags,
-                ppu: PPU::new(),
-            },
-            Command::none(),
-        )
-    }
-
-    fn subscription(&self) -> iced::Subscription<Self::Message> {
+impl DebuggerWindow {
+    fn subscription(&self) -> iced::Subscription<Message> {
         keyboard::on_key_press(|k, _m| match k {
             Key::Named(Named::ArrowRight) => Some(Message::RunNextInstruction),
             _ => None,
         })
     }
 
-    fn title(&self) -> String {
-        String::from("Rustyboi debugger")
-    }
-
-    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::RunNextInstruction => {
                 for r in 0..160 {
@@ -116,19 +123,19 @@ impl iced::Application for DebuggerWindow {
                     }
                 }
                 self.step();
-                Command::none()
+                Task::none()
             }
             Message::RunUntilBreakpoint => {
                 self.step();
                 while !self.breakpoints.contains(&self.current_cpu().registers.pc) {
                     self.step()
                 }
-                Command::none()
+                Task::none()
             }
         }
     }
 
-    fn view(&self) -> iced::Element<'_, Self::Message> {
+    fn view(&self) -> iced::Element<'_, Message> {
         let mut instructions_grid = Grid::new().column_spacing(5);
         let history_size = self.cpu_snaps.len() - 1;
         for old in self.cpu_snaps.asc_iter().take(history_size) {
@@ -165,50 +172,54 @@ impl iced::Application for DebuggerWindow {
             ]);
         }
 
-        let af_row = Row::new().push(text("AF: ")).push(text(&format!(
+        let af_row = Row::new().push(text("AF: ")).push(text(format!(
             "{:02X} {:02X}",
             cpu.registers.read_a(),
             cpu.registers.read_f()
         )));
-        let bc_row = Row::new().push(text("BC: ")).push(text(&format!(
+        let bc_row = Row::new().push(text("BC: ")).push(text(format!(
             "{:02X} {:02X}",
             cpu.registers.read_b(),
             cpu.registers.read_c()
         )));
-        let de_row = Row::new().push(text("DE: ")).push(text(&format!(
+        let de_row = Row::new().push(text("DE: ")).push(text(format!(
             "{:02X} {:02X}",
             cpu.registers.read_d(),
             cpu.registers.read_e()
         )));
-        let hl_row = Row::new().push(text("HL: ")).push(text(&format!(
+        let hl_row = Row::new().push(text("HL: ")).push(text(format!(
             "{:02X} {:02X}",
             cpu.registers.read_h(),
             cpu.registers.read_l()
         )));
         let flag_row = Row::new()
             .push(text("Flags: "))
-            .push(text(&format!(
+            .push(text(format!(
                 "[Z={}]",
                 cpu.registers.get_flag(Flag::Z) as u8
             )))
-            .push(text(&format!(
+            .push(text(format!(
                 "[N={}]",
                 cpu.registers.get_flag(Flag::N) as u8
             )))
-            .push(text(&format!(
+            .push(text(format!(
                 "[H={}]",
                 cpu.registers.get_flag(Flag::H) as u8
             )))
-            .push(text(&format!(
+            .push(text(format!(
                 "[C={}]",
                 cpu.registers.get_flag(Flag::C) as u8
             )));
 
         let dmg_row = Row::new().push(text(format!("DMG: {}", cpu.memory.is_dmg_boot_rom_on())));
 
+        let mem_row1 = Row::new().push(text(cpu.memory.show_memory_row(0x104)));
+        let mem_row2 = Row::new().push(text(cpu.memory.show_memory_row(0x10C)));
+        let mem_row3 = Row::new().push(text(cpu.memory.show_memory_row(0x114)));
+
         let ly_row = Row::new()
             .push(text("LY: "))
-            .push(text(&format!("{}", self.ppu.read_ly(cpu))));
+            .push(text(format!("{}", self.ppu.read_ly(cpu))));
 
         let register_column = Column::new()
             .push(af_row)
@@ -217,7 +228,10 @@ impl iced::Application for DebuggerWindow {
             .push(hl_row)
             .push(flag_row)
             .push(dmg_row)
-            .push(ly_row);
+            .push(ly_row)
+            .push(mem_row1)
+            .push(mem_row2)
+            .push(mem_row3);
 
         let run_next_instruction_button =
             Button::new("Run next instruction").on_press(Message::RunNextInstruction);
@@ -247,36 +261,34 @@ impl iced::Application for DebuggerWindow {
             .width(400)
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center)
-            .style(container::Appearance::default().with_border(Color::BLACK, 2));
+            .style(|_theme| {
+                container::Style::default().border(Border {
+                    color: Color::BLACK,
+                    width: 2.0,
+                    radius: Radius::default(),
+                })
+            });
         let canvas = Container::new(
-            Image::new(Handle::from_pixels(160, 144, self.ppu.rendered_pixels))
-                .content_fit(iced::ContentFit::Fill)
-                .width(160)
-                .height(144),
+            Image::new(Handle::from_rgba(
+                160,
+                144,
+                Bytes::copy_from_slice(&self.ppu.rendered_pixels),
+            ))
+            .content_fit(iced::ContentFit::Fill)
+            .width(160)
+            .height(144),
         )
         .width(160)
         .height(144)
-        .style(container::Appearance::default().with_border(Color::BLACK, 2));
-        let pixels: Vec<_> = (0..100).collect();
-        let image = Image::new(Handle::from_pixels(10, 10, pixels))
-            .width(10)
-            .height(10);
-        grid = grid.push(grid_row![debugger, canvas, image]);
+        .style(|_theme| Style::default());
+        grid = grid.push(grid_row![debugger, canvas]);
         grid.into()
         // debugger.into()
     }
 }
 
 fn main() -> Result<(), iced::Error> {
-    let mut queue = CircularQueue::with_capacity(CPU_SNAPS_CAPACITY);
-    let mut cpu = CPU::new();
-    cpu.memory
-        .load_boot_rom(String::from("dmg_boot.bin"))
-        .expect("Failed to load boot ROM")
-        .load_rom(String::from(
-            "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
-        ))
-        .expect("Failed to load ROM");
-    queue.push(cpu);
-    DebuggerWindow::run(Settings::with_flags(queue))
+    iced::application("Rustyboi", DebuggerWindow::update, DebuggerWindow::view)
+        .subscription(DebuggerWindow::subscription)
+        .run()
 }

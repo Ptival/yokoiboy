@@ -26,6 +26,15 @@ fn sub_borrows(a: impl Into<u16>, b: impl Into<u16>, bit: u8) -> bool {
     ((bit_mask | (a & input_mask)) - (b & input_mask)) & bit_mask == 0
 }
 
+fn compare(cpu: &mut CPU, a: u8, b: u8) {
+    println!("Comparing {:02X} and {:02X}", a, b);
+    cpu.registers
+        .write_flag(Flag::Z, a == b)
+        .set_flag(Flag::N)
+        .write_flag(Flag::H, sub_borrows(a, b, 4))
+        .write_flag(Flag::C, sub_borrows(a, b, 8));
+}
+
 impl Instruction {
     pub fn execute(self: &Instruction, cpu: &mut CPU) {
         match self {
@@ -52,12 +61,14 @@ impl Instruction {
                 cpu.registers.pc = imm16.as_u16();
             }
             Instruction::CP_A_u8(u8) => {
-                let a = cpu.registers.read_a();
-                cpu.registers
-                    .write_flag(Flag::Z, a == *u8)
-                    .set_flag(Flag::N)
-                    .write_flag(Flag::H, (a & 0x0F) < *u8)
-                    .write_flag(Flag::C, *u8 > a);
+                compare(cpu, cpu.registers.read_a(), *u8);
+            }
+            Instruction::CP_A_mHL => {
+                compare(
+                    cpu,
+                    cpu.registers.read_a(),
+                    cpu.memory.read_u8(cpu.registers.read_r16(&R16::HL)),
+                );
             }
             Instruction::DEC_r8(r8) => {
                 let r8val = cpu.registers.read_r8(r8);
@@ -98,11 +109,11 @@ impl Instruction {
             }
             Instruction::LD__a8__A(u8) => {
                 cpu.memory
-                    .write_u8(0x00FF + *u8 as u16, cpu.registers.read_a());
+                    .write_u8(0xFF00 + *u8 as u16, cpu.registers.read_a());
             }
-            Instruction::LD__C__A => {
+            Instruction::LD_mC_A => {
                 cpu.memory.write_u8(
-                    0x00FF + cpu.registers.read_c() as u16,
+                    0xFF00 + cpu.registers.read_c() as u16,
                     cpu.registers.read_a(),
                 );
             }

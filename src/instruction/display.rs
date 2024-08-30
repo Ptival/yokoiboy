@@ -11,8 +11,14 @@ impl fmt::Display for Instruction {
             Instruction::CALL_a16(imm16) => {
                 write!(f, "CALL 0x{:04X}", imm16.as_u16())
             }
+            Instruction::CP_A_r8(r8) => {
+                write!(f, "CP A, {}", r8)
+            }
             Instruction::CP_A_u8(u8) => {
                 write!(f, "CP A, {:02X} (= {})", u8, u8)
+            }
+            Instruction::CP_A_mHL => {
+                write!(f, "CP A, [HL]")
             }
             Instruction::DEC_r8(r8) => {
                 write!(f, "DEC {}", r8)
@@ -35,7 +41,7 @@ impl fmt::Display for Instruction {
             Instruction::LD__a8__A(u8) => {
                 write!(f, "LD [0x{:04X}], A", 0xFF00 + *u8 as u16)
             }
-            Instruction::LD__C__A => {
+            Instruction::LD_mC_A => {
                 write!(f, "LD [0xFF00 + C], A")
             }
             Instruction::LD_mr16_A(mr16) => {
