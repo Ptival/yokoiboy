@@ -47,8 +47,8 @@ impl Flag {
         match self {
             Flag::Z => 7,
             Flag::N => 6,
-            Flag::C => 5,
-            Flag::H => 4,
+            Flag::H => 5,
+            Flag::C => 4,
         }
     }
 }

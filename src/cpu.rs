@@ -47,4 +47,28 @@ impl CPU {
         self.memory.write_u8(self.registers.sp, imm16.lower_byte);
         self
     }
+
+    pub fn log_string(&self) -> String {
+        let mut res = String::new();
+        res.push_str(&format!("A: {:02X} ", self.registers.read_a()));
+        res.push_str(&format!("F: {:02X} ", self.registers.read_f()));
+        res.push_str(&format!("B: {:02X} ", self.registers.read_b()));
+        res.push_str(&format!("C: {:02X} ", self.registers.read_c()));
+        res.push_str(&format!("D: {:02X} ", self.registers.read_d()));
+        res.push_str(&format!("E: {:02X} ", self.registers.read_e()));
+        res.push_str(&format!("H: {:02X} ", self.registers.read_h()));
+        res.push_str(&format!("L: {:02X} ", self.registers.read_l()));
+        res.push_str(&format!("SP: {:04X} ", self.registers.sp));
+        let pc = self.registers.pc;
+        let mem = &self.memory;
+        res.push_str(&format!("PC: 00:{:04X} ", pc));
+        res.push_str(&format!(
+            "({:02X} {:02X} {:02X} {:02X})",
+            mem.read_u8(pc),
+            mem.read_u8(pc + 1),
+            mem.read_u8(pc + 2),
+            mem.read_u8(pc + 3)
+        ));
+        res
+    }
 }

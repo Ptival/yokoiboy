@@ -155,12 +155,13 @@ impl Instruction {
             }
 
             Instruction::INC_r8(r8) => {
-                let res = cpu.registers.read_r8(r8).wrapping_add(1);
+                let r8val = cpu.registers.read_r8(r8);
+                let res = r8val.wrapping_add(1);
                 cpu.registers
                     .write_r8(r8, res)
                     .write_flag(Flag::Z, res == 0)
                     .unset_flag(Flag::N)
-                    .write_flag(Flag::H, res == 0x10);
+                    .write_flag(Flag::H, add_produces_carry(r8val, 1 as u16, 4));
             }
 
             Instruction::INC_r16(r16) => {

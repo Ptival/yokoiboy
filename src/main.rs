@@ -1,4 +1,9 @@
-use std::{cmp, fmt::Debug};
+use std::{
+    cmp,
+    fmt::Debug,
+    fs::{File, OpenOptions},
+    io::Write,
+};
 
 use circular_queue::CircularQueue;
 use cpu::CPU;
@@ -38,9 +43,10 @@ struct Machine {
     pub ppu: PPU,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct DebuggerWindow {
     pub breakpoints: Vec<u16>,
+    pub output_file: File,
     pub paused: bool,
     pub snaps: CircularQueue<Machine>,
 }
@@ -71,6 +77,11 @@ impl Default for DebuggerWindow {
                 0x00FF, // goal
                         //0x00A3
             ],
+            output_file: OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open("log")
+                .expect("could not create log"),
             paused: false,
             snaps: queue,
         }
@@ -115,13 +126,19 @@ impl DebuggerWindow {
     }
 
     fn step(&mut self, preserve: PreserveHistory) {
+        let current_machine = self.current_machine_immut();
+        if !current_machine.cpu.memory.is_dmg_boot_rom_on() {
+            write!(self.output_file, "{}\n", current_machine.cpu.log_string())
+                .expect("write to log failed");
+        }
+        let current_machine = self.current_machine();
         match preserve {
             PreserveHistory::DontPreserveHistory => {
-                let machine = self.current_machine();
+                let machine = current_machine;
                 DebuggerWindow::step_machine(machine);
             }
             PreserveHistory::PreserveHistory => {
-                let mut next_machine = self.current_machine().clone();
+                let mut next_machine = current_machine.clone();
                 DebuggerWindow::step_machine(&mut next_machine);
                 self.snaps.push(next_machine);
             }
@@ -179,7 +196,7 @@ impl DebuggerWindow {
                 let mut pc = self.current_machine().cpu.registers.pc;
 
                 // Try to run some number of steps before updating the display
-                let mut remaining_steps = 100000;
+                let mut remaining_steps: u32 = 10_000_000;
                 while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc) {
                     remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
