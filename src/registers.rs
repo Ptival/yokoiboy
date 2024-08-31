@@ -61,6 +61,7 @@ pub struct Registers {
     pub hl: u16,
     pub sp: u16,
     pub pc: u16,
+    pub ime: bool,
 }
 
 pub fn u16_from_u8s(higher: u8, lower: u8) -> u16 {
@@ -84,6 +85,7 @@ impl Registers {
             hl: 0,
             sp: 0,
             pc: 0,
+            ime: false,
         }
     }
 

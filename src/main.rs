@@ -27,11 +27,21 @@ pub mod registers;
 
 const CPU_SNAPS_CAPACITY: usize = 5;
 
+enum PreserveHistory {
+    DontPreserveHistory,
+    PreserveHistory,
+}
+
+#[derive(Clone, Debug)]
+struct Machine {
+    pub cpu: CPU,
+    pub ppu: PPU,
+}
+
 #[derive(Clone, Debug)]
 struct DebuggerWindow {
     pub breakpoints: Vec<u16>,
-    pub cpu_snaps: CircularQueue<CPU>,
-    pub ppu: PPU,
+    pub snaps: CircularQueue<Machine>,
 }
 
 impl Default for DebuggerWindow {
@@ -45,7 +55,10 @@ impl Default for DebuggerWindow {
                 "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
             ))
             .expect("Failed to load ROM");
-        queue.push(cpu);
+        queue.push(Machine {
+            cpu,
+            ppu: PPU::new(),
+        });
         Self {
             breakpoints: vec![
                 // 0x000C,
@@ -62,18 +75,24 @@ impl Default for DebuggerWindow {
                 // 0x00FF, // goal
                 //0x00A3
             ],
-            cpu_snaps: queue,
-            ppu: PPU::new(),
+            snaps: queue,
         }
     }
 }
 
 impl DebuggerWindow {
-    pub fn current_cpu(self: &Self) -> &CPU {
-        self.cpu_snaps
+    pub fn current_machine(self: &mut Self) -> &mut Machine {
+        self.snaps
+            .iter_mut()
+            .next()
+            .expect("current_machine: no machine")
+    }
+
+    pub fn current_machine_immut(self: &Self) -> &Machine {
+        self.snaps
             .iter()
             .next()
-            .expect("Current CPU expected a CPU snapshot.")
+            .expect("current_machine_immut: no machine")
     }
 
     pub fn display_breakpoint(self: &Self, address: u16) -> String {
@@ -84,18 +103,32 @@ impl DebuggerWindow {
         })
     }
 
-    fn step(&mut self) {
+    fn step_machine<'a>(machine: &'a mut Machine) -> &'a mut Machine {
         // Arbitrarily stepping the CPU then the PPU
-        let mut next_cpu = self.current_cpu().execute_one_instruction().expect("sad");
-        self.ppu.step(&mut next_cpu);
+        machine.cpu.execute_one_instruction().expect("sad");
+        machine.ppu.step(&mut machine.cpu); // FIXME: make this part of a machine
 
-        if next_cpu.memory.read_u8(0xFF02) == 0x81 {
-            let char = next_cpu.memory.read_u8(0xFF01);
+        if machine.cpu.memory.read_u8(0xFF02) == 0x81 {
+            let char = machine.cpu.memory.read_u8(0xFF01);
             print!("{}", char);
-            next_cpu.memory.write_u8(0xFF02, 0x01);
+            machine.cpu.memory.write_u8(0xFF02, 0x01);
         }
 
-        self.cpu_snaps.push(next_cpu);
+        machine
+    }
+
+    fn step(&mut self, preserve: PreserveHistory) {
+        match preserve {
+            PreserveHistory::DontPreserveHistory => {
+                let machine = self.current_machine();
+                DebuggerWindow::step_machine(machine);
+            }
+            PreserveHistory::PreserveHistory => {
+                let mut next_machine = self.current_machine().clone();
+                DebuggerWindow::step_machine(&mut next_machine);
+                self.snaps.push(next_machine);
+            }
+        }
     }
 }
 
@@ -108,6 +141,7 @@ enum Message {
 impl DebuggerWindow {
     fn subscription(&self) -> iced::Subscription<Message> {
         keyboard::on_key_press(|k, _m| match k {
+            Key::Named(Named::ArrowDown) => Some(Message::RunUntilBreakpoint),
             Key::Named(Named::ArrowRight) => Some(Message::RunNextInstruction),
             _ => None,
         })
@@ -116,21 +150,25 @@ impl DebuggerWindow {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::RunNextInstruction => {
+                let machine = self.current_machine();
                 for r in 0..160 {
                     for c in 0..144 {
-                        self.ppu.rendered_pixels[(r * 144 + c) * 4] = rand::random();
-                        self.ppu.rendered_pixels[(r * 144 + c) * 4 + 1] = rand::random();
-                        self.ppu.rendered_pixels[(r * 144 + c) * 4 + 2] = rand::random();
-                        self.ppu.rendered_pixels[(r * 144 + c) * 4 + 3] = 255
+                        machine.ppu.rendered_pixels[(r * 144 + c) * 4] = rand::random();
+                        machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 1] = rand::random();
+                        machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 2] = rand::random();
+                        machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 3] = 255
                     }
                 }
-                self.step();
+                self.step(PreserveHistory::PreserveHistory);
                 Task::none()
             }
             Message::RunUntilBreakpoint => {
-                self.step();
-                while !self.breakpoints.contains(&self.current_cpu().registers.pc) {
-                    self.step()
+                // make sure to step at least once! :D
+                self.step(PreserveHistory::DontPreserveHistory);
+                let mut pc = self.current_machine().cpu.registers.pc;
+                while !self.breakpoints.contains(&pc) {
+                    self.step(PreserveHistory::DontPreserveHistory);
+                    pc = self.current_machine().cpu.registers.pc;
                 }
                 Task::none()
             }
@@ -139,11 +177,12 @@ impl DebuggerWindow {
 
     fn view(&self) -> iced::Element<'_, Message> {
         let mut instructions_grid = Grid::new().column_spacing(5);
-        let history_size = self.cpu_snaps.len() - 1;
-        for old in self.cpu_snaps.asc_iter().take(history_size) {
+        let history_size = self.snaps.len() - 1;
+        for old in self.snaps.asc_iter().take(history_size) {
             let instr = old
+                .cpu
                 .memory
-                .decode_instruction_at(old.registers.pc)
+                .decode_instruction_at(old.cpu.registers.pc)
                 .expect("womp");
             instructions_grid = instructions_grid.push(grid_row![
                 text(self.display_breakpoint(instr.address)),
@@ -154,7 +193,8 @@ impl DebuggerWindow {
             ]);
         }
 
-        let cpu = self.current_cpu();
+        let machine = self.current_machine_immut();
+        let cpu = &machine.cpu;
         let pc = cpu.registers.pc;
         let instrs = cpu.memory.decode_instructions_at(pc, 10).expect("womp");
         instructions_grid = instructions_grid.push(grid_row![
@@ -221,7 +261,7 @@ impl DebuggerWindow {
 
         let ly_row = Row::new()
             .push(text("LY: "))
-            .push(text(format!("{}", self.ppu.read_ly(cpu))));
+            .push(text(format!("{}", machine.ppu.read_ly(&cpu))));
 
         let register_column = Column::new()
             .push(af_row)
@@ -274,7 +314,7 @@ impl DebuggerWindow {
             Image::new(Handle::from_rgba(
                 160,
                 144,
-                Bytes::copy_from_slice(&self.ppu.rendered_pixels),
+                Bytes::copy_from_slice(&machine.ppu.rendered_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .width(160)

@@ -18,13 +18,12 @@ impl CPU {
         }
     }
 
-    pub fn execute_one_instruction(&self) -> Result<CPU, String> {
-        let mut cpu = self.clone();
-        let next_instruction = decode_instruction_at_address(&cpu.memory, cpu.registers.pc)?;
+    pub fn execute_one_instruction(&mut self) -> Result<&mut Self, String> {
+        let next_instruction = decode_instruction_at_address(&self.memory, self.registers.pc)?;
         // This will be the default PC, unless instruction semantics overwrite it
-        cpu.registers.pc = cpu.registers.pc + next_instruction.instruction_size as u16;
-        next_instruction.instruction.execute(&mut cpu);
-        Ok(cpu)
+        self.registers.pc = self.registers.pc + next_instruction.instruction_size as u16;
+        next_instruction.instruction.execute(self);
+        Ok(self)
     }
 
     pub fn pop_r16(&mut self, r16: &R16) -> &Self {

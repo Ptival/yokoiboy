@@ -39,7 +39,7 @@ impl fmt::Display for Instruction {
                 write!(f, "JR {}, {}", cc, i8)
             }
             Instruction::LD_A_mu8(u8) => {
-                write!(f, "LD A, [{:04X}]", 0xFF00 + *u8 as u16)
+                write!(f, "LD A, [0x{:04X}]", 0xFF00 + *u8 as u16)
             }
             Instruction::LD__a8__A(u8) => {
                 write!(f, "LD [0x{:04X}], A", 0xFF00 + *u8 as u16)
@@ -48,7 +48,7 @@ impl fmt::Display for Instruction {
                 write!(f, "LD [0xFF00 + C], A")
             }
             Instruction::LD_mr16_A(mr16) => {
-                write!(f, "LD [0x{:04X}] A", mr16.as_u16())
+                write!(f, "LD [{}] A", mr16)
             }
             Instruction::LD_mr16_r8(mr16, r8) => {
                 write!(f, "LD [{}] {}", mr16, r8)
@@ -95,9 +95,6 @@ impl fmt::Display for Instruction {
             Instruction::XOR_r8(r8) => {
                 write!(f, "XOR {}", r8)
             }
-            Instruction::IllegalOrTODO(opcode) => {
-                write!(f, "TODO: {:02X}", opcode)
-            }
             Instruction::ADC_A_r8(r8) => {
                 write!(f, "ADC A, {}", r8)
             }
@@ -126,7 +123,7 @@ impl fmt::Display for Instruction {
                 write!(f, "JR {:02X}", i8)
             }
             Instruction::LD_mu16_SP(imm16) => {
-                write!(f, "LD [{:04X}] SP", imm16.as_u16())
+                write!(f, "LD [0x{:04X}] SP", imm16.as_u16())
             }
             Instruction::LD_H_mHL => {
                 write!(f, "LD H, [HL]")
@@ -157,6 +154,18 @@ impl fmt::Display for Instruction {
             }
             Instruction::SBC_A_C => {
                 write!(f, "SBC A, C")
+            }
+            Instruction::LD_A_mHLinc => {
+                write!(f, "LD A [HL+]")
+            }
+            Instruction::LD_mu16_A(imm16) => {
+                write!(f, "LD [0x{:04X}], A", imm16.as_u16())
+            }
+            Instruction::DI => {
+                write!(f, "DI")
+            }
+            Instruction::LD_mu8_A(u8) => {
+                write!(f, "LD [{:04X}], A", 0xFF00 + *u8 as u16)
             }
         }
     }
