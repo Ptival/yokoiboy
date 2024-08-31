@@ -72,7 +72,7 @@ fn call(cpu: &mut CPU, address: u16) {
 }
 
 impl Instruction {
-    pub fn execute(self: &Instruction, cpu: &mut CPU) {
+    pub fn execute(self: &Instruction, cpu: &mut CPU) -> (u8, u8) {
         match self {
             Instruction::ADC_A_r8(_) => todo!(),
 
@@ -84,20 +84,24 @@ impl Instruction {
                     cpu.registers.read_a(),
                     cpu.memory.read_u8(cpu.registers.hl),
                 );
+                (8, 2)
             }
 
             Instruction::ADD_A_r8(r8) => {
                 add(cpu, cpu.registers.read_a(), cpu.registers.read_r8(r8));
+                (4, 1)
             }
 
             Instruction::ADD_A_u8(u8) => {
                 add(cpu, cpu.registers.read_a(), *u8);
+                (8, 2)
             }
 
             Instruction::AND_L => todo!(),
 
             Instruction::AND_u8(u8) => {
                 and(cpu, cpu.registers.read_a(), *u8);
+                (8, 2)
             }
 
             Instruction::BIT_u3_r8(bit, reg) => {
@@ -105,15 +109,20 @@ impl Instruction {
                     .write_flag(Flag::Z, !cpu.registers.get_bit(reg, bit))
                     .unset_flag(Flag::N)
                     .set_flag(Flag::H);
+                (8, 2)
             }
 
             Instruction::CALL_a16(imm16) => {
                 call(cpu, imm16.as_u16());
+                (24, 6)
             }
 
             Instruction::CALL_cc_u16(cc, imm16) => {
                 if cc.holds(cpu) {
                     call(cpu, imm16.as_u16());
+                    (24, 6)
+                } else {
+                    (12, 3)
                 }
             }
 
@@ -123,6 +132,7 @@ impl Instruction {
 
             Instruction::CP_A_u8(u8) => {
                 compare(cpu, cpu.registers.read_a(), *u8);
+                (8, 2)
             }
 
             Instruction::CP_A_mHL => {
@@ -131,6 +141,7 @@ impl Instruction {
                     cpu.registers.read_a(),
                     cpu.memory.read_u8(cpu.registers.read_r16(&R16::HL)),
                 );
+                (8, 2)
             }
 
             Instruction::DEC_r8(r8) => {
@@ -141,17 +152,20 @@ impl Instruction {
                     .write_flag(Flag::Z, res == 0)
                     .set_flag(Flag::N)
                     .write_flag(Flag::H, sub_borrows(r8val, 1 as u8, 4));
+                (4, 1)
             }
 
             Instruction::DEC_r16(_) => todo!(),
 
             Instruction::DI => {
                 cpu.registers.ime = false;
+                (4, 1)
             }
 
             Instruction::EI => {
                 // FIXME: This should apparently be delayed until the next instruction has finished.
                 cpu.registers.ime = true;
+                (4, 1)
             }
 
             Instruction::INC_r8(r8) => {
@@ -162,17 +176,20 @@ impl Instruction {
                     .write_flag(Flag::Z, res == 0)
                     .unset_flag(Flag::N)
                     .write_flag(Flag::H, add_produces_carry(r8val, 1 as u16, 4));
+                (4, 1)
             }
 
             Instruction::INC_r16(r16) => {
                 let res = cpu.registers.read_r16(r16).wrapping_add(1);
                 cpu.registers.write_r16(r16, res);
+                (8, 2)
             }
 
             Instruction::JR_r8(_) => todo!(),
 
             Instruction::JP_u16(imm16) => {
                 cpu.registers.pc = imm16.as_u16();
+                (16, 4)
             }
 
             Instruction::JR_i8(i8) => {
@@ -181,6 +198,7 @@ impl Instruction {
                     .pc
                     .checked_add_signed(*i8 as i16)
                     .expect("JR_i8 overflowed");
+                (12, 3)
             }
 
             Instruction::JR_cc_i8(cc, i8) => {
@@ -189,22 +207,28 @@ impl Instruction {
                         .registers
                         .pc
                         .checked_add_signed(*i8 as i16)
-                        .expect("JR_cc_i8 overflowed")
+                        .expect("JR_cc_i8 overflowed");
+                    (12, 3)
+                } else {
+                    (8, 2)
                 }
             }
 
             Instruction::LD_A_mHLinc => {
                 cpu.registers.write_a(cpu.memory.read_u8(cpu.registers.hl));
                 cpu.registers.hl += 1;
+                (8, 2)
             }
 
-            Instruction::LD__a8__A(u8) => {
+            Instruction::LD_FFu8_A(u8) => {
                 cpu.memory
                     .write_u8(0xFF00 + *u8 as u16, cpu.registers.read_a());
+                (12, 3)
             }
 
             Instruction::LD_mu16_A(imm16) => {
                 cpu.memory.write_u8(imm16.as_u16(), cpu.registers.read_a());
+                (16, 4)
             }
 
             Instruction::LD_mu16_SP(imm16) => {
@@ -212,97 +236,106 @@ impl Instruction {
                 let address = imm16.as_u16();
                 cpu.memory.write_u8(address, sp.lower_byte);
                 cpu.memory.write_u8(address + 1, sp.higher_byte);
+                (20, 5)
             }
 
             Instruction::LD_H_mHL => todo!(),
 
             Instruction::LD_L_mHL => todo!(),
 
-            Instruction::LD_mC_A => {
+            Instruction::LD_FFC_A => {
                 cpu.memory.write_u8(
                     0xFF00 + cpu.registers.read_c() as u16,
                     cpu.registers.read_a(),
                 );
+                (8, 2)
             }
 
             Instruction::LD_r8_r8(r8a, r8b) => {
                 cpu.registers.write_r8(r8a, cpu.registers.read_r8(r8b));
+                (4, 1)
             }
 
             Instruction::LD_r16_d16(r16, imm16) => {
                 cpu.registers.write_r16(r16, imm16.as_u16());
-            }
-
-            Instruction::LD_mr16_A(mr16) => {
-                cpu.memory
-                    .write_u8(cpu.registers.read_r16(mr16), cpu.registers.read_a());
+                (12, 3)
             }
 
             Instruction::LD_mr16_r8(mr16, r8) => {
                 cpu.memory
                     .write_u8(cpu.registers.read_r16(mr16), cpu.registers.read_r8(r8));
+                (8, 2)
             }
 
             Instruction::LD_mHLdec_A => {
                 cpu.memory
                     .write_u8(cpu.registers.hl, cpu.registers.read_a());
                 cpu.registers.hl -= 1;
+                (8, 2)
             }
 
             Instruction::LD_mHLinc_A => {
                 cpu.memory
                     .write_u8(cpu.registers.hl, cpu.registers.read_a());
                 cpu.registers.hl += 1;
+                (8, 2)
             }
 
-            Instruction::LD_A_mu8(u8) => {
+            Instruction::LD_A_FFu8(u8) => {
                 cpu.registers
                     .write_a(cpu.memory.read_u8(0xFF00 + *u8 as u16));
+                (12, 3)
             }
 
-            Instruction::LD_A_mru16(imm16) => {
+            Instruction::LD_A_mu16(imm16) => {
                 cpu.registers.write_a(cpu.memory.read_u8(imm16.as_u16()));
-            }
-
-            Instruction::LD_mu8_A(u8) => {
-                cpu.memory
-                    .write_u8(0xFF00 + *u8 as u16, cpu.registers.read_a());
+                (16, 4)
             }
 
             Instruction::LD_r8_u8(r8, u8) => {
                 cpu.registers.write_r8(r8, *u8);
+                (8, 2)
             }
 
             Instruction::LD_r8_mr16(r8, r16) => {
                 cpu.registers
                     .write_r8(r8, cpu.memory.read_u8(cpu.registers.read_r16(r16)));
+                (8, 2)
             }
 
-            Instruction::LD_SP_A(imm) => {
-                cpu.registers.sp = imm.as_u16();
+            Instruction::LD_SP_u16(imm16) => {
+                cpu.registers.sp = imm16.as_u16();
+                (12, 3)
             }
 
-            Instruction::NOP => {}
+            Instruction::NOP => (4, 1),
 
             Instruction::OR_r8(r8) => {
                 or(cpu, cpu.registers.read_a(), cpu.registers.read_r8(r8));
+                (8, 2)
             }
 
             Instruction::POP_r16(r16) => {
                 cpu.pop_r16(r16);
+                (12, 3)
             }
 
             Instruction::PUSH_r16(r16) => {
                 cpu.push_imm16(Immediate16::from_u16(cpu.registers.read_r16(r16)));
+                (16, 4)
             }
 
             Instruction::RET => {
                 cpu.pop_r16(&R16::PC);
+                (16, 4)
             }
 
             Instruction::RET_C => {
                 if Condition::C.holds(cpu) {
                     cpu.pop_r16(&R16::PC);
+                    (20, 5)
+                } else {
+                    (8, 2)
                 }
             }
 
@@ -317,6 +350,7 @@ impl Instruction {
                     .unset_flag(Flag::N)
                     .unset_flag(Flag::H)
                     .write_flag(Flag::C, (result_u16 & 0xFF00) != 0);
+                (4, 1)
             }
 
             Instruction::RL_r8(r8) => {
@@ -330,9 +364,10 @@ impl Instruction {
                     .unset_flag(Flag::N)
                     .unset_flag(Flag::H)
                     .write_flag(Flag::C, (result_u16 & 0xFF00) != 0);
+                (8, 2)
             }
 
-            Instruction::SUB_r8(r8) => {
+            Instruction::SUB_A_r8(r8) => {
                 let a = cpu.registers.read_a();
                 let r8 = cpu.registers.read_r8(r8);
                 let res = a.wrapping_sub(r8);
@@ -342,6 +377,7 @@ impl Instruction {
                     .set_flag(Flag::N)
                     .write_flag(Flag::H, sub_borrows(a, r8, 4))
                     .write_flag(Flag::C, sub_borrows(a, r8, 8));
+                (4, 1)
             }
 
             Instruction::XOR_r8(r8) => {
@@ -352,7 +388,9 @@ impl Instruction {
                     .unset_flag(Flag::N)
                     .unset_flag(Flag::H)
                     .unset_flag(Flag::C);
+                (4, 1)
             }
+
             Instruction::Prefix => todo!(),
 
             Instruction::RET_cc(_) => todo!(),
@@ -362,6 +400,6 @@ impl Instruction {
             Instruction::SBC_A_A => todo!(),
 
             Instruction::SBC_A_C => todo!(),
-        };
+        }
     }
 }

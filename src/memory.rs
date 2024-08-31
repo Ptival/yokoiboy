@@ -82,8 +82,8 @@ impl Memory {
     }
 
     pub fn write_u8(&mut self, address: u16, value: u8) -> &Self {
-        if 0x104 <= address && address <= 0x133 {
-            println!("BAD!!!");
+        if address == 0xFF01 || address == 0xFF02 {
+            println!("Writing {:02X} at {:04X}", value, address)
         }
         self.raw[address as usize] = value;
         self

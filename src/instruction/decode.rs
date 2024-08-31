@@ -18,7 +18,7 @@ pub struct DecodedInstruction {
 
 impl fmt::Display for DecodedInstruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:04X}: {}", self.address, self.instruction)
+        write!(f, "{}", self.as_string())
     }
 }
 
@@ -42,7 +42,7 @@ pub fn decode_instruction_at_address(
             Instruction::LD_r16_d16(R16::BC, Immediate16::from_memory(mem, address + 1)),
             3,
         ),
-        0x02 => (Instruction::LD_mr16_A(R16::BC), 1),
+        0x02 => (Instruction::LD_mr16_r8(R16::BC, R8::A), 1),
         0x03 => (Instruction::INC_r16(R16::BC), 1),
         0x04 => (Instruction::INC_r8(R8::B), 1),
         0x05 => (Instruction::DEC_r8(R8::B), 1),
@@ -60,7 +60,7 @@ pub fn decode_instruction_at_address(
             Instruction::LD_r16_d16(R16::DE, Immediate16::from_memory(mem, address + 1)),
             3,
         ),
-        0x12 => (Instruction::LD_mr16_A(R16::DE), 1),
+        0x12 => (Instruction::LD_mr16_r8(R16::DE, R8::A), 1),
         0x13 => (Instruction::INC_r16(R16::DE), 1),
         0x14 => (Instruction::INC_r8(R8::D), 1),
         0x15 => (Instruction::DEC_r8(R8::D), 1),
@@ -101,7 +101,7 @@ pub fn decode_instruction_at_address(
             2,
         ),
         0x31 => (
-            Instruction::LD_SP_A(Immediate16::from_memory(mem, address + 1)),
+            Instruction::LD_SP_u16(Immediate16::from_memory(mem, address + 1)),
             3,
         ),
         0x32 => (Instruction::LD_mHLdec_A, 1),
@@ -177,7 +177,7 @@ pub fn decode_instruction_at_address(
         0x88 => (Instruction::ADC_A_r8(R8::B), 1),
         0x89 => (Instruction::ADC_A_r8(R8::C), 1),
 
-        0x90 => (Instruction::SUB_r8(R8::B), 1),
+        0x90 => (Instruction::SUB_A_r8(R8::B), 1),
         0x99 => (Instruction::SBC_A_C, 1),
         0x9F => (Instruction::SBC_A_A, 1),
 
@@ -246,9 +246,9 @@ pub fn decode_instruction_at_address(
         0xD8 => (Instruction::RET_C, 1),
         0xD9 => (Instruction::RETI, 1),
 
-        0xE0 => (Instruction::LD__a8__A(mem.read_u8(address + 1)), 2),
+        0xE0 => (Instruction::LD_FFu8_A(mem.read_u8(address + 1)), 2),
         0xE1 => (Instruction::POP_r16(R16::HL), 1),
-        0xE2 => (Instruction::LD_mC_A, 1),
+        0xE2 => (Instruction::LD_FFC_A, 1),
         0xE5 => (Instruction::PUSH_r16(R16::HL), 1),
         0xE6 => (Instruction::AND_u8(mem.read_u8(address + 1)), 2),
         0xEA => (
@@ -256,13 +256,13 @@ pub fn decode_instruction_at_address(
             3,
         ),
 
-        0xF0 => (Instruction::LD_A_mu8(mem.read_u8(address + 1)), 2),
+        0xF0 => (Instruction::LD_A_FFu8(mem.read_u8(address + 1)), 2),
         0xF1 => (Instruction::POP_r16(R16::AF), 1),
         0xF3 => (Instruction::DI, 1),
         0xF5 => (Instruction::PUSH_r16(R16::AF), 1),
         0xFB => (Instruction::EI, 1),
         0xFA => (
-            Instruction::LD_A_mru16(Immediate16::from_memory(mem, address + 1)),
+            Instruction::LD_A_mu16(Immediate16::from_memory(mem, address + 1)),
             3,
         ),
         0xFE => (Instruction::CP_A_u8(mem.read_u8(address + 1)), 2),

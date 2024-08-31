@@ -29,6 +29,7 @@ pub mod instruction;
 pub mod memory;
 pub mod ppu;
 pub mod registers;
+pub mod timer;
 
 const CPU_SNAPS_CAPACITY: usize = 5;
 
@@ -69,9 +70,9 @@ impl Default for DebuggerWindow {
         Self {
             breakpoints: vec![
                 // 0x00F1, // passed logo check
-                // 0x00FC, // passed header checksum check
-                0x00FF, // goal
-                0xC738,
+                0x00FC, // passed header checksum check
+                0x0100, // goal
+                // 0xC738,
             ],
             output_file: OpenOptions::new()
                 .write(true)
@@ -109,8 +110,8 @@ impl DebuggerWindow {
 
     fn step_machine<'a>(machine: &'a mut Machine) -> &'a mut Machine {
         // Arbitrarily stepping the CPU then the PPU
-        machine.cpu.execute_one_instruction().expect("sad");
-        machine.ppu.step(&mut machine.cpu); // FIXME: make this part of a machine
+        let (t_cycles, _) = machine.cpu.execute_one_instruction().expect("sad");
+        machine.ppu.step_t_cycles(&mut machine.cpu, t_cycles); // FIXME: make this part of a machine
 
         if machine.cpu.memory.read_u8(0xFF02) == 0x81 {
             let char = machine.cpu.memory.read_u8(0xFF01);
@@ -168,15 +169,15 @@ impl DebuggerWindow {
             }
 
             Message::RunNextInstruction => {
-                let machine = self.current_machine();
-                for r in 0..160 {
-                    for c in 0..144 {
-                        machine.ppu.rendered_pixels[(r * 144 + c) * 4] = rand::random();
-                        machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 1] = rand::random();
-                        machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 2] = rand::random();
-                        machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 3] = 255
-                    }
-                }
+                // let machine = self.current_machine();
+                // for r in 0..160 {
+                //     for c in 0..144 {
+                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4] = rand::random();
+                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 1] = rand::random();
+                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 2] = rand::random();
+                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 3] = 255
+                //     }
+                // }
                 self.step(PreserveHistory::PreserveHistory);
                 Task::none()
             }
@@ -192,7 +193,7 @@ impl DebuggerWindow {
                 let mut pc = self.current_machine().cpu.registers.pc;
 
                 // Try to run some number of steps before updating the display
-                let mut remaining_steps: u32 = 10_000_000;
+                let mut remaining_steps: u32 = 1_000_000;
                 while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc) {
                     remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
@@ -200,6 +201,7 @@ impl DebuggerWindow {
                 }
 
                 if remaining_steps == 0 {
+                    println!("Ran 1 million instructions");
                     Task::done(Message::ContinueRunUntilBreakpoint)
                 } else {
                     Task::none()
@@ -222,7 +224,7 @@ impl DebuggerWindow {
                 text(""),
                 text(format!("{:04X}", instr.address)),
                 text(format!("{}", instr.display_raw())),
-                text(format!("{}", instr.instruction))
+                text(format!("{}", instr))
             ]);
         }
 
@@ -235,7 +237,7 @@ impl DebuggerWindow {
             text("→"),
             text(format!("{:04X}", instrs[0].address)),
             text(format!("{}", instrs[0].display_raw())),
-            text(format!("{}", instrs[0].instruction))
+            text(format!("{}", instrs[0]))
         ]);
         for instr in instrs.iter().skip(1) {
             instructions_grid = instructions_grid.push(grid_row![
@@ -243,7 +245,7 @@ impl DebuggerWindow {
                 text(""),
                 text(format!("{:04X}", instr.address)),
                 text(format!("{}", instr.display_raw())),
-                text(format!("{}", instr.instruction))
+                text(format!("{}", instr))
             ]);
         }
 

@@ -18,12 +18,11 @@ impl CPU {
         }
     }
 
-    pub fn execute_one_instruction(&mut self) -> Result<&mut Self, String> {
+    pub fn execute_one_instruction(&mut self) -> Result<(u8, u8), String> {
         let next_instruction = decode_instruction_at_address(&self.memory, self.registers.pc)?;
         // This will be the default PC, unless instruction semantics overwrite it
         self.registers.pc = self.registers.pc + next_instruction.instruction_size as u16;
-        next_instruction.instruction.execute(self);
-        Ok(self)
+        Ok(next_instruction.instruction.execute(self))
     }
 
     pub fn pop_r16(&mut self, r16: &R16) -> &Self {
