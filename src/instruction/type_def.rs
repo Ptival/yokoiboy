@@ -1,6 +1,6 @@
 use crate::{
     conditions::Condition,
-    memory::Memory,
+    machine::Machine,
     registers::{R16, R8},
 };
 
@@ -23,10 +23,10 @@ impl Immediate16 {
     }
 
     // In ROM, immediate 16-bit values are stored lower-byte-first.
-    pub fn from_memory(mem: &Memory, address: u16) -> Immediate16 {
+    pub fn from_memory(machine: &Machine, address: u16) -> Immediate16 {
         Immediate16 {
-            lower_byte: mem.read_u8(address),
-            higher_byte: mem.read_u8(address + 1),
+            lower_byte: machine.read_u8(address),
+            higher_byte: machine.read_u8(address + 1),
         }
     }
 }

@@ -1,36 +1,46 @@
-use std::io::{self, Error};
+use std::{
+    cmp::min,
+    io::{self, Error},
+};
 
-use crate::instruction::decode::{decode_instruction_at_address, DecodedInstruction};
+use crate::{
+    instruction::decode::{decode_instruction_at_address, DecodedInstruction},
+    machine::Machine,
+};
+
+const BANK_SIZE: usize = 0x4000;
+const HRAM_SIZE: usize = 0x7F;
 
 #[derive(Clone, Debug, Hash)]
 pub struct Memory {
     boot_rom: [u8; 0xFF + 1],
     // DO NOT MAKE PUBLIC: we want readers to go through read_u8 to simulate DMG boot
-    raw: [u8; 0xFFFF + 1],
+    bank_00: [u8; BANK_SIZE],
+    bank_01: [u8; BANK_SIZE],
+    hram: [u8; HRAM_SIZE],
 }
 
 impl Memory {
-    pub fn decode_instruction_at(self: &Self, address: u16) -> Result<DecodedInstruction, String> {
-        decode_instruction_at_address(&self, address)
+    pub fn decode_instruction_at(
+        machine: &Machine,
+        address: u16,
+    ) -> Result<DecodedInstruction, String> {
+        decode_instruction_at_address(machine, address)
     }
 
     pub fn decode_instructions_at(
-        self: &Self,
+        machine: &Machine,
         address: u16,
         how_many: u8,
     ) -> Result<Vec<DecodedInstruction>, String> {
         let mut res = Vec::new();
         let mut pc = address;
         for _ in 0..how_many {
-            let instr = decode_instruction_at_address(&self, pc)?;
+            let instr = decode_instruction_at_address(machine, pc)?;
             pc = pc + instr.instruction_size as u16;
             res.push(instr);
         }
         Ok(res)
-    }
-
-    pub fn is_dmg_boot_rom_on(&self) -> bool {
-        self.read_u8(0xFF50) == 0
     }
 
     pub fn load_boot_rom(&mut self, path: String) -> Result<&mut Self, io::Error> {
@@ -48,68 +58,101 @@ impl Memory {
     pub fn load_rom(self: &mut Self, path: String) -> Result<&mut Self, io::Error> {
         let bytes = std::fs::read(path)?;
         let byte_length = bytes.len();
-        self.raw[0..byte_length].clone_from_slice(&bytes);
+        if byte_length > 0x8000 {
+            panic!("Loading ROM larger than 0x8000 bytes not supported.");
+        }
+        println!("ROM byte length: {:08X}", byte_length);
+        self.bank_00[0..min(BANK_SIZE, byte_length)].clone_from_slice(&bytes[..BANK_SIZE]);
+        self.bank_01[0..(byte_length - BANK_SIZE)].clone_from_slice(&bytes[BANK_SIZE..]);
         Ok(self)
     }
 
     pub fn new() -> Self {
         Memory {
             boot_rom: [0; 0xFF + 1],
-            raw: [0; 0xFFFF + 1],
+            bank_00: [0; BANK_SIZE],
+            bank_01: [0; BANK_SIZE],
+            hram: [0; HRAM_SIZE],
         }
     }
 
-    pub fn read_u8(&self, address: u16) -> u8 {
-        if address <= 0xFF {
-            if self.is_dmg_boot_rom_on() {
-                return self.boot_rom[address as usize];
-            }
-        }
-        self.raw[address as usize]
+    pub fn read_boot_rom(&self, address: u16) -> u8 {
+        self.boot_rom[address as usize]
     }
 
-    pub fn read_slice(&self, address: u16, size: usize) -> &[u8] {
-        let address = address as usize;
-        if self.is_dmg_boot_rom_on() {
-            if address <= 0xFF && (address + size - 1) > 0xFF {
-                panic!("Cannot return a slice overlapping the DMG boot ROM and the main memory")
-            }
-            if address + size <= 0xFF {
-                return &self.boot_rom[address..address + size];
-            }
-        }
-        &self.raw[address..address + size]
+    pub fn read_bank_00(&self, address: u16) -> u8 {
+        self.bank_00[address as usize]
     }
 
-    pub fn write_u8(&mut self, address: u16, value: u8) -> &Self {
-        if address == 0xFF01 || address == 0xFF02 {
-            println!("Writing {:02X} at {:04X}", value, address)
-        }
-        self.raw[address as usize] = value;
-        self
+    pub fn read_bank_01(&self, address: u16) -> u8 {
+        self.bank_01[address as usize]
     }
 
-    // Note: So far I used this for CALL, where the **higher** byte of the return address goes to
-    // the **higher** address!
-    // pub fn write_imm16(&mut self, address: u16, value: Immediate16) -> &Self {
-    //     let address = address as usize;
-    //     self.raw[address + 1] = value.higher_byte;
-    //     self.raw[address] = value.lower_byte;
-    //     self
+    pub fn read_hram(&self, address: u16) -> u8 {
+        self.hram[address as usize]
+    }
+
+    // fn rread_u8(machine: &Machine, address: u16) -> u8 {
+    //     let mem = &machine.cpu.memory;
+    //     if address <= 0xFF && machine.is_dmg_boot_rom_on() {
+    //         mem.read_boot_rom(address);
+    //     }
+    //     match address as usize {
+    //         0x0000..=0x3FFF => mem.read_bank_00(address),
+    //         0x4000..=0x7FFF => mem.read_bank_01(address - 0x4000),
+    //         0xFF80..=0xFFFE => mem.read_hram(address - 0xFF80),
+    //         _ => {
+    //             panic!(
+    //                 "Memory was asked to read address {:04X} outside its range",
+    //                 address
+    //             )
+    //         }
+    //     }
     // }
 
-    pub fn show_memory_row(&self, from: u16) -> String {
-        if from as usize + 7 >= self.raw.len() {
-            return String::from("TODO"); // We can still display a bit
-        }
-        let slice = self.read_slice(from, 8);
-        format!(
-            "{:04x}: {:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
-            from, slice[0], slice[1], slice[2], slice[3], slice[4], slice[5], slice[6], slice[7]
-        )
-    }
-}
+    // pub fn read_range(&self, machine: &Machine, address: u16, size: usize) -> Vec<u8> {
+    //     let mut res = Vec::new();
+    //     for a in address..address.saturating_add(size as u16) {
+    //         res.push(machine.read_u8(a));
+    //     }
+    //     res
+    // }
 
-pub fn read_u16(m: &[u8]) -> u16 {
-    (m[0] as u16) << 8 | m[1] as u16
+    pub fn write_u8(machine: &mut Machine, address: u16, value: u8) -> &mut Machine {
+        if address <= 0xFF {
+            if machine.is_dmg_boot_rom_on() {
+                panic!("Program is attempting to write in DMG boot ROM")
+            }
+        }
+        match address as usize {
+            0x0000..=0x3FFF => {
+                machine.cpu.memory.bank_00[address as usize] = value;
+            }
+            0x4000..=0x7FFF => {
+                machine.cpu.memory.bank_01[(address - 0x4000) as usize];
+            }
+            0xFF80..=0xFFFE => {
+                machine.cpu.memory.hram[(address - 0xFF80) as usize];
+            }
+            _ => {
+                panic!(
+                    "Memory was asked to write address {:04X} outside its range",
+                    address
+                )
+            }
+        }
+        machine
+    }
+
+    pub fn write_bank_00(machine: &mut Machine, address: u16, value: u8) {
+        machine.cpu.memory.bank_00[address as usize] = value;
+    }
+
+    pub fn write_bank_01(machine: &mut Machine, address: u16, value: u8) {
+        machine.cpu.memory.bank_01[address as usize] = value;
+    }
+
+    pub fn write_hram(machine: &mut Machine, address: u16, value: u8) {
+        machine.cpu.memory.hram[address as usize] = value;
+    }
 }

@@ -1,5 +1,5 @@
 use std::{
-    cmp,
+    cmp::min,
     fmt::Debug,
     fs::{File, OpenOptions},
     io::Write,
@@ -9,23 +9,29 @@ use circular_queue::CircularQueue;
 use cpu::CPU;
 use iced::{
     self,
-    advanced::image::{Bytes, Handle},
-    alignment,
+    advanced::{
+        graphics::core::font,
+        image::{Bytes, Handle},
+    },
+    alignment::{self, Horizontal},
     border::Radius,
     keyboard::{self, key::Named, Key},
     widget::{
         container::{self, Style},
         text, Button, Column, Container, Image, Row,
     },
-    Border, Color, Task,
+    Border, Color, Settings, Task, Theme,
 };
 use iced_aw::{grid_row, Grid};
+use machine::{Machine, EXTERNAL_RAM_SIZE};
+use memory::Memory;
 use ppu::PPU;
 use registers::Flag;
 
 pub mod conditions;
 pub mod cpu;
 pub mod instruction;
+pub mod machine;
 pub mod memory;
 pub mod ppu;
 pub mod registers;
@@ -36,12 +42,6 @@ const CPU_SNAPS_CAPACITY: usize = 5;
 enum PreserveHistory {
     DontPreserveHistory,
     PreserveHistory,
-}
-
-#[derive(Clone, Debug)]
-struct Machine {
-    pub cpu: CPU,
-    pub ppu: PPU,
 }
 
 #[derive(Debug)]
@@ -64,14 +64,32 @@ impl Default for DebuggerWindow {
             ))
             .expect("Failed to load ROM");
         queue.push(Machine {
+            dmg_boot_rom: 0,
             cpu,
             ppu: PPU::new(),
+            bgp: 0,
+            external_ram: [0; EXTERNAL_RAM_SIZE],
+            interrupt_enable: 0,
+            interrupt_flag: 0,
+            lcdc: 0,
+            nr11: 0,
+            nr12: 0,
+            nr13: 0,
+            nr14: 0,
+            nr50: 0,
+            nr51: 0,
+            nr52: 0,
+            sb: 0,
+            sc: 0,
+            scx: 0,
+            scy: 0,
+            tac: 0,
         });
         Self {
             breakpoints: vec![
                 // 0x00F1, // passed logo check
-                0x00FC, // passed header checksum check
-                0x0100, // goal
+                // 0x00FC, // passed header checksum check
+                // 0x0100, // goal
                 // 0xC738,
             ],
             output_file: OpenOptions::new()
@@ -110,13 +128,13 @@ impl DebuggerWindow {
 
     fn step_machine<'a>(machine: &'a mut Machine) -> &'a mut Machine {
         // Arbitrarily stepping the CPU then the PPU
-        let (t_cycles, _) = machine.cpu.execute_one_instruction().expect("sad");
-        machine.ppu.step_t_cycles(&mut machine.cpu, t_cycles); // FIXME: make this part of a machine
+        let (t_cycles, _) = CPU::execute_one_instruction(machine).expect("sad");
+        machine.ppu.step_t_cycles(t_cycles); // FIXME: make this part of a machine
 
-        if machine.cpu.memory.read_u8(0xFF02) == 0x81 {
-            let char = machine.cpu.memory.read_u8(0xFF01);
+        if machine.read_u8(0xFF02) == 0x81 {
+            let char = machine.read_u8(0xFF01);
             print!("{}", char);
-            machine.cpu.memory.write_u8(0xFF02, 0x01);
+            machine.write_u8(0xFF02, 0x01);
         }
 
         machine
@@ -124,8 +142,8 @@ impl DebuggerWindow {
 
     fn step(&mut self, preserve: PreserveHistory) {
         let current_machine = self.current_machine_immut();
-        if !current_machine.cpu.memory.is_dmg_boot_rom_on() {
-            write!(self.output_file, "{}\n", current_machine.cpu.log_string())
+        if !current_machine.is_dmg_boot_rom_on() {
+            write!(self.output_file, "{}\n", CPU::log_string(current_machine))
                 .expect("write to log failed");
         }
         let current_machine = self.current_machine();
@@ -211,27 +229,27 @@ impl DebuggerWindow {
     }
 
     fn view(&self) -> iced::Element<'_, Message> {
-        let mut instructions_grid = Grid::new().column_spacing(5);
+        let mut instructions_grid = Grid::new().column_spacing(5).padding(2);
         let history_size = self.snaps.len() - 1;
+        let history_style = |_: &Theme| text::Style {
+            color: Some(Color::from_rgb(1.0, 0.0, 0.0)),
+        };
         for old in self.snaps.asc_iter().take(history_size) {
-            let instr = old
-                .cpu
-                .memory
-                .decode_instruction_at(old.cpu.registers.pc)
-                .expect("womp");
-            instructions_grid = instructions_grid.push(grid_row![
-                text(self.display_breakpoint(instr.address)),
+            let instr = Memory::decode_instruction_at(old, old.cpu.registers.pc).expect("womp");
+            let row = grid_row![
+                text(self.display_breakpoint(instr.address)).style(history_style),
                 text(""),
-                text(format!("{:04X}", instr.address)),
-                text(format!("{}", instr.display_raw())),
-                text(format!("{}", instr))
-            ]);
+                text(format!("{:04X}", instr.address)).style(history_style),
+                text(format!("{}", instr.display_raw())).style(history_style),
+                text(format!("{}", instr)).style(history_style)
+            ];
+            instructions_grid = instructions_grid.push(row);
         }
 
         let machine = self.current_machine_immut();
         let cpu = &machine.cpu;
         let pc = cpu.registers.pc;
-        let instrs = cpu.memory.decode_instructions_at(pc, 10).expect("womp");
+        let instrs = Memory::decode_instructions_at(machine, pc, 10).expect("womp");
         instructions_grid = instructions_grid.push(grid_row![
             text(self.display_breakpoint(instrs[0].address)),
             text("→"),
@@ -249,61 +267,62 @@ impl DebuggerWindow {
             ]);
         }
 
-        let af_row = Row::new().push(text("AF: ")).push(text(format!(
-            "{:02X} {:02X}",
-            cpu.registers.read_a(),
-            cpu.registers.read_f()
-        )));
-        let bc_row = Row::new().push(text("BC: ")).push(text(format!(
-            "{:02X} {:02X}",
-            cpu.registers.read_b(),
-            cpu.registers.read_c()
-        )));
-        let de_row = Row::new().push(text("DE: ")).push(text(format!(
-            "{:02X} {:02X}",
-            cpu.registers.read_d(),
-            cpu.registers.read_e()
-        )));
-        let hl_row = Row::new().push(text("HL: ")).push(text(format!(
-            "{:02X} {:02X}",
-            cpu.registers.read_h(),
-            cpu.registers.read_l()
-        )));
-        let flag_row = Row::new()
-            .push(text("Flags: "))
-            .push(text(format!(
-                "[Z={}]",
-                cpu.registers.get_flag(Flag::Z) as u8
-            )))
-            .push(text(format!(
-                "[N={}]",
-                cpu.registers.get_flag(Flag::N) as u8
-            )))
-            .push(text(format!(
-                "[H={}]",
-                cpu.registers.get_flag(Flag::H) as u8
-            )))
-            .push(text(format!(
-                "[C={}]",
-                cpu.registers.get_flag(Flag::C) as u8
-            )));
+        let mut registers_grid = Grid::new();
+        registers_grid = registers_grid.push(grid_row![
+            text(" A"),
+            text(" F"),
+            text(""),
+            text(" B"),
+            text(" C"),
+            text(""),
+            text(" D"),
+            text(" E"),
+            text(""),
+            text(" H"),
+            text(" L"),
+            text(""),
+            text("Z"),
+            text(""),
+            text("N"),
+            text(""),
+            text("H"),
+            text(""),
+            text("C")
+        ]);
+        registers_grid = registers_grid.push(grid_row![
+            text(format!("{:02X}", cpu.registers.read_a())),
+            text(format!("{:02X}", cpu.registers.read_f())),
+            text(""),
+            text(format!("{:02X}", cpu.registers.read_b())),
+            text(format!("{:02X}", cpu.registers.read_c())),
+            text(""),
+            text(format!("{:02X}", cpu.registers.read_d())),
+            text(format!("{:02X}", cpu.registers.read_e())),
+            text(""),
+            text(format!("{:02X}", cpu.registers.read_h())),
+            text(format!("{:02X}", cpu.registers.read_l())),
+            text(""),
+            text(format!("{:01X}", cpu.registers.get_flag(Flag::Z) as u8)),
+            text(""),
+            text(format!("{:01X}", cpu.registers.get_flag(Flag::N) as u8)),
+            text(""),
+            text(format!("{:01X}", cpu.registers.get_flag(Flag::H) as u8)),
+            text(""),
+            text(format!("{:01X}", cpu.registers.get_flag(Flag::C) as u8)),
+        ]);
 
-        let dmg_row = Row::new().push(text(format!("DMG: {}", cpu.memory.is_dmg_boot_rom_on())));
+        let dmg_row = Row::new().push(text(format!("DMG: {}", machine.is_dmg_boot_rom_on())));
 
-        let mem_row1 = Row::new().push(text(cpu.memory.show_memory_row(0x104)));
-        let mem_row2 = Row::new().push(text(cpu.memory.show_memory_row(0x10C)));
-        let mem_row3 = Row::new().push(text(cpu.memory.show_memory_row(0x114)));
+        let mem_row1 = Row::new().push(text(machine.show_memory_row(0x104)));
+        let mem_row2 = Row::new().push(text(machine.show_memory_row(0x10C)));
+        let mem_row3 = Row::new().push(text(machine.show_memory_row(0x114)));
 
         let ly_row = Row::new()
             .push(text("LY: "))
-            .push(text(format!("{}", machine.ppu.read_ly(&cpu))));
+            .push(text(format!("{}", machine.ppu.read_ly())));
 
         let register_column = Column::new()
-            .push(af_row)
-            .push(bc_row)
-            .push(de_row)
-            .push(hl_row)
-            .push(flag_row)
+            .push(registers_grid)
             .push(dmg_row)
             .push(ly_row)
             .push(mem_row1)
@@ -318,14 +337,18 @@ impl DebuggerWindow {
         let mut stack_grid = Grid::new();
         stack_grid = stack_grid.push(grid_row![text("Stack:")]);
         // Note: the stack stops at 0xFFFE, as 0xFFFF is used for interrupt enable
-        for stack_addr in cmp::max(cpu.registers.sp, 0xFF80)..=0xFFFE {
+        let stack_top = cpu.registers.sp;
+        let stack_until = min(cpu.registers.sp.saturating_add(4), 0xFFFE);
+        for stack_addr in stack_top..=stack_until {
             stack_grid = stack_grid.push(grid_row![
                 text(format!("0x{:04X}:", stack_addr)),
-                text(format!("{:02X}", cpu.memory.read_u8(stack_addr))),
+                text(format!("{:02X}", machine.read_u8(stack_addr))),
             ]);
         }
 
         let column = Column::new()
+            .align_x(Horizontal::Left)
+            .width(500)
             .push(instructions_grid)
             .push(register_column)
             .push(stack_grid)
@@ -335,7 +358,7 @@ impl DebuggerWindow {
         let mut grid = Grid::new().vertical_alignment(alignment::Vertical::Top);
         let debugger = Container::new(column)
             .height(700)
-            .width(400)
+            .width(600)
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center)
             .style(|_theme| {
@@ -365,7 +388,10 @@ impl DebuggerWindow {
 }
 
 fn main() -> Result<(), iced::Error> {
+    let mut settings = Settings::default();
+    settings.default_font = font::Font::MONOSPACE;
     iced::application("Rustyboi", DebuggerWindow::update, DebuggerWindow::view)
         .subscription(DebuggerWindow::subscription)
+        .settings(settings)
         .run()
 }

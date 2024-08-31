@@ -1,5 +1,6 @@
 use crate::{
     instruction::{decode::decode_instruction_at_address, type_def::Immediate16},
+    machine::Machine,
     memory::Memory,
     registers::{Registers, R16},
 };
@@ -18,55 +19,56 @@ impl CPU {
         }
     }
 
-    pub fn execute_one_instruction(&mut self) -> Result<(u8, u8), String> {
-        let next_instruction = decode_instruction_at_address(&self.memory, self.registers.pc)?;
+    pub fn execute_one_instruction(machine: &mut Machine) -> Result<(u8, u8), String> {
+        let next_instruction = decode_instruction_at_address(machine, machine.cpu.registers.pc)?;
         // This will be the default PC, unless instruction semantics overwrite it
-        self.registers.pc = self.registers.pc + next_instruction.instruction_size as u16;
-        Ok(next_instruction.instruction.execute(self))
+        machine.cpu.registers.pc =
+            machine.cpu.registers.pc + next_instruction.instruction_size as u16;
+        Ok(next_instruction.instruction.execute(machine))
     }
 
-    pub fn pop_r16(&mut self, r16: &R16) -> &Self {
-        let lower = self.memory.read_u8(self.registers.sp);
-        self.registers.sp += 1;
-        let higher = self.memory.read_u8(self.registers.sp);
-        self.registers.sp += 1;
+    pub fn pop_r16<'a>(machine: &'a mut Machine, r16: &R16) -> &'a mut Machine {
+        let lower = machine.read_u8(machine.cpu.registers.sp);
+        machine.cpu.registers.sp += 1;
+        let higher = machine.read_u8(machine.cpu.registers.sp);
+        machine.cpu.registers.sp += 1;
         let imm16 = Immediate16 {
             lower_byte: lower,
             higher_byte: higher,
         };
-        self.registers.write_r16(r16, imm16.as_u16());
-        self
+        machine.cpu.registers.write_r16(r16, imm16.as_u16());
+        machine
     }
 
     // Note: pushes the higher byte goes to higher address!!!
-    pub fn push_imm16(&mut self, imm16: Immediate16) -> &Self {
-        self.registers.sp -= 1;
-        self.memory.write_u8(self.registers.sp, imm16.higher_byte);
-        self.registers.sp -= 1;
-        self.memory.write_u8(self.registers.sp, imm16.lower_byte);
-        self
+    pub fn push_imm16(machine: &mut Machine, imm16: Immediate16) -> &mut Machine {
+        machine.cpu.registers.sp -= 1;
+        machine.write_u8(machine.cpu.registers.sp, imm16.higher_byte);
+        machine.cpu.registers.sp -= 1;
+        machine.write_u8(machine.cpu.registers.sp, imm16.lower_byte);
+        machine
     }
 
-    pub fn log_string(&self) -> String {
+    pub fn log_string(machine: &Machine) -> String {
+        let cpu = &machine.cpu;
         let mut res = String::new();
-        res.push_str(&format!("A: {:02X} ", self.registers.read_a()));
-        res.push_str(&format!("F: {:02X} ", self.registers.read_f()));
-        res.push_str(&format!("B: {:02X} ", self.registers.read_b()));
-        res.push_str(&format!("C: {:02X} ", self.registers.read_c()));
-        res.push_str(&format!("D: {:02X} ", self.registers.read_d()));
-        res.push_str(&format!("E: {:02X} ", self.registers.read_e()));
-        res.push_str(&format!("H: {:02X} ", self.registers.read_h()));
-        res.push_str(&format!("L: {:02X} ", self.registers.read_l()));
-        res.push_str(&format!("SP: {:04X} ", self.registers.sp));
-        let pc = self.registers.pc;
-        let mem = &self.memory;
+        res.push_str(&format!("A: {:02X} ", cpu.registers.read_a()));
+        res.push_str(&format!("F: {:02X} ", cpu.registers.read_f()));
+        res.push_str(&format!("B: {:02X} ", cpu.registers.read_b()));
+        res.push_str(&format!("C: {:02X} ", cpu.registers.read_c()));
+        res.push_str(&format!("D: {:02X} ", cpu.registers.read_d()));
+        res.push_str(&format!("E: {:02X} ", cpu.registers.read_e()));
+        res.push_str(&format!("H: {:02X} ", cpu.registers.read_h()));
+        res.push_str(&format!("L: {:02X} ", cpu.registers.read_l()));
+        res.push_str(&format!("SP: {:04X} ", cpu.registers.sp));
+        let pc = cpu.registers.pc;
         res.push_str(&format!("PC: 00:{:04X} ", pc));
         res.push_str(&format!(
             "({:02X} {:02X} {:02X} {:02X})",
-            mem.read_u8(pc),
-            mem.read_u8(pc + 1),
-            mem.read_u8(pc + 2),
-            mem.read_u8(pc + 3)
+            machine.read_u8(pc),
+            machine.read_u8(pc + 1),
+            machine.read_u8(pc + 2),
+            machine.read_u8(pc + 3)
         ));
         res
     }
