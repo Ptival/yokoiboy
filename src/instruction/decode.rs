@@ -38,6 +38,11 @@ pub fn decode_instruction_at_address(
 ) -> Result<DecodedInstruction, String> {
     let (i, s) = match mem.read_u8(address) {
         0x00 => (Instruction::NOP, 1),
+        0x01 => (
+            Instruction::LD_r16_d16(R16::BC, Immediate16::from_memory(mem, address + 1)),
+            3,
+        ),
+        0x02 => (Instruction::LD_mr16_A(R16::BC), 1),
         0x03 => (Instruction::INC_r16(R16::BC), 1),
         0x04 => (Instruction::INC_r8(R8::B), 1),
         0x05 => (Instruction::DEC_r8(R8::B), 1),
@@ -185,6 +190,12 @@ pub fn decode_instruction_at_address(
         0xAD => (Instruction::XOR_r8(R8::L), 1),
         0xAF => (Instruction::XOR_r8(R8::A), 1),
 
+        0xB0 => (Instruction::OR_r8(R8::B), 1),
+        0xB1 => (Instruction::OR_r8(R8::C), 1),
+        0xB2 => (Instruction::OR_r8(R8::D), 1),
+        0xB3 => (Instruction::OR_r8(R8::E), 1),
+        0xB4 => (Instruction::OR_r8(R8::H), 1),
+        0xB5 => (Instruction::OR_r8(R8::L), 1),
         0xB9 => (Instruction::CP_A_r8(R8::C), 1),
         0xBB => (Instruction::CP_A_r8(R8::E), 1),
         0xBE => (Instruction::CP_A_mHL, 1),
@@ -195,7 +206,12 @@ pub fn decode_instruction_at_address(
             Instruction::JP_u16(Immediate16::from_memory(mem, address + 1)),
             1,
         ),
+        0xC4 => (
+            Instruction::CALL_cc_u16(Condition::NZ, Immediate16::from_memory(mem, address + 1)),
+            3,
+        ),
         0xC5 => (Instruction::PUSH_r16(R16::BC), 1),
+        0xC6 => (Instruction::ADD_A_u8(mem.read_u8(address + 1)), 1),
         0xC8 => (Instruction::RET_cc(Condition::Z), 1),
         0xC9 => (Instruction::RET, 1),
         0xCB => match mem.read_u8(address + 1) {
@@ -227,21 +243,28 @@ pub fn decode_instruction_at_address(
         0xCE => (Instruction::ADC_A_u8(mem.read_u8(address + 1)), 2),
 
         0xD5 => (Instruction::PUSH_r16(R16::DE), 1),
+        0xD8 => (Instruction::RET_C, 1),
         0xD9 => (Instruction::RETI, 1),
 
         0xE0 => (Instruction::LD__a8__A(mem.read_u8(address + 1)), 2),
         0xE1 => (Instruction::POP_r16(R16::HL), 1),
         0xE2 => (Instruction::LD_mC_A, 1),
         0xE5 => (Instruction::PUSH_r16(R16::HL), 1),
+        0xE6 => (Instruction::AND_u8(mem.read_u8(address + 1)), 2),
         0xEA => (
             Instruction::LD_mu16_A(Immediate16::from_memory(mem, address + 1)),
             3,
         ),
 
         0xF0 => (Instruction::LD_A_mu8(mem.read_u8(address + 1)), 2),
+        0xF1 => (Instruction::POP_r16(R16::AF), 1),
         0xF3 => (Instruction::DI, 1),
         0xF5 => (Instruction::PUSH_r16(R16::AF), 1),
         0xFB => (Instruction::EI, 1),
+        0xFA => (
+            Instruction::LD_A_mru16(Immediate16::from_memory(mem, address + 1)),
+            3,
+        ),
         0xFE => (Instruction::CP_A_u8(mem.read_u8(address + 1)), 2),
 
         b => panic!("Implement decode for {:02X}", b),

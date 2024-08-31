@@ -1,4 +1,5 @@
 use crate::{
+    conditions::Condition,
     cpu::CPU,
     registers::{Flag, R16, R8},
 };
@@ -45,11 +46,38 @@ fn add(cpu: &mut CPU, a: u8, b: u8) {
         .write_flag(Flag::C, add_produces_carry(a, b, 8));
 }
 
+fn and(cpu: &mut CPU, a: u8, b: u8) {
+    let res = a & b;
+    cpu.registers
+        .write_a(res)
+        .write_flag(Flag::Z, res == 0)
+        .unset_flag(Flag::N)
+        .set_flag(Flag::H)
+        .unset_flag(Flag::C);
+}
+
+fn or(cpu: &mut CPU, a: u8, b: u8) {
+    let res = a | b;
+    cpu.registers
+        .write_a(res)
+        .write_flag(Flag::Z, res == 0)
+        .unset_flag(Flag::N)
+        .unset_flag(Flag::H)
+        .unset_flag(Flag::C);
+}
+
+fn call(cpu: &mut CPU, address: u16) {
+    cpu.push_imm16(Immediate16::from_u16(cpu.registers.pc));
+    cpu.registers.pc = address;
+}
+
 impl Instruction {
     pub fn execute(self: &Instruction, cpu: &mut CPU) {
         match self {
             Instruction::ADC_A_r8(_) => todo!(),
+
             Instruction::ADC_A_u8(_) => todo!(),
+
             Instruction::ADD_A_mHL => {
                 add(
                     cpu,
@@ -57,26 +85,46 @@ impl Instruction {
                     cpu.memory.read_u8(cpu.registers.hl),
                 );
             }
+
             Instruction::ADD_A_r8(r8) => {
                 add(cpu, cpu.registers.read_a(), cpu.registers.read_r8(r8));
             }
+
+            Instruction::ADD_A_u8(u8) => {
+                add(cpu, cpu.registers.read_a(), *u8);
+            }
+
             Instruction::AND_L => todo!(),
+
+            Instruction::AND_u8(u8) => {
+                and(cpu, cpu.registers.read_a(), *u8);
+            }
+
             Instruction::BIT_u3_r8(bit, reg) => {
                 cpu.registers
                     .write_flag(Flag::Z, !cpu.registers.get_bit(reg, bit))
                     .unset_flag(Flag::N)
                     .set_flag(Flag::H);
             }
+
             Instruction::CALL_a16(imm16) => {
-                // Note: This assumes the PC is already pointing to the next instruction
-                cpu.push_imm16(Immediate16::from_u16(cpu.registers.pc));
-                cpu.registers.pc = imm16.as_u16();
+                call(cpu, imm16.as_u16());
             }
+
+            Instruction::CALL_cc_u16(cc, imm16) => {
+                if cc.holds(cpu) {
+                    call(cpu, imm16.as_u16());
+                }
+            }
+
             Instruction::CALL_Z_a16(_) => todo!(),
+
             Instruction::CP_A_r8(_) => todo!(),
+
             Instruction::CP_A_u8(u8) => {
                 compare(cpu, cpu.registers.read_a(), *u8);
             }
+
             Instruction::CP_A_mHL => {
                 compare(
                     cpu,
@@ -84,6 +132,7 @@ impl Instruction {
                     cpu.memory.read_u8(cpu.registers.read_r16(&R16::HL)),
                 );
             }
+
             Instruction::DEC_r8(r8) => {
                 let r8val = cpu.registers.read_r8(r8);
                 let res = r8val.wrapping_sub(1);
@@ -157,7 +206,12 @@ impl Instruction {
                 cpu.memory.write_u8(imm16.as_u16(), cpu.registers.read_a());
             }
 
-            Instruction::LD_mu16_SP(_) => todo!(),
+            Instruction::LD_mu16_SP(imm16) => {
+                let sp = Immediate16::from_u16(cpu.registers.sp);
+                let address = imm16.as_u16();
+                cpu.memory.write_u8(address, sp.lower_byte);
+                cpu.memory.write_u8(address + 1, sp.higher_byte);
+            }
 
             Instruction::LD_H_mHL => todo!(),
 
@@ -205,6 +259,10 @@ impl Instruction {
                     .write_a(cpu.memory.read_u8(0xFF00 + *u8 as u16));
             }
 
+            Instruction::LD_A_mru16(imm16) => {
+                cpu.registers.write_a(cpu.memory.read_u8(imm16.as_u16()));
+            }
+
             Instruction::LD_mu8_A(u8) => {
                 cpu.memory
                     .write_u8(0xFF00 + *u8 as u16, cpu.registers.read_a());
@@ -225,6 +283,10 @@ impl Instruction {
 
             Instruction::NOP => {}
 
+            Instruction::OR_r8(r8) => {
+                or(cpu, cpu.registers.read_a(), cpu.registers.read_r8(r8));
+            }
+
             Instruction::POP_r16(r16) => {
                 cpu.pop_r16(r16);
             }
@@ -235,6 +297,12 @@ impl Instruction {
 
             Instruction::RET => {
                 cpu.pop_r16(&R16::PC);
+            }
+
+            Instruction::RET_C => {
+                if Condition::C.holds(cpu) {
+                    cpu.pop_r16(&R16::PC);
+                }
             }
 
             Instruction::RLA => {

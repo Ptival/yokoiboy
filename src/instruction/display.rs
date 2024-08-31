@@ -101,6 +101,9 @@ impl fmt::Display for Instruction {
             Instruction::ADC_A_u8(u8) => {
                 write!(f, "ADC A, {:02X}", u8)
             }
+            Instruction::ADD_A_u8(u8) => {
+                write!(f, "ADD A, {:02X}", u8)
+            }
             Instruction::ADD_A_r8(r8) => {
                 write!(f, "ADD A, {}", r8)
             }
@@ -165,7 +168,22 @@ impl fmt::Display for Instruction {
                 write!(f, "DI")
             }
             Instruction::LD_mu8_A(u8) => {
-                write!(f, "LD [{:04X}], A", 0xFF00 + *u8 as u16)
+                write!(f, "LD [0x{:04X}], A", 0xFF00 + *u8 as u16)
+            }
+            Instruction::OR_r8(r8) => {
+                write!(f, "OR A, {}", r8)
+            }
+            Instruction::LD_A_mru16(imm16) => {
+                write!(f, "LD A, [0x{:04X}]", imm16.as_u16())
+            }
+            Instruction::AND_u8(u8) => {
+                write!(f, "AND A, 0x{:02X}", u8)
+            }
+            Instruction::CALL_cc_u16(cc, imm16) => {
+                write!(f, "CALL {}, 0x{:04X}", cc, imm16.as_u16())
+            }
+            Instruction::RET_C => {
+                write!(f, "RET C")
             }
         }
     }
