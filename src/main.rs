@@ -41,6 +41,7 @@ struct Machine {
 #[derive(Clone, Debug)]
 struct DebuggerWindow {
     pub breakpoints: Vec<u16>,
+    pub paused: bool,
     pub snaps: CircularQueue<Machine>,
 }
 
@@ -64,17 +65,13 @@ impl Default for DebuggerWindow {
                 // 0x000C,
                 // 0x0028,
                 // 0x0034,
-                // 0x0042,
-                // 0x0051,
-                // 0x0055, 0x006A,
-                // 0x0070,
-                // 0x008C,
-                // 0x00E8, // not yet
-                // 0x00F1, // passed logo check
-                // 0x00FC, // passed header checksum check
-                // 0x00FF, // goal
-                //0x00A3
+                // 0x0042, 0x0051, 0x0055, 0x006A, 0x0070, 0x008C, 0x00E8, // not yet
+                0x00F1, // passed logo check
+                0x00FC, // passed header checksum check
+                0x00FF, // goal
+                        //0x00A3
             ],
+            paused: false,
             snaps: queue,
         }
     }
@@ -134,21 +131,29 @@ impl DebuggerWindow {
 
 #[derive(Clone, Debug, Hash)]
 enum Message {
+    Pause,
     RunNextInstruction,
-    RunUntilBreakpoint,
+    BeginRunUntilBreakpoint,
+    ContinueRunUntilBreakpoint,
 }
 
 impl DebuggerWindow {
     fn subscription(&self) -> iced::Subscription<Message> {
         keyboard::on_key_press(|k, _m| match k {
-            Key::Named(Named::ArrowDown) => Some(Message::RunUntilBreakpoint),
+            Key::Named(Named::ArrowDown) => Some(Message::BeginRunUntilBreakpoint),
             Key::Named(Named::ArrowRight) => Some(Message::RunNextInstruction),
+            Key::Named(Named::Space) => Some(Message::Pause),
             _ => None,
         })
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Pause => {
+                self.paused = true;
+                Task::none()
+            }
+
             Message::RunNextInstruction => {
                 let machine = self.current_machine();
                 for r in 0..160 {
@@ -162,15 +167,30 @@ impl DebuggerWindow {
                 self.step(PreserveHistory::PreserveHistory);
                 Task::none()
             }
-            Message::RunUntilBreakpoint => {
+
+            Message::BeginRunUntilBreakpoint => {
+                self.paused = false;
                 // make sure to step at least once! :D
                 self.step(PreserveHistory::DontPreserveHistory);
+                Task::done(Message::ContinueRunUntilBreakpoint)
+            }
+
+            Message::ContinueRunUntilBreakpoint => {
                 let mut pc = self.current_machine().cpu.registers.pc;
-                while !self.breakpoints.contains(&pc) {
+
+                // Try to run some number of steps before updating the display
+                let mut remaining_steps = 100000;
+                while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc) {
+                    remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
                     pc = self.current_machine().cpu.registers.pc;
                 }
-                Task::none()
+
+                if remaining_steps == 0 {
+                    Task::done(Message::ContinueRunUntilBreakpoint)
+                } else {
+                    Task::none()
+                }
             }
         }
     }
@@ -278,7 +298,7 @@ impl DebuggerWindow {
         let run_next_instruction_button =
             Button::new("Run next instruction").on_press(Message::RunNextInstruction);
         let run_until_breakpoint_button =
-            Button::new("Run until breakpoint").on_press(Message::RunUntilBreakpoint);
+            Button::new("Run until breakpoint").on_press(Message::BeginRunUntilBreakpoint);
 
         let mut stack_grid = Grid::new();
         stack_grid = stack_grid.push(grid_row![text("Stack:")]);
