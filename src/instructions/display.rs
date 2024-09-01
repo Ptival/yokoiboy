@@ -17,6 +17,7 @@ impl DecodedInstruction {
             Instruction::ADD_A_r8(r8) => format!("ADD A, {}", r8),
             Instruction::ADD_A_u8(u8) => format!("ADD A, {:02X}", u8),
             Instruction::ADD_HL_r16(r16) => format!("ADD HL, {}", r16),
+            Instruction::ADD_SP_i8(i8) => format!("ADD SP, {:02X}", i8),
             Instruction::AND_r8(r8) => format!("AND A, {}", r8),
             Instruction::AND_u8(u8) => format!("AND A, 0x{:02X}", u8),
             Instruction::BIT_u3_r8(bit, reg) => format!("BIT {}, {}", bit, reg),

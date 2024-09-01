@@ -45,6 +45,7 @@ impl Machine {
             0xA000..=0xBFFF => Wrapping(self.external_ram[(address - Wrapping(0xA000)).0 as usize]),
             0xC000..=0xCFFF => self.ppu.read_wram_0(address - Wrapping(0xC000)),
             0xD000..=0xDFFF => self.ppu.read_wram_1(address - Wrapping(0xD000)),
+            0xE000..=0xFDFF => self.read_u8(address - Wrapping(0x2000)),
             0xFF01..=0xFF01 => self.sb,
             0xFF02..=0xFF02 => self.sc,
             0xFF07..=0xFF07 => self.tac,

@@ -10,12 +10,12 @@ use super::type_def::{Immediate16, Instruction};
 
 // Checks whether adding a and b with bitsize (bit - 1) would produce a carry (1) at position bit.
 // Assumes bit < 16, so that all operations can be carried without loss as u32.
-fn add_produces_carry(a: impl Into<u16>, b: impl Into<u16>, c: bool, bit: u8) -> bool {
-    let a = a.into() as u32;
-    let b = b.into() as u32;
+fn add_produces_carry(a: impl Into<u16>, b: impl Into<i32>, c: bool, bit: u8) -> bool {
+    let a = a.into() as i32;
+    let b = b.into();
     let bit_mask = 1 << bit;
     let input_mask = bit_mask - 1;
-    ((a & input_mask) + (b & input_mask) + c as u32) & bit_mask == bit_mask
+    ((a & input_mask) + (b & input_mask) + c as i32) & bit_mask == bit_mask
 }
 
 // Checks whether subtracting b from a with bitsize (bit - 1) would produce a borrow at position
@@ -75,7 +75,6 @@ fn or(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
 // NOTE: This does not write the result anywhere!
 // NOTE: This does not set the flags like SUB.
 fn dec(cpu: &mut CPU, a: Wrapping<u8>) -> Wrapping<u8> {
-    // let a = cpu.registers.read_r8(r8);
     let res = a - Wrapping(1);
     cpu.registers
         .write_flag(Flag::Z, res.0 == 0)
@@ -163,6 +162,20 @@ impl Instruction {
                     .write_flag(Flag::H, add_produces_carry(a.0, b.0, false, 12))
                     .write_flag(Flag::C, add_produces_carry(a.0, b.0, false, 16));
                 (8, 2)
+            }
+
+            Instruction::ADD_SP_i8(i8) => {
+                let a = machine.cpu.registers.sp;
+                let res = Wrapping(a.0.wrapping_add_signed(i8.0 as i16));
+                machine
+                    .cpu
+                    .registers
+                    .write_r16(&R16::SP, res)
+                    .unset_flag(Flag::Z)
+                    .unset_flag(Flag::N)
+                    .write_flag(Flag::H, add_produces_carry(a.0, i8.0, false, 4))
+                    .write_flag(Flag::C, add_produces_carry(a.0, i8.0, false, 8));
+                (16, 4)
             }
 
             Instruction::AND_r8(r8) => {
@@ -259,7 +272,12 @@ impl Instruction {
                 (4, 1)
             }
 
-            Instruction::DEC_r16(_) => todo!(),
+            Instruction::DEC_r16(r16) => {
+                let a = machine.cpu.registers.read_r16(r16);
+                let res = a - Wrapping(1);
+                machine.cpu.registers.write_r16(r16, res);
+                (8, 2)
+            }
 
             Instruction::DI => {
                 machine.cpu.registers.ime = false;

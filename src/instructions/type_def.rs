@@ -1,5 +1,7 @@
 use std::num::Wrapping;
 
+use iced::advanced::graphics::text::cosmic_text::Wrap;
+
 use crate::{
     conditions::Condition,
     machine::Machine,
@@ -43,6 +45,7 @@ pub enum Instruction {
     ADD_A_r8(R8),
     ADD_A_u8(Wrapping<u8>),
     ADD_HL_r16(R16),
+    ADD_SP_i8(Wrapping<i8>),
     AND_r8(R8),
     AND_u8(Wrapping<u8>),
     BIT_u3_r8(u8, R8),
