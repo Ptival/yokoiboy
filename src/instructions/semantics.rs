@@ -83,7 +83,7 @@ fn dec(cpu: &mut CPU, a: Wrapping<u8>) -> Wrapping<u8> {
     res
 }
 
-fn subc(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>, c: bool) {
+fn subc(cpu: &mut CPU, a: &Wrapping<u8>, b: &Wrapping<u8>, c: bool) {
     let res = a - b - Wrapping(c as u8);
     cpu.registers
         .write_a(res)
@@ -93,7 +93,7 @@ fn subc(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>, c: bool) {
         .write_flag(Flag::C, sub_borrows(a.0, b.0, c, 8));
 }
 
-fn sub(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
+fn sub(cpu: &mut CPU, a: &Wrapping<u8>, b: &Wrapping<u8>) {
     subc(cpu, a, b, false)
 }
 
@@ -447,6 +447,11 @@ impl Instruction {
                 (8, 2)
             }
 
+            Instruction::LD_mHL_u8(u8) => {
+                machine.write_u8(machine.cpu.registers.hl, *u8);
+                (12, 3)
+            }
+
             Instruction::LD_mHLdec_A => {
                 machine.write_u8(machine.cpu.registers.hl, machine.cpu.registers.read_a());
                 machine.cpu.registers.hl -= 1;
@@ -505,10 +510,16 @@ impl Instruction {
                 (8, 2)
             }
 
-            Instruction::OR_r8(r8) => {
+            Instruction::OR_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);
                 or(&mut machine.cpu, a, b);
+                (4, 1)
+            }
+
+            Instruction::OR_A_u8(u8) => {
+                let a = machine.cpu.registers.read_a();
+                or(&mut machine.cpu, a, *u8);
                 (8, 2)
             }
 
@@ -603,13 +614,13 @@ impl Instruction {
             Instruction::SUB_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);
-                sub(&mut machine.cpu, a, b);
+                sub(&mut machine.cpu, &a, &b);
                 (4, 1)
             }
 
             Instruction::SUB_A_u8(u8) => {
                 let a = machine.cpu.registers.read_a();
-                sub(&mut machine.cpu, a, *u8);
+                sub(&mut machine.cpu, &a, u8);
                 (8, 2)
             }
 
@@ -632,8 +643,15 @@ impl Instruction {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);
                 let c = machine.cpu.registers.read_flag(Flag::C);
-                subc(&mut machine.cpu, a, b, c);
+                subc(&mut machine.cpu, &a, &b, c);
                 (4, 1)
+            }
+
+            Instruction::SBC_A_u8(u8) => {
+                let a = machine.cpu.registers.read_a();
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                subc(&mut machine.cpu, &a, u8, c);
+                (8, 2)
             }
 
             Instruction::SRL_r8(r8) => {

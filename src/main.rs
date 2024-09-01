@@ -63,8 +63,8 @@ impl Default for DebuggerWindow {
             .load_rom(String::from(
                 // "gb-test-roms/cpu_instrs/individual/01-special.gb",
                 // "gb-test-roms/cpu_instrs/individual/02-interrupts.gb",
-                "gb-test-roms/cpu_instrs/individual/03-op sp,hl.gb",
-                // "gb-test-roms/cpu_instrs/individual/04-op r,imm.gb",
+                // "gb-test-roms/cpu_instrs/individual/03-op sp,hl.gb",
+                "gb-test-roms/cpu_instrs/individual/04-op r,imm.gb",
                 // "gb-test-roms/cpu_instrs/individual/05-op rp.gb",
                 // "gb-test-roms/cpu_instrs/individual/06-ld r,r.gb",
                 // "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
