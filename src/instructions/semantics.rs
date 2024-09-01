@@ -193,7 +193,23 @@ impl Instruction {
                 }
             }
 
-            Instruction::CP_A_r8(_) => todo!(),
+            Instruction::CCF => {
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                machine
+                    .cpu
+                    .registers
+                    .unset_flag(Flag::N)
+                    .unset_flag(Flag::H)
+                    .write_flag(Flag::C, !c);
+                (4, 1)
+            }
+
+            Instruction::CP_A_r8(r8) => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.cpu.registers.read_r8(r8);
+                compare(&mut machine.cpu, a, b);
+                (4, 1)
+            }
 
             Instruction::CP_A_u8(u8) => {
                 let a = machine.cpu.registers.read_a();
@@ -207,6 +223,17 @@ impl Instruction {
                 let b = machine.read_u8(address);
                 compare(&mut machine.cpu, a, b);
                 (8, 2)
+            }
+
+            Instruction::CPL => {
+                let a = machine.cpu.registers.read_a();
+                machine
+                    .cpu
+                    .registers
+                    .write_a(Wrapping(!a.0))
+                    .set_flag(Flag::N)
+                    .set_flag(Flag::H);
+                (4, 1)
             }
 
             Instruction::DEC_mHL => {
@@ -527,6 +554,16 @@ impl Instruction {
                 (16, 4)
             }
 
+            Instruction::SCF => {
+                machine
+                    .cpu
+                    .registers
+                    .unset_flag(Flag::N)
+                    .unset_flag(Flag::H)
+                    .set_flag(Flag::C);
+                (4, 1)
+            }
+
             Instruction::SUB_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);
@@ -555,9 +592,9 @@ impl Instruction {
 
             Instruction::Prefix => todo!(),
 
-            Instruction::SBC_A_A => todo!(),
-
-            Instruction::SBC_A_C => todo!(),
+            Instruction::SBC_A_r8(r8) => {
+                todo!()
+            }
 
             Instruction::SRL_r8(r8) => {
                 shift_right_logically(&mut machine.cpu, r8);

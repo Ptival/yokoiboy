@@ -61,8 +61,8 @@ impl Default for DebuggerWindow {
             .load_boot_rom(String::from("dmg_boot.bin"))
             .expect("Failed to load boot ROM")
             .load_rom(String::from(
-                // "gb-test-roms/cpu_instrs/individual/09-op r,r.gb",
-                "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
+                "gb-test-roms/cpu_instrs/individual/09-op r,r.gb",
+                // "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
             ))
             .expect("Failed to load ROM");
         queue.push(Machine {
