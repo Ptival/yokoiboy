@@ -387,6 +387,20 @@ impl Instruction {
                 (12, 3)
             }
 
+            Instruction::LD_HL_SP_i8(i8) => {
+                let sp = machine.cpu.registers.sp;
+                let res = Wrapping(sp.0.wrapping_add_signed(i8.0 as i16));
+                machine.cpu.registers.hl = res;
+                machine
+                    .cpu
+                    .registers
+                    .unset_flag(Flag::Z)
+                    .unset_flag(Flag::N)
+                    .write_flag(Flag::H, add_produces_carry(sp.0, i8.0, false, 4))
+                    .write_flag(Flag::C, add_produces_carry(sp.0, i8.0, false, 8));
+                (12, 3)
+            }
+
             Instruction::LD_mu16_A(imm16) => {
                 machine.write_u8(imm16.as_u16(), machine.cpu.registers.read_a());
                 (16, 4)

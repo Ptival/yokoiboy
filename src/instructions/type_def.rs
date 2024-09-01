@@ -1,7 +1,5 @@
 use std::num::Wrapping;
 
-use iced::advanced::graphics::text::cosmic_text::Wrap;
-
 use crate::{
     conditions::Condition,
     machine::Machine,
@@ -78,6 +76,7 @@ pub enum Instruction {
     LD_FFC_A,
     LD_FFu8_A(Wrapping<u8>),
     LD_H_mHL,
+    LD_HL_SP_i8(Wrapping<i8>),
     LD_L_mHL,
     LD_mHLdec_A,
     LD_mHLinc_A,

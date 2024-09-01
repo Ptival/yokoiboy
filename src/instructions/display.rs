@@ -64,6 +64,7 @@ impl DecodedInstruction {
             Instruction::LD_A_mu16(imm16) => format!("LD A, [0x{:04X}]", imm16.as_u16()),
             Instruction::LD_FFC_A => String::from("LD [0xFF00 + C], A"),
             Instruction::LD_H_mHL => String::from("LD H, [HL]"),
+            Instruction::LD_HL_SP_i8(i8) => format!("LD HL, SP+{:02X}", i8),
             Instruction::LD_L_mHL => String::from("LD L, [HL]"),
             Instruction::LD_mHLdec_A => String::from("LD [HL-], A"),
             Instruction::LD_mHLinc_A => String::from("LD [HL+], A"),

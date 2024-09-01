@@ -326,6 +326,7 @@ pub fn decode_instruction_at_address(
         0xF3 => Instruction::DI,
         0xF5 => Instruction::PUSH_r16(R16::AF),
         0xF7 => Instruction::RST(Immediate16::from_u16(Wrapping(0x0030))),
+        0xF8 => Instruction::LD_HL_SP_i8(next_i8(&mut bytes_read)),
         0xF9 => Instruction::LD_SP_HL,
         0xFB => Instruction::EI,
         0xFA => Instruction::LD_A_mu16(next_imm16(&mut bytes_read)),
