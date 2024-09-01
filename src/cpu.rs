@@ -51,30 +51,6 @@ impl CPU {
         machine
     }
 
-    pub fn log_string(machine: &Machine) -> String {
-        let cpu = &machine.cpu;
-        let mut res = String::new();
-        res.push_str(&format!("A: {:02X} ", cpu.registers.read_a()));
-        res.push_str(&format!("F: {:02X} ", cpu.registers.read_f()));
-        res.push_str(&format!("B: {:02X} ", cpu.registers.read_b()));
-        res.push_str(&format!("C: {:02X} ", cpu.registers.read_c()));
-        res.push_str(&format!("D: {:02X} ", cpu.registers.read_d()));
-        res.push_str(&format!("E: {:02X} ", cpu.registers.read_e()));
-        res.push_str(&format!("H: {:02X} ", cpu.registers.read_h()));
-        res.push_str(&format!("L: {:02X} ", cpu.registers.read_l()));
-        res.push_str(&format!("SP: {:04X} ", cpu.registers.sp));
-        let pc = cpu.registers.pc;
-        res.push_str(&format!("PC: 00:{:04X} ", pc));
-        res.push_str(&format!(
-            "({:02X} {:02X} {:02X} {:02X})",
-            machine.read_u8(pc),
-            machine.read_u8(pc + Wrapping(1)),
-            machine.read_u8(pc + Wrapping(2)),
-            machine.read_u8(pc + Wrapping(3))
-        ));
-        res
-    }
-
     pub fn gbdoctor_string(machine: &Machine) -> String {
         let cpu = &machine.cpu;
         let mut res = String::new();
