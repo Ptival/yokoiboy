@@ -1,3 +1,5 @@
+use std::num::Wrapping;
+
 use crate::{
     instruction::{decode::decode_instruction_at_address, type_def::Immediate16},
     machine::Machine,
@@ -23,7 +25,7 @@ impl CPU {
         let next_instruction = decode_instruction_at_address(machine, machine.cpu.registers.pc)?;
         // This will be the default PC, unless instruction semantics overwrite it
         machine.cpu.registers.pc =
-            machine.cpu.registers.pc + next_instruction.instruction_size as u16;
+            machine.cpu.registers.pc + Wrapping(next_instruction.instruction_size as u16);
         Ok(next_instruction.instruction.execute(machine))
     }
 
@@ -66,9 +68,9 @@ impl CPU {
         res.push_str(&format!(
             "({:02X} {:02X} {:02X} {:02X})",
             machine.read_u8(pc),
-            machine.read_u8(pc + 1),
-            machine.read_u8(pc + 2),
-            machine.read_u8(pc + 3)
+            machine.read_u8(pc + Wrapping(1)),
+            machine.read_u8(pc + Wrapping(2)),
+            machine.read_u8(pc + Wrapping(3))
         ));
         res
     }
@@ -90,9 +92,9 @@ impl CPU {
         res.push_str(&format!(
             "PCMEM:{:02X},{:02X},{:02X},{:02X}",
             machine.read_u8(pc),
-            machine.read_u8(pc + 1),
-            machine.read_u8(pc + 2),
-            machine.read_u8(pc + 3)
+            machine.read_u8(pc + Wrapping(1)),
+            machine.read_u8(pc + Wrapping(2)),
+            machine.read_u8(pc + Wrapping(3))
         ));
         res
     }

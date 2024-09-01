@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, num::Wrapping};
 
 use crate::{
     conditions::Condition,
@@ -10,10 +10,10 @@ use super::type_def::{Immediate16, Instruction};
 
 #[derive(Clone, Debug)]
 pub struct DecodedInstruction {
-    pub address: u16,
+    pub address: Wrapping<u16>,
     pub instruction: Instruction,
     pub instruction_size: u8,
-    pub raw: Vec<u8>,
+    pub raw: Vec<Wrapping<u8>>,
 }
 
 impl fmt::Display for DecodedInstruction {
@@ -34,110 +34,66 @@ impl DecodedInstruction {
 
 pub fn decode_instruction_at_address(
     machine: &Machine,
-    address: u16,
+    address: Wrapping<u16>,
 ) -> Result<DecodedInstruction, String> {
-    let (i, s) = match machine.read_u8(address) {
+    let i8_at_offset = |o| Wrapping(machine.read_u8(address + Wrapping(o)).0 as i8);
+    let u8_at_offset = |o| machine.read_u8(address + Wrapping(o));
+    let imm16_at_offset = |o| Immediate16::from_memory(machine, address + Wrapping(o));
+    let (i, s) = match machine.read_u8(address).0 {
         0x00 => (Instruction::NOP, 1),
-        0x01 => (
-            Instruction::LD_r16_d16(R16::BC, Immediate16::from_memory(machine, address + 1)),
-            3,
-        ),
+        0x01 => (Instruction::LD_r16_d16(R16::BC, imm16_at_offset(1)), 3),
         0x02 => (Instruction::LD_mr16_r8(R16::BC, R8::A), 1),
         0x03 => (Instruction::INC_r16(R16::BC), 1),
         0x04 => (Instruction::INC_r8(R8::B), 1),
         0x05 => (Instruction::DEC_r8(R8::B), 1),
-        0x06 => (
-            Instruction::LD_r8_u8(R8::B, machine.read_u8(address + 1)),
-            2,
-        ),
-        0x08 => (
-            Instruction::LD_mu16_SP(Immediate16::from_memory(machine, address + 1)),
-            3,
-        ),
+        0x06 => (Instruction::LD_r8_u8(R8::B, u8_at_offset(1)), 2),
+        0x08 => (Instruction::LD_mu16_SP(imm16_at_offset(1)), 3),
         0x09 => (Instruction::ADD_HL_r16(R16::BC), 1),
         0x0B => (Instruction::DEC_r16(R16::BC), 1),
         0x0C => (Instruction::INC_r8(R8::C), 1),
         0x0D => (Instruction::DEC_r8(R8::C), 1),
-        0x0E => (
-            Instruction::LD_r8_u8(R8::C, machine.read_u8(address + 1)),
-            2,
-        ),
+        0x0E => (Instruction::LD_r8_u8(R8::C, u8_at_offset(1)), 2),
 
-        0x11 => (
-            Instruction::LD_r16_d16(R16::DE, Immediate16::from_memory(machine, address + 1)),
-            3,
-        ),
+        0x11 => (Instruction::LD_r16_d16(R16::DE, imm16_at_offset(1)), 3),
         0x12 => (Instruction::LD_mr16_r8(R16::DE, R8::A), 1),
         0x13 => (Instruction::INC_r16(R16::DE), 1),
         0x14 => (Instruction::INC_r8(R8::D), 1),
         0x15 => (Instruction::DEC_r8(R8::D), 1),
-        0x16 => (
-            Instruction::LD_r8_u8(R8::D, machine.read_u8(address + 1)),
-            2,
-        ),
+        0x16 => (Instruction::LD_r8_u8(R8::D, u8_at_offset(1)), 2),
         0x17 => (Instruction::RLA, 1),
-        0x18 => (Instruction::JR_i8(machine.read_u8(address + 1) as i8), 2),
+        0x18 => (Instruction::JR_i8(i8_at_offset(1)), 2),
         0x19 => (Instruction::ADD_HL_r16(R16::DE), 1),
         0x1A => (Instruction::LD_r8_mr16(R8::A, R16::DE), 1),
         0x1C => (Instruction::INC_r8(R8::E), 1),
         0x1D => (Instruction::DEC_r8(R8::E), 1),
-        0x1E => (
-            Instruction::LD_r8_u8(R8::E, machine.read_u8(address + 1)),
-            2,
-        ),
+        0x1E => (Instruction::LD_r8_u8(R8::E, u8_at_offset(1)), 2),
         0x1F => (Instruction::RRA, 1),
 
-        0x20 => (
-            Instruction::JR_cc_i8(Condition::NZ, machine.read_u8(address + 1) as i8),
-            2,
-        ),
-        0x21 => (
-            Instruction::LD_r16_d16(R16::HL, Immediate16::from_memory(machine, address + 1)),
-            3,
-        ),
+        0x20 => (Instruction::JR_cc_i8(Condition::NZ, i8_at_offset(1)), 2),
+        0x21 => (Instruction::LD_r16_d16(R16::HL, imm16_at_offset(1)), 3),
         0x22 => (Instruction::LD_mHLinc_A, 1),
         0x23 => (Instruction::INC_r16(R16::HL), 1),
         0x24 => (Instruction::INC_r8(R8::H), 1),
         0x25 => (Instruction::DEC_r8(R8::H), 1),
-        0x26 => (
-            Instruction::LD_r8_u8(R8::H, machine.read_u8(address + 1)),
-            2,
-        ),
-        0x28 => (
-            Instruction::JR_cc_i8(Condition::Z, machine.read_u8(address + 1) as i8),
-            2,
-        ),
+        0x26 => (Instruction::LD_r8_u8(R8::H, u8_at_offset(1)), 2),
+        0x28 => (Instruction::JR_cc_i8(Condition::Z, i8_at_offset(1)), 2),
         0x29 => (Instruction::ADD_HL_r16(R16::HL), 1),
         0x2A => (Instruction::LD_A_mHLinc, 1),
         0x2C => (Instruction::INC_r8(R8::L), 1),
         0x2D => (Instruction::DEC_r8(R8::L), 1),
-        0x2E => (
-            Instruction::LD_r8_u8(R8::L, machine.read_u8(address + 1) as u8),
-            2,
-        ),
+        0x2E => (Instruction::LD_r8_u8(R8::L, u8_at_offset(1)), 2),
 
-        0x30 => (
-            Instruction::JR_cc_i8(Condition::NC, machine.read_u8(address + 1) as i8),
-            2,
-        ),
-        0x31 => (
-            Instruction::LD_SP_u16(Immediate16::from_memory(machine, address + 1)),
-            3,
-        ),
+        0x30 => (Instruction::JR_cc_i8(Condition::NC, i8_at_offset(1)), 2),
+        0x31 => (Instruction::LD_SP_u16(imm16_at_offset(1)), 3),
         0x32 => (Instruction::LD_mHLdec_A, 1),
         0x33 => (Instruction::INC_r16(R16::SP), 1),
         0x35 => (Instruction::DEC_mHL, 1),
-        0x38 => (
-            Instruction::JR_cc_i8(Condition::C, machine.read_u8(address + 1) as i8),
-            2,
-        ),
+        0x38 => (Instruction::JR_cc_i8(Condition::C, i8_at_offset(1)), 2),
         0x39 => (Instruction::ADD_HL_r16(R16::SP), 1),
+        0x3A => (Instruction::LD_A_mHLdec, 1),
         0x3C => (Instruction::INC_r8(R8::A), 1),
         0x3D => (Instruction::DEC_r8(R8::A), 1),
-        0x3E => (
-            Instruction::LD_r8_u8(R8::A, machine.read_u8(address + 1)),
-            2,
-        ),
+        0x3E => (Instruction::LD_r8_u8(R8::A, u8_at_offset(1)), 2),
 
         0x40 => (Instruction::LD_r8_r8(R8::B, R8::B), 1),
         0x41 => (Instruction::LD_r8_r8(R8::B, R8::C), 1),
@@ -203,6 +159,7 @@ pub fn decode_instruction_at_address(
         0x7B => (Instruction::LD_r8_r8(R8::A, R8::E), 1),
         0x7C => (Instruction::LD_r8_r8(R8::A, R8::H), 1),
         0x7D => (Instruction::LD_r8_r8(R8::A, R8::L), 1),
+        0x7E => (Instruction::LD_A_mHL, 1),
 
         0x83 => (Instruction::ADD_A_r8(R8::E), 1),
         0x86 => (Instruction::ADD_A_mHL, 1),
@@ -237,91 +194,91 @@ pub fn decode_instruction_at_address(
 
         0xC0 => (Instruction::RET_cc(Condition::NZ), 1),
         0xC1 => (Instruction::POP_r16(R16::BC), 1),
-        0xC3 => (
-            Instruction::JP_u16(Immediate16::from_memory(machine, address + 1)),
-            1,
-        ),
+        0xC3 => (Instruction::JP_u16(imm16_at_offset(1)), 1),
         0xC4 => (
-            Instruction::CALL_cc_u16(
-                Condition::NZ,
-                Immediate16::from_memory(machine, address + 1),
-            ),
+            Instruction::CALL_cc_u16(Condition::NZ, imm16_at_offset(1)),
             3,
         ),
         0xC5 => (Instruction::PUSH_r16(R16::BC), 1),
-        0xC6 => (Instruction::ADD_A_u8(machine.read_u8(address + 1)), 2),
+        0xC6 => (Instruction::ADD_A_u8(u8_at_offset(1)), 2),
         0xC8 => (Instruction::RET_cc(Condition::Z), 1),
         0xC9 => (Instruction::RET, 1),
-        0xCB => match machine.read_u8(address + 1) {
-            0x10 => (Instruction::RL_r8(R8::B), 2),
-            0x11 => (Instruction::RL_r8(R8::C), 2),
-            0x12 => (Instruction::RL_r8(R8::D), 2),
-            0x13 => (Instruction::RL_r8(R8::E), 2),
-            0x14 => (Instruction::RL_r8(R8::H), 2),
-            0x15 => (Instruction::RL_r8(R8::L), 2),
-            0x18 => (Instruction::RR_r8(R8::B), 2),
-            0x19 => (Instruction::RR_r8(R8::C), 2),
-            0x1A => (Instruction::RR_r8(R8::D), 2),
-            0x1B => (Instruction::RR_r8(R8::E), 2),
-            0x1C => (Instruction::RR_r8(R8::H), 2),
-            0x1D => (Instruction::RR_r8(R8::L), 2),
-            0x1F => (Instruction::RR_r8(R8::A), 2),
+        0xCB => {
+            let i = match u8_at_offset(1).0 {
+                0x10 => Instruction::RL_r8(R8::B),
+                0x11 => Instruction::RL_r8(R8::C),
+                0x12 => Instruction::RL_r8(R8::D),
+                0x13 => Instruction::RL_r8(R8::E),
+                0x14 => Instruction::RL_r8(R8::H),
+                0x15 => Instruction::RL_r8(R8::L),
+                0x18 => Instruction::RR_r8(R8::B),
+                0x19 => Instruction::RR_r8(R8::C),
+                0x1A => Instruction::RR_r8(R8::D),
+                0x1B => Instruction::RR_r8(R8::E),
+                0x1C => Instruction::RR_r8(R8::H),
+                0x1D => Instruction::RR_r8(R8::L),
+                0x1F => Instruction::RR_r8(R8::A),
 
-            0x38 => (Instruction::SRL_r8(R8::B), 2),
+                0x38 => Instruction::SRL_r8(R8::B),
 
-            0x78 => (Instruction::BIT_u3_r8(7, R8::B), 2),
-            0x79 => (Instruction::BIT_u3_r8(7, R8::C), 2),
-            0x7A => (Instruction::BIT_u3_r8(7, R8::D), 2),
-            0x7B => (Instruction::BIT_u3_r8(7, R8::E), 2),
-            0x7C => (Instruction::BIT_u3_r8(7, R8::H), 2),
+                0x78 => Instruction::BIT_u3_r8(7, R8::B),
+                0x79 => Instruction::BIT_u3_r8(7, R8::C),
+                0x7A => Instruction::BIT_u3_r8(7, R8::D),
+                0x7B => Instruction::BIT_u3_r8(7, R8::E),
+                0x7C => Instruction::BIT_u3_r8(7, R8::H),
 
-            _ => {
-                println!(
-                    "TODO: CB-prefixed opcode 0x{:02x}",
-                    machine.read_u8(address + 1)
-                );
-                (Instruction::Prefix, 2) // 1 for prefix, 1 for extension?
-            }
-        },
-        0xCC => (
-            Instruction::CALL_Z_a16(Immediate16::from_memory(machine, address + 1)),
-            3,
-        ),
-        0xCD => (
-            Instruction::CALL_a16(Immediate16::from_memory(machine, address + 1)),
-            3,
-        ),
-        0xCE => (Instruction::ADC_A_u8(machine.read_u8(address + 1)), 2),
+                _ => {
+                    println!("TODO: CB-prefixed opcode 0x{:02x}", u8_at_offset(1));
+                    Instruction::Prefix // 1 for prefix, 1 for extension?
+                }
+            };
+            (i, 2)
+        }
+        0xCC => (Instruction::CALL_Z_a16(imm16_at_offset(1)), 3),
+        0xCD => (Instruction::CALL_a16(imm16_at_offset(1)), 3),
+        0xCE => (Instruction::ADC_A_u8(u8_at_offset(1)), 2),
 
         0xD0 => (Instruction::RET_cc(Condition::NC), 1),
         0xD1 => (Instruction::POP_r16(R16::DE), 1),
         0xD5 => (Instruction::PUSH_r16(R16::DE), 1),
-        0xD6 => (Instruction::SUB_A_u8(machine.read_u8(address + 1)), 2),
+        0xD6 => (
+            Instruction::SUB_A_u8(machine.read_u8(address + Wrapping(1))),
+            2,
+        ),
         0xD8 => (Instruction::RET_cc(Condition::C), 1),
         0xD9 => (Instruction::RETI, 1),
 
-        0xE0 => (Instruction::LD_FFu8_A(machine.read_u8(address + 1)), 2),
+        0xE0 => (
+            Instruction::LD_FFu8_A(machine.read_u8(address + Wrapping(1))),
+            2,
+        ),
         0xE1 => (Instruction::POP_r16(R16::HL), 1),
         0xE2 => (Instruction::LD_FFC_A, 1),
         0xE5 => (Instruction::PUSH_r16(R16::HL), 1),
-        0xE6 => (Instruction::AND_u8(machine.read_u8(address + 1)), 2),
-        0xE9 => (Instruction::JP_HL, 1),
-        0xEA => (
-            Instruction::LD_mu16_A(Immediate16::from_memory(machine, address + 1)),
-            3,
+        0xE6 => (
+            Instruction::AND_u8(machine.read_u8(address + Wrapping(1))),
+            2,
         ),
-        0xEE => (Instruction::XOR_A_u8(machine.read_u8(address + 1)), 2),
+        0xE9 => (Instruction::JP_HL, 1),
+        0xEA => (Instruction::LD_mu16_A(imm16_at_offset(1)), 3),
+        0xEE => (
+            Instruction::XOR_A_u8(machine.read_u8(address + Wrapping(1))),
+            2,
+        ),
 
-        0xF0 => (Instruction::LD_A_FFu8(machine.read_u8(address + 1)), 2),
+        0xF0 => (
+            Instruction::LD_A_FFu8(machine.read_u8(address + Wrapping(1))),
+            2,
+        ),
         0xF1 => (Instruction::POP_r16(R16::AF), 1),
         0xF3 => (Instruction::DI, 1),
         0xF5 => (Instruction::PUSH_r16(R16::AF), 1),
         0xFB => (Instruction::EI, 1),
-        0xFA => (
-            Instruction::LD_A_mu16(Immediate16::from_memory(machine, address + 1)),
-            3,
+        0xFA => (Instruction::LD_A_mu16(imm16_at_offset(1)), 3),
+        0xFE => (
+            Instruction::CP_A_u8(machine.read_u8(address + Wrapping(1))),
+            2,
         ),
-        0xFE => (Instruction::CP_A_u8(machine.read_u8(address + 1)), 2),
 
         b => panic!("Implement decode for {:02X}", b),
     };

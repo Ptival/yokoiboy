@@ -1,10 +1,12 @@
+use std::num::Wrapping;
+
 use super::{decode::DecodedInstruction, type_def::Instruction};
 
 impl DecodedInstruction {
-    fn resolve_relative(&self, i8: i8) -> u16 {
-        self.address
-            .wrapping_add(self.instruction_size as u16)
-            .wrapping_add_signed(i8 as i16)
+    fn resolve_relative(&self, i8: Wrapping<i8>) -> u16 {
+        (self.address + Wrapping(self.instruction_size as u16))
+            .0
+            .wrapping_add_signed(i8.0 as i16)
     }
 
     pub fn as_string(&self) -> String {
@@ -39,7 +41,10 @@ impl DecodedInstruction {
                 format!("JR {}, {} (=0x{:04X})", cc, i8, self.resolve_relative(*i8))
             }
             Instruction::LD_A_FFu8(u8) => {
-                format!("LD A, [0x{:04X}]", 0xFF00 + *u8 as u16)
+                format!(
+                    "LD A, [0x{:04X}]",
+                    Wrapping(0xFF00) + Wrapping((*u8).0 as u16)
+                )
             }
             Instruction::LD_FFC_A => String::from("LD [0xFF00 + C], A"),
             Instruction::LD_mr16_r8(mr16, r8) => {
@@ -122,13 +127,18 @@ impl DecodedInstruction {
             Instruction::RRA => String::from("RRA"),
             Instruction::SBC_A_A => String::from("SBC A, A"),
             Instruction::SBC_A_C => String::from("SBC A, C"),
+            Instruction::LD_A_mHL => String::from("LD A [HL]"),
+            Instruction::LD_A_mHLdec => String::from("LD A [HL-]"),
             Instruction::LD_A_mHLinc => String::from("LD A [HL+]"),
             Instruction::LD_mu16_A(imm16) => {
                 format!("LD [0x{:04X}], A", imm16.as_u16())
             }
             Instruction::DI => String::from("DI"),
             Instruction::LD_FFu8_A(u8) => {
-                format!("LD [0x{:04X}], A", 0xFF00 + *u8 as u16)
+                format!(
+                    "LD [0x{:04X}], A",
+                    Wrapping(0xFF00) + Wrapping((*u8).0 as u16)
+                )
             }
             Instruction::OR_r8(r8) => {
                 format!("OR A, {}", r8)

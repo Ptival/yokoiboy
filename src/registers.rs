@@ -1,4 +1,5 @@
 use core::fmt;
+use std::num::Wrapping;
 
 #[derive(Clone, Debug, Hash)]
 pub enum R8 {
@@ -55,17 +56,17 @@ impl Flag {
 
 #[derive(Clone, Debug, Hash)]
 pub struct Registers {
-    pub af: u16,
-    pub bc: u16,
-    pub de: u16,
-    pub hl: u16,
-    pub sp: u16,
-    pub pc: u16,
+    pub af: Wrapping<u16>,
+    pub bc: Wrapping<u16>,
+    pub de: Wrapping<u16>,
+    pub hl: Wrapping<u16>,
+    pub sp: Wrapping<u16>,
+    pub pc: Wrapping<u16>,
     pub ime: bool,
 }
 
-pub fn u16_from_u8s(higher: u8, lower: u8) -> u16 {
-    (higher as u16) << 8 | lower as u16
+pub fn u16_from_u8s(higher: Wrapping<u8>, lower: Wrapping<u8>) -> Wrapping<u16> {
+    Wrapping((higher.0 as u16) << 8 | lower.0 as u16)
 }
 
 pub fn higher_u8(from: u16) -> u8 {
@@ -79,89 +80,89 @@ pub fn lower_u8(from: u16) -> u8 {
 impl Registers {
     pub fn new() -> Self {
         Registers {
-            af: 0,
-            bc: 0,
-            de: 0,
-            hl: 0,
-            sp: 0,
-            pc: 0,
+            af: Wrapping(0),
+            bc: Wrapping(0),
+            de: Wrapping(0),
+            hl: Wrapping(0),
+            sp: Wrapping(0),
+            pc: Wrapping(0),
             ime: false,
         }
     }
 
-    pub fn write_a(&mut self, a: u8) -> &mut Self {
+    pub fn write_a(&mut self, a: Wrapping<u8>) -> &mut Self {
         self.af = u16_from_u8s(a, self.read_f());
         self
     }
 
-    fn write_f(&mut self, f: u8) -> &mut Self {
+    fn write_f(&mut self, f: Wrapping<u8>) -> &mut Self {
         self.af = u16_from_u8s(self.read_a(), f);
         self
     }
 
-    pub fn write_b(&mut self, b: u8) -> &mut Self {
+    pub fn write_b(&mut self, b: Wrapping<u8>) -> &mut Self {
         self.bc = u16_from_u8s(b, self.read_c());
         self
     }
 
-    pub fn write_c(&mut self, c: u8) -> &mut Self {
+    pub fn write_c(&mut self, c: Wrapping<u8>) -> &mut Self {
         self.bc = u16_from_u8s(self.read_b(), c);
         self
     }
 
-    pub fn write_d(&mut self, d: u8) -> &mut Self {
+    pub fn write_d(&mut self, d: Wrapping<u8>) -> &mut Self {
         self.de = u16_from_u8s(d, self.read_e());
         self
     }
 
-    pub fn write_e(&mut self, e: u8) -> &mut Self {
+    pub fn write_e(&mut self, e: Wrapping<u8>) -> &mut Self {
         self.de = u16_from_u8s(self.read_d(), e);
         self
     }
 
-    pub fn write_h(&mut self, h: u8) -> &mut Self {
+    pub fn write_h(&mut self, h: Wrapping<u8>) -> &mut Self {
         self.hl = u16_from_u8s(h, self.read_l());
         self
     }
 
-    pub fn write_l(&mut self, l: u8) -> &mut Self {
+    pub fn write_l(&mut self, l: Wrapping<u8>) -> &mut Self {
         self.hl = u16_from_u8s(self.read_h(), l);
         self
     }
 
-    pub fn read_a(&self) -> u8 {
-        higher_u8(self.af)
+    pub fn read_a(&self) -> Wrapping<u8> {
+        Wrapping(higher_u8(self.af.0))
     }
 
-    pub fn read_f(&self) -> u8 {
-        lower_u8(self.af)
+    pub fn read_f(&self) -> Wrapping<u8> {
+        Wrapping(lower_u8(self.af.0))
     }
 
-    pub fn read_b(&self) -> u8 {
-        higher_u8(self.bc)
+    pub fn read_b(&self) -> Wrapping<u8> {
+        Wrapping(higher_u8(self.bc.0))
     }
 
-    pub fn read_c(&self) -> u8 {
-        lower_u8(self.bc)
+    pub fn read_c(&self) -> Wrapping<u8> {
+        Wrapping(lower_u8(self.bc.0))
     }
 
-    pub fn read_d(&self) -> u8 {
-        higher_u8(self.de)
+    pub fn read_d(&self) -> Wrapping<u8> {
+        Wrapping(higher_u8(self.de.0))
     }
 
-    pub fn read_e(&self) -> u8 {
-        lower_u8(self.de)
+    pub fn read_e(&self) -> Wrapping<u8> {
+        Wrapping(lower_u8(self.de.0))
     }
 
-    pub fn read_h(&self) -> u8 {
-        higher_u8(self.hl)
+    pub fn read_h(&self) -> Wrapping<u8> {
+        Wrapping(higher_u8(self.hl.0))
     }
 
-    pub fn read_l(&self) -> u8 {
-        lower_u8(self.hl)
+    pub fn read_l(&self) -> Wrapping<u8> {
+        Wrapping(lower_u8(self.hl.0))
     }
 
-    pub fn read_r8(&self, r8: &R8) -> u8 {
+    pub fn read_r8(&self, r8: &R8) -> Wrapping<u8> {
         match r8 {
             R8::A => self.read_a(),
             R8::B => self.read_b(),
@@ -174,7 +175,7 @@ impl Registers {
         }
     }
 
-    pub fn write_r8(&mut self, r8: &R8, value: u8) -> &mut Self {
+    pub fn write_r8(&mut self, r8: &R8, value: Wrapping<u8>) -> &mut Self {
         match r8 {
             R8::A => self.write_a(value),
             R8::B => self.write_b(value),
@@ -187,7 +188,7 @@ impl Registers {
         }
     }
 
-    pub fn read_r16(&self, r16: &R16) -> u16 {
+    pub fn read_r16(&self, r16: &R16) -> Wrapping<u16> {
         match r16 {
             R16::AF => self.af,
             R16::BC => self.bc,
@@ -198,7 +199,7 @@ impl Registers {
         }
     }
 
-    pub fn write_r16(&mut self, r16: &R16, value: u16) -> &mut Self {
+    pub fn write_r16(&mut self, r16: &R16, value: Wrapping<u16>) -> &mut Self {
         match r16 {
             R16::AF => self.af = value,
             R16::BC => self.bc = value,
@@ -211,11 +212,11 @@ impl Registers {
     }
 
     pub fn get_bit(&self, r8: &R8, bit: &u8) -> bool {
-        (self.read_r8(r8) & (1 << bit)) != 0
+        (self.read_r8(r8).0 & (1 << bit)) != 0
     }
 
     pub fn read_flag(&self, flag: Flag) -> bool {
-        self.read_f() & (1 << flag.get_bit()) != 0
+        self.read_f().0 & (1 << flag.get_bit()) != 0
     }
 
     pub fn set_flag(&mut self, flag: Flag) -> &mut Self {
@@ -228,9 +229,9 @@ impl Registers {
 
     pub fn write_flag(&mut self, flag: Flag, value: bool) -> &mut Self {
         if value {
-            self.write_f(self.read_f() | (1 << flag.get_bit()))
+            self.write_f(Wrapping(self.read_f().0 | (1 << flag.get_bit())))
         } else {
-            self.write_f(self.read_f() & !(1 << flag.get_bit()))
+            self.write_f(Wrapping(self.read_f().0 & !(1 << flag.get_bit())))
         }
     }
 }

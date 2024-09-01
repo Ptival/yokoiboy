@@ -1,3 +1,5 @@
+use std::num::Wrapping;
+
 use crate::{
     cpu::CPU,
     machine::Machine,
@@ -27,44 +29,44 @@ fn sub_borrows(a: impl Into<u16>, b: impl Into<u16>, bit: u8) -> bool {
     ((bit_mask | (a & input_mask)) - (b & input_mask)) & bit_mask == 0
 }
 
-fn compare(cpu: &mut CPU, a: u8, b: u8) {
+fn compare(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     // println!("Comparing {:02X} and {:02X}", a, b);
     cpu.registers
         .write_flag(Flag::Z, a == b)
         .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a, b, 4))
-        .write_flag(Flag::C, sub_borrows(a, b, 8));
+        .write_flag(Flag::H, sub_borrows(a.0, b.0, 4))
+        .write_flag(Flag::C, sub_borrows(a.0, b.0, 8));
 }
 
-fn adc(cpu: &mut CPU, a: u8, b: u8, c: bool) {
-    let res = a.wrapping_add(b).wrapping_add(c as u8);
+fn adc(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>, c: bool) {
+    let res = a + b + Wrapping(c as u8);
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .unset_flag(Flag::N)
-        .write_flag(Flag::H, add_produces_carry(a, b, c, 4))
-        .write_flag(Flag::C, add_produces_carry(a, b, c, 8));
+        .write_flag(Flag::H, add_produces_carry(a.0, b.0, c, 4))
+        .write_flag(Flag::C, add_produces_carry(a.0, b.0, c, 8));
 }
 
-fn add(cpu: &mut CPU, a: u8, b: u8) {
+fn add(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     adc(cpu, a, b, false)
 }
 
-fn and(cpu: &mut CPU, a: u8, b: u8) {
+fn and(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     let res = a & b;
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .unset_flag(Flag::N)
         .set_flag(Flag::H)
         .unset_flag(Flag::C);
 }
 
-fn or(cpu: &mut CPU, a: u8, b: u8) {
+fn or(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     let res = a | b;
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .unset_flag(Flag::N)
         .unset_flag(Flag::H)
         .unset_flag(Flag::C);
@@ -72,37 +74,37 @@ fn or(cpu: &mut CPU, a: u8, b: u8) {
 
 // NOTE: This does not write the result anywhere!
 // NOTE: This does not set the flags like SUB.
-fn dec(cpu: &mut CPU, a: u8) -> u8 {
+fn dec(cpu: &mut CPU, a: Wrapping<u8>) -> Wrapping<u8> {
     // let a = cpu.registers.read_r8(r8);
-    let res = a.wrapping_sub(1);
+    let res = a - Wrapping(1);
     cpu.registers
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a, 1 as u8, 4));
+        .write_flag(Flag::H, sub_borrows(a.0, 1 as u8, 4));
     res
 }
 
-fn sub(cpu: &mut CPU, a: u8, b: u8) {
-    let res = a.wrapping_sub(b);
+fn sub(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
+    let res = a - b;
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a, b, 4))
-        .write_flag(Flag::C, sub_borrows(a, b, 8));
+        .write_flag(Flag::H, sub_borrows(a.0, b.0, 4))
+        .write_flag(Flag::C, sub_borrows(a.0, b.0, 8));
 }
 
-fn xor(cpu: &mut CPU, a: u8, b: u8) {
+fn xor(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     let res = a ^ b;
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .unset_flag(Flag::N)
         .unset_flag(Flag::H)
         .unset_flag(Flag::C);
 }
 
-fn call(machine: &mut Machine, address: u16) {
+fn call(machine: &mut Machine, address: Wrapping<u16>) {
     CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu.registers.pc));
     machine.cpu.registers.pc = address;
 }
@@ -148,14 +150,14 @@ impl Instruction {
             Instruction::ADD_HL_r16(r16) => {
                 let a = machine.cpu.registers.hl;
                 let b = machine.cpu.registers.read_r16(r16);
-                let res = a.wrapping_add(b);
+                let res = a + b;
                 machine
                     .cpu
                     .registers
                     .write_r16(&R16::HL, res)
                     .unset_flag(Flag::N)
-                    .write_flag(Flag::H, add_produces_carry(a, b, false, 12))
-                    .write_flag(Flag::C, add_produces_carry(a, b, false, 16));
+                    .write_flag(Flag::H, add_produces_carry(a.0, b.0, false, 12))
+                    .write_flag(Flag::C, add_produces_carry(a.0, b.0, false, 16));
                 (8, 2)
             }
 
@@ -239,19 +241,19 @@ impl Instruction {
             Instruction::INC_r8(r8) => {
                 // NOTE: Can't use `add` because we don't want to touch Flag::C
                 let r8val = machine.cpu.registers.read_r8(r8);
-                let res = r8val.wrapping_add(1);
+                let res = r8val + Wrapping(1);
                 machine
                     .cpu
                     .registers
                     .write_r8(r8, res)
-                    .write_flag(Flag::Z, res == 0)
+                    .write_flag(Flag::Z, res.0 == 0)
                     .unset_flag(Flag::N)
-                    .write_flag(Flag::H, add_produces_carry(r8val, 1 as u16, false, 4));
+                    .write_flag(Flag::H, add_produces_carry(r8val.0, 1 as u16, false, 4));
                 (4, 1)
             }
 
             Instruction::INC_r16(r16) => {
-                let res = machine.cpu.registers.read_r16(r16).wrapping_add(1);
+                let res = machine.cpu.registers.read_r16(r16) + Wrapping(1);
                 machine.cpu.registers.write_r16(r16, res);
                 (8, 2)
             }
@@ -269,27 +271,36 @@ impl Instruction {
             }
 
             Instruction::JR_i8(i8) => {
-                machine.cpu.registers.pc = machine
-                    .cpu
-                    .registers
-                    .pc
-                    .checked_add_signed(*i8 as i16)
-                    .expect("JR_i8 overflowed");
+                let pc = machine.cpu.registers.pc.0;
+                machine.cpu.registers.pc = Wrapping(pc.wrapping_add_signed((*i8).0 as i16));
                 (12, 3)
             }
 
             Instruction::JR_cc_i8(cc, i8) => {
+                let pc = machine.cpu.registers.pc.0;
                 if cc.holds(&machine.cpu) {
-                    machine.cpu.registers.pc = machine
-                        .cpu
-                        .registers
-                        .pc
-                        .checked_add_signed(*i8 as i16)
-                        .expect("JR_cc_i8 overflowed");
+                    machine.cpu.registers.pc = Wrapping(pc.wrapping_add_signed((*i8).0 as i16));
                     (12, 3)
                 } else {
                     (8, 2)
                 }
+            }
+
+            Instruction::LD_A_mHL => {
+                machine
+                    .cpu
+                    .registers
+                    .write_a(machine.read_u8(machine.cpu.registers.hl));
+                (8, 2)
+            }
+
+            Instruction::LD_A_mHLdec => {
+                machine
+                    .cpu
+                    .registers
+                    .write_a(machine.read_u8(machine.cpu.registers.hl));
+                machine.cpu.registers.hl -= 1;
+                (8, 2)
             }
 
             Instruction::LD_A_mHLinc => {
@@ -302,7 +313,10 @@ impl Instruction {
             }
 
             Instruction::LD_FFu8_A(u8) => {
-                machine.write_u8(0xFF00 + *u8 as u16, machine.cpu.registers.read_a());
+                machine.write_u8(
+                    Wrapping(0xFF00 + (*u8).0 as u16),
+                    machine.cpu.registers.read_a(),
+                );
                 (12, 3)
             }
 
@@ -315,7 +329,7 @@ impl Instruction {
                 let sp = Immediate16::from_u16(machine.cpu.registers.sp);
                 let address = imm16.as_u16();
                 machine.write_u8(address, sp.lower_byte);
-                machine.write_u8(address + 1, sp.higher_byte);
+                machine.write_u8(address + Wrapping(1), sp.higher_byte);
                 (20, 5)
             }
 
@@ -325,7 +339,7 @@ impl Instruction {
 
             Instruction::LD_FFC_A => {
                 machine.write_u8(
-                    0xFF00 + machine.cpu.registers.read_c() as u16,
+                    Wrapping(0xFF00) + Wrapping(machine.cpu.registers.read_c().0 as u16),
                     machine.cpu.registers.read_a(),
                 );
                 (8, 2)
@@ -365,10 +379,8 @@ impl Instruction {
             }
 
             Instruction::LD_A_FFu8(u8) => {
-                machine
-                    .cpu
-                    .registers
-                    .write_a(machine.read_u8(0xFF00 + *u8 as u16));
+                let a = machine.read_u8(Wrapping(0xFF00) + Wrapping((*u8).0 as u16));
+                machine.cpu.registers.write_a(a);
                 (12, 3)
             }
 
@@ -446,8 +458,8 @@ impl Instruction {
             Instruction::RLA => {
                 // Note: for some reason, this always unsets Z
                 let carry = machine.cpu.registers.read_flag(Flag::C) as u16;
-                let result_u16 = ((machine.cpu.registers.read_a() as u16) << 1) | carry;
-                let result = result_u16 as u8;
+                let result_u16 = ((machine.cpu.registers.read_a().0 as u16) << 1) | carry;
+                let result = Wrapping(result_u16 as u8);
                 machine
                     .cpu
                     .registers
@@ -462,13 +474,13 @@ impl Instruction {
             Instruction::RL_r8(r8) => {
                 // Doing this as u16 to detect overflow easily
                 let carry = machine.cpu.registers.read_flag(Flag::C) as u16;
-                let result_u16 = ((machine.cpu.registers.read_r8(r8) as u16) << 1) | carry;
-                let result = result_u16 as u8;
+                let result_u16 = ((machine.cpu.registers.read_r8(r8).0 as u16) << 1) | carry;
+                let result = Wrapping(result_u16 as u8);
                 machine
                     .cpu
                     .registers
                     .write_r8(r8, result)
-                    .write_flag(Flag::Z, result == 0)
+                    .write_flag(Flag::Z, result.0 == 0)
                     .unset_flag(Flag::N)
                     .unset_flag(Flag::H)
                     .write_flag(Flag::C, (result_u16 & 0xFF00) != 0);
@@ -535,11 +547,11 @@ impl Instruction {
 
 pub fn rotate_right_through_carry(cpu: &mut CPU, r8: &R8) {
     let r8val = cpu.registers.read_r8(r8);
-    let carry = r8val & 1;
-    let res = (r8val >> 1) | ((cpu.registers.read_flag(Flag::C) as u8) << 7);
+    let carry = r8val.0 & 1;
+    let res = Wrapping((r8val.0 >> 1) | ((cpu.registers.read_flag(Flag::C) as u8) << 7));
     cpu.registers
         .write_r8(r8, res)
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .unset_flag(Flag::N)
         .unset_flag(Flag::H)
         .write_flag(Flag::C, carry == 1);
@@ -547,11 +559,11 @@ pub fn rotate_right_through_carry(cpu: &mut CPU, r8: &R8) {
 
 pub fn shift_right_logically(cpu: &mut CPU, r8: &R8) {
     let r8val = cpu.registers.read_r8(r8);
-    let carry = r8val & 1;
+    let carry = r8val.0 & 1;
     let res = r8val >> 1;
     cpu.registers
         .write_r8(r8, res)
-        .write_flag(Flag::Z, res == 0)
+        .write_flag(Flag::Z, res.0 == 0)
         .unset_flag(Flag::N)
         .unset_flag(Flag::H)
         .write_flag(Flag::C, carry == 1);

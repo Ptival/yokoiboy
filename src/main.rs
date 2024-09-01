@@ -3,6 +3,7 @@ use std::{
     fmt::Debug,
     fs::{File, OpenOptions},
     io::Write,
+    num::{Saturating, Wrapping},
 };
 
 use circular_queue::CircularQueue;
@@ -66,25 +67,25 @@ impl Default for DebuggerWindow {
             .expect("Failed to load ROM");
         queue.push(Machine {
             t_cycle_count: 0,
-            dmg_boot_rom: 0,
+            dmg_boot_rom: Wrapping(0),
             cpu,
             ppu: PPU::new(),
-            bgp: 0,
+            bgp: Wrapping(0),
             external_ram: [0; EXTERNAL_RAM_SIZE],
-            interrupt_enable: 0,
-            interrupt_flag: 0,
-            nr11: 0,
-            nr12: 0,
-            nr13: 0,
-            nr14: 0,
-            nr50: 0,
-            nr51: 0,
-            nr52: 0,
-            sb: 0,
-            sc: 0,
-            scx: 0,
-            scy: 0,
-            tac: 0,
+            interrupt_enable: Wrapping(0),
+            interrupt_flag: Wrapping(0),
+            nr11: Wrapping(0),
+            nr12: Wrapping(0),
+            nr13: Wrapping(0),
+            nr14: Wrapping(0),
+            nr50: Wrapping(0),
+            nr51: Wrapping(0),
+            nr52: Wrapping(0),
+            sb: Wrapping(0),
+            sc: Wrapping(0),
+            scx: Wrapping(0),
+            scy: Wrapping(0),
+            tac: Wrapping(0),
         });
         Self {
             breakpoints: vec![
@@ -120,8 +121,8 @@ impl DebuggerWindow {
             .expect("current_machine_immut: no machine")
     }
 
-    pub fn display_breakpoint(self: &Self, address: u16) -> String {
-        String::from(if self.breakpoints.contains(&address) {
+    pub fn display_breakpoint(self: &Self, address: Wrapping<u16>) -> String {
+        String::from(if self.breakpoints.contains(&address.0) {
             "@"
         } else {
             ""
@@ -137,10 +138,10 @@ impl DebuggerWindow {
         machine.ppu.step_dots(t_cycles);
         machine.t_cycle_count += t_cycles as u64;
 
-        if machine.read_u8(0xFF02) == 0x81 {
-            let char = machine.read_u8(0xFF01);
-            print!("{}", char as char);
-            machine.write_u8(0xFF02, 0x01);
+        if machine.read_u8(Wrapping(0xFF02)).0 == 0x81 {
+            let char = machine.read_u8(Wrapping(0xFF01));
+            print!("{}", char.0 as char);
+            machine.write_u8(Wrapping(0xFF02), Wrapping(0x01));
         }
 
         machine
@@ -229,7 +230,7 @@ impl DebuggerWindow {
 
                 // Try to run some number of steps before updating the display
                 let mut remaining_steps: u32 = 1_000_000;
-                while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc) {
+                while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc.0) {
                     remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
                     pc = self.current_machine().cpu.registers.pc;
@@ -330,9 +331,9 @@ impl DebuggerWindow {
 
         let dmg_row = Row::new().push(text(format!("DMG: {}", machine.is_dmg_boot_rom_on())));
 
-        let mem_row1 = Row::new().push(text(machine.show_memory_row(0x104)));
-        let mem_row2 = Row::new().push(text(machine.show_memory_row(0x10C)));
-        let mem_row3 = Row::new().push(text(machine.show_memory_row(0x114)));
+        let mem_row1 = Row::new().push(text(machine.show_memory_row(Wrapping(0x104))));
+        let mem_row2 = Row::new().push(text(machine.show_memory_row(Wrapping(0x10C))));
+        let mem_row3 = Row::new().push(text(machine.show_memory_row(Wrapping(0x114))));
 
         let mut lcdc_grid_right = Grid::new();
         lcdc_grid_right = lcdc_grid_right.push(grid_row![
@@ -345,7 +346,7 @@ impl DebuggerWindow {
             text("1"),
             text("0"),
         ]);
-        let lcdc = machine.ppu.read_lcdc();
+        let lcdc = machine.ppu.read_lcdc().0;
         lcdc_grid_right = lcdc_grid_right.push(grid_row![
             text(format!("{}", (lcdc & (1 << 7)) >> 7)),
             text(format!("{}", (lcdc & (1 << 6)) >> 6)),
@@ -384,12 +385,12 @@ impl DebuggerWindow {
         let mut stack_grid = Grid::new();
         stack_grid = stack_grid.push(grid_row![text("Stack:")]);
         // Note: the stack stops at 0xFFFE, as 0xFFFF is used for interrupt enable
-        let stack_top = cpu.registers.sp;
-        let stack_until = min(cpu.registers.sp.saturating_add(4), 0xFFFE);
+        let stack_top = cpu.registers.sp.0;
+        let stack_until = min((Saturating(cpu.registers.sp.0) + Saturating(4)).0, 0xFFFE);
         for stack_addr in stack_top..=stack_until {
             stack_grid = stack_grid.push(grid_row![
                 text(format!("0x{:04X}:", stack_addr)),
-                text(format!("{:02X}", machine.read_u8(stack_addr))),
+                text(format!("{:02X}", machine.read_u8(Wrapping(stack_addr)))),
             ]);
         }
 
