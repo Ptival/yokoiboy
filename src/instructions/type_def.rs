@@ -69,6 +69,7 @@ pub enum Instruction {
     JR_i8(Wrapping<i8>),
     JR_r8(R8),
     LD_A_FFu8(Wrapping<u8>),
+    LD_A_FFC,
     LD_A_mHL,
     LD_A_mHLdec,
     LD_A_mHLinc,
@@ -101,11 +102,13 @@ pub enum Instruction {
     RET,
     RETI,
     RL_r8(R8),
-    RLA, // Note: this behaves differently than RL A
-    RLCA,
+    RLA, // Note: this is different from "RL A"
+    RLCA, // Note: this is different from "RLC A"
+    RLC_r8(R8),
     RR_r8(R8),
-    RRA, // Note: this behaves differently than RR A
-    RRCA,
+    RRA, // Note: this is different from "RR A"
+    RRCA, // Note: this is different from "RRC A"
+    RRC_r8(R8),
     RST(Immediate16),
     SBC_A_r8(R8),
     SBC_A_u8(Wrapping<u8>),

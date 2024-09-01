@@ -52,6 +52,7 @@ impl DecodedInstruction {
                 "LD A, [0x{:04X}]",
                 Wrapping(0xFF00) + Wrapping((*u8).0 as u16)
             ),
+            Instruction::LD_A_FFC => String::from("LD A, [0xFF00 + C]"),
             Instruction::LD_r16_d16(r16, imm16) => {
                 format!("LD {} 0x{:04X} (= {})", r16, imm16.as_u16(), imm16.as_u16())
             }
@@ -89,9 +90,11 @@ impl DecodedInstruction {
             Instruction::RL_r8(r8) => format!("RL {}", r8),
             Instruction::RLA => String::from("RLA"),
             Instruction::RLCA => String::from("RLCA"),
+            Instruction::RLC_r8(r8) => format!("RLC {}", r8),
             Instruction::RR_r8(r8) => format!("RRL {}", r8),
             Instruction::RRA => String::from("RRA"),
             Instruction::RRCA => String::from("RRCA"),
+            Instruction::RRC_r8(r8) => format!("RRC {}", r8),
             Instruction::RST(imm16) => format!("RST 0x{:04X}", imm16.as_u16()),
             Instruction::SBC_A_r8(r8) => format!("SBC A, {}", r8),
             Instruction::SBC_A_u8(u8) => format!("SBC A, 0x{:02X}", u8),

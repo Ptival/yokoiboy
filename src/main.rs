@@ -66,11 +66,11 @@ impl Default for DebuggerWindow {
                 // "gb-test-roms/cpu_instrs/individual/03-op sp,hl.gb",
                 // "gb-test-roms/cpu_instrs/individual/04-op r,imm.gb",
                 // "gb-test-roms/cpu_instrs/individual/05-op rp.gb",
-                "gb-test-roms/cpu_instrs/individual/06-ld r,r.gb",
+                // "gb-test-roms/cpu_instrs/individual/06-ld r,r.gb",
                 // "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
                 // "gb-test-roms/cpu_instrs/individual/08-misc instrs.gb",
                 // "gb-test-roms/cpu_instrs/individual/09-op r,r.gb",
-                // "gb-test-roms/cpu_instrs/individual/10-bit ops.gb",
+                "gb-test-roms/cpu_instrs/individual/10-bit ops.gb",
                 // "gb-test-roms/cpu_instrs/individual/11-op a,(hl).gb",
             ))
             .expect("Failed to load ROM");
@@ -102,6 +102,8 @@ impl Default for DebuggerWindow {
                 // 0x00FC, // passed header checksum check
                 // 0x0100, // goal
                 // 0xC738,
+                // 0xC662,
+                // 0xDEF8,
             ],
             output_file: OpenOptions::new()
                 .write(true)

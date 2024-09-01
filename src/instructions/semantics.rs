@@ -464,6 +464,13 @@ impl Instruction {
                 (8, 2)
             }
 
+            Instruction::LD_A_FFC => {
+                let c = machine.cpu.registers.read_c();
+                let a = machine.read_u8(Wrapping(0xFF00) + Wrapping(c.0 as u16));
+                machine.cpu.registers.write_a(a);
+                (8, 2)
+            }
+
             Instruction::LD_A_FFu8(u8) => {
                 let a = machine.read_u8(Wrapping(0xFF00) + Wrapping((*u8).0 as u16));
                 machine.cpu.registers.write_a(a);
@@ -571,6 +578,11 @@ impl Instruction {
                 (4, 1)
             }
 
+            Instruction::RLC_r8(r8) => {
+                rotate_left(&mut machine.cpu, r8);
+                (8, 2)
+            }
+
             Instruction::RL_r8(r8) => {
                 rotate_left(&mut machine.cpu, r8);
                 (8, 2)
@@ -593,6 +605,11 @@ impl Instruction {
                 // For some reason, this unsets Z
                 machine.cpu.registers.unset_flag(Flag::Z);
                 (4, 1)
+            }
+
+            Instruction::RRC_r8(r8) => {
+                rotate_right(&mut machine.cpu, r8);
+                (8, 2)
             }
 
             Instruction::RST(imm16) => {
