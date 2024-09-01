@@ -1,5 +1,4 @@
 use crate::{
-    conditions::Condition,
     cpu::CPU,
     machine::Machine,
     registers::{Flag, R16, R8},
@@ -38,7 +37,7 @@ fn compare(cpu: &mut CPU, a: u8, b: u8) {
 }
 
 fn adc(cpu: &mut CPU, a: u8, b: u8, c: bool) {
-    let res = a.wrapping_add(b);
+    let res = a.wrapping_add(b).wrapping_add(c as u8);
     cpu.registers
         .write_a(res)
         .write_flag(Flag::Z, res == 0)
@@ -146,6 +145,20 @@ impl Instruction {
                 (8, 2)
             }
 
+            Instruction::ADD_HL_r16(r16) => {
+                let a = machine.cpu.registers.hl;
+                let b = machine.cpu.registers.read_r16(r16);
+                let res = a.wrapping_add(b);
+                machine
+                    .cpu
+                    .registers
+                    .write_r16(&R16::HL, res)
+                    .unset_flag(Flag::N)
+                    .write_flag(Flag::H, add_produces_carry(a, b, false, 12))
+                    .write_flag(Flag::C, add_produces_carry(a, b, false, 16));
+                (8, 2)
+            }
+
             Instruction::AND_L => todo!(),
 
             Instruction::AND_u8(u8) => {
@@ -248,6 +261,11 @@ impl Instruction {
             Instruction::JP_u16(imm16) => {
                 machine.cpu.registers.pc = imm16.as_u16();
                 (16, 4)
+            }
+
+            Instruction::JP_HL => {
+                machine.cpu.registers.pc = machine.cpu.registers.hl;
+                (4, 1)
             }
 
             Instruction::JR_i8(i8) => {

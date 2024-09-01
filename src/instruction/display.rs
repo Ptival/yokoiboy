@@ -148,18 +148,16 @@ impl DecodedInstruction {
             Instruction::XOR_A_u8(u8) => {
                 format!("XOR A, 0x{:02X}", u8)
             }
-            Instruction::XOR_A_mHL => {
-                format!("XOR A, [HL]")
-            }
+            Instruction::XOR_A_mHL => String::from("XOR A, [HL]"),
             Instruction::SRL_r8(r8) => {
                 format!("SRL {}", r8)
             }
-            Instruction::OR_A_mHL => {
-                format!("OR A, [HL]")
+            Instruction::OR_A_mHL => String::from("OR A, [HL]"),
+            Instruction::DEC_mHL => String::from("DEC [HL]"),
+            Instruction::ADD_HL_r16(r16) => {
+                format!("ADD HL, {}", r16)
             }
-            Instruction::DEC_mHL => {
-                format!("DEC [HL]")
-            }
+            Instruction::JP_HL => String::from("JP HL"),
         }
     }
 }
