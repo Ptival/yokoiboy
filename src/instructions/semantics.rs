@@ -20,13 +20,13 @@ fn add_produces_carry(a: impl Into<u16>, b: impl Into<u16>, c: bool, bit: u8) ->
 
 // Checks whether subtracting b from a with bitsize (bit - 1) would produce a borrow at position
 // bit.  Assumes bit < 16, so that all operations can be carried without loss as u32.
-fn sub_borrows(a: impl Into<u16>, b: impl Into<u16>, bit: u8) -> bool {
+fn sub_borrows(a: impl Into<u16>, b: impl Into<u16>, c: bool, bit: u8) -> bool {
     let a = a.into() as u32;
     let b = b.into() as u32;
     let bit_mask = 1 << bit;
     let input_mask = (1 << bit) - 1;
     // Put a 1 in borrowable position, then borrow occured if it became a 0
-    ((bit_mask | (a & input_mask)) - (b & input_mask)) & bit_mask == 0
+    ((bit_mask | (a & input_mask)) - (b & input_mask) - (c as u32)) & bit_mask == 0
 }
 
 fn compare(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
@@ -34,8 +34,8 @@ fn compare(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     cpu.registers
         .write_flag(Flag::Z, a == b)
         .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a.0, b.0, 4))
-        .write_flag(Flag::C, sub_borrows(a.0, b.0, 8));
+        .write_flag(Flag::H, sub_borrows(a.0, b.0, false, 4))
+        .write_flag(Flag::C, sub_borrows(a.0, b.0, false, 8));
 }
 
 fn adc(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>, c: bool) {
@@ -80,18 +80,22 @@ fn dec(cpu: &mut CPU, a: Wrapping<u8>) -> Wrapping<u8> {
     cpu.registers
         .write_flag(Flag::Z, res.0 == 0)
         .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a.0, 1 as u8, 4));
+        .write_flag(Flag::H, sub_borrows(a.0, 1 as u8, false, 4));
     res
 }
 
-fn sub(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
-    let res = a - b;
+fn subc(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>, c: bool) {
+    let res = a - b - Wrapping(c as u8);
     cpu.registers
         .write_a(res)
         .write_flag(Flag::Z, res.0 == 0)
         .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a.0, b.0, 4))
-        .write_flag(Flag::C, sub_borrows(a.0, b.0, 8));
+        .write_flag(Flag::H, sub_borrows(a.0, b.0, c, 4))
+        .write_flag(Flag::C, sub_borrows(a.0, b.0, c, 8));
+}
+
+fn sub(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
+    subc(cpu, a, b, false)
 }
 
 fn xor(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
@@ -161,7 +165,12 @@ impl Instruction {
                 (8, 2)
             }
 
-            Instruction::AND_L => todo!(),
+            Instruction::AND_r8(r8) => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.cpu.registers.read_r8(r8);
+                and(&mut machine.cpu, a, b);
+                (4, 1)
+            }
 
             Instruction::AND_u8(u8) => {
                 let a = machine.cpu.registers.read_a();
@@ -506,46 +515,41 @@ impl Instruction {
             }
 
             Instruction::RLA => {
-                // Note: for some reason, this always unsets Z
-                let carry = machine.cpu.registers.read_flag(Flag::C) as u16;
-                let result_u16 = ((machine.cpu.registers.read_a().0 as u16) << 1) | carry;
-                let result = Wrapping(result_u16 as u8);
-                machine
-                    .cpu
-                    .registers
-                    .write_r8(&R8::A, result)
-                    .unset_flag(Flag::Z)
-                    .unset_flag(Flag::N)
-                    .unset_flag(Flag::H)
-                    .write_flag(Flag::C, (result_u16 & 0xFF00) != 0);
+                rotate_left_through_carry(&mut machine.cpu, &R8::A);
+                // For some reason, this unsets Z
+                machine.cpu.registers.unset_flag(Flag::Z);
+                (4, 1)
+            }
+
+            Instruction::RLCA => {
+                rotate_left(&mut machine.cpu, &R8::A);
+                // For some reason, this unsets Z
+                machine.cpu.registers.unset_flag(Flag::Z);
                 (4, 1)
             }
 
             Instruction::RL_r8(r8) => {
-                // Doing this as u16 to detect overflow easily
-                let carry = machine.cpu.registers.read_flag(Flag::C) as u16;
-                let result_u16 = ((machine.cpu.registers.read_r8(r8).0 as u16) << 1) | carry;
-                let result = Wrapping(result_u16 as u8);
-                machine
-                    .cpu
-                    .registers
-                    .write_r8(r8, result)
-                    .write_flag(Flag::Z, result.0 == 0)
-                    .unset_flag(Flag::N)
-                    .unset_flag(Flag::H)
-                    .write_flag(Flag::C, (result_u16 & 0xFF00) != 0);
+                rotate_left(&mut machine.cpu, r8);
                 (8, 2)
             }
 
             Instruction::RRA => {
                 rotate_right_through_carry(&mut machine.cpu, &R8::A);
-                machine.cpu.registers.unset_flag(Flag::Z); // for some reason...
+                // For some reason, this unsets Z
+                machine.cpu.registers.unset_flag(Flag::Z);
                 (4, 1)
             }
 
             Instruction::RR_r8(r8) => {
                 rotate_right_through_carry(&mut machine.cpu, r8);
                 (8, 2)
+            }
+
+            Instruction::RRCA => {
+                rotate_right(&mut machine.cpu, &R8::A);
+                // For some reason, this unsets Z
+                machine.cpu.registers.unset_flag(Flag::Z);
+                (4, 1)
             }
 
             Instruction::RST(imm16) => {
@@ -593,7 +597,11 @@ impl Instruction {
             Instruction::Prefix => todo!(),
 
             Instruction::SBC_A_r8(r8) => {
-                todo!()
+                let a = machine.cpu.registers.read_a();
+                let b = machine.cpu.registers.read_r8(r8);
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                subc(&mut machine.cpu, a, b, c);
+                (4, 1)
             }
 
             Instruction::SRL_r8(r8) => {
@@ -611,16 +619,48 @@ impl Instruction {
     }
 }
 
-pub fn rotate_right_through_carry(cpu: &mut CPU, r8: &R8) {
+pub fn rotate_left_with(cpu: &mut CPU, r8: &R8, new_bit: bool) {
     let r8val = cpu.registers.read_r8(r8);
-    let carry = r8val.0 & 1;
-    let res = Wrapping((r8val.0 >> 1) | ((cpu.registers.read_flag(Flag::C) as u8) << 7));
+    let carry = r8val.0 >> 7;
+    let res = Wrapping((r8val.0 << 1) | (new_bit as u8));
     cpu.registers
         .write_r8(r8, res)
         .write_flag(Flag::Z, res.0 == 0)
         .unset_flag(Flag::N)
         .unset_flag(Flag::H)
         .write_flag(Flag::C, carry == 1);
+}
+
+pub fn rotate_left_through_carry(cpu: &mut CPU, r8: &R8) {
+    let new_bit = cpu.registers.read_flag(Flag::C);
+    rotate_left_with(cpu, r8, new_bit);
+}
+
+pub fn rotate_left(cpu: &mut CPU, r8: &R8) {
+    let new_bit = (cpu.registers.read_r8(r8).0 >> 7) == 1;
+    rotate_left_with(cpu, r8, new_bit);
+}
+
+pub fn rotate_right_with(cpu: &mut CPU, r8: &R8, new_bit: bool) {
+    let r8val = cpu.registers.read_r8(r8);
+    let carry = r8val.0 & 1;
+    let res = Wrapping((r8val.0 >> 1) | ((new_bit as u8) << 7));
+    cpu.registers
+        .write_r8(r8, res)
+        .write_flag(Flag::Z, res.0 == 0)
+        .unset_flag(Flag::N)
+        .unset_flag(Flag::H)
+        .write_flag(Flag::C, carry == 1);
+}
+
+pub fn rotate_right_through_carry(cpu: &mut CPU, r8: &R8) {
+    let new_bit = cpu.registers.read_flag(Flag::C);
+    rotate_right_with(cpu, r8, new_bit);
+}
+
+pub fn rotate_right(cpu: &mut CPU, r8: &R8) {
+    let new_bit = (cpu.registers.read_r8(r8).0 & 1) == 1;
+    rotate_right_with(cpu, r8, new_bit);
 }
 
 pub fn shift_right_logically(cpu: &mut CPU, r8: &R8) {

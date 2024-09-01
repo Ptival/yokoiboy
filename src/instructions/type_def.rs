@@ -43,7 +43,7 @@ pub enum Instruction {
     ADD_A_r8(R8),
     ADD_A_u8(Wrapping<u8>),
     ADD_HL_r16(R16),
-    AND_L,
+    AND_r8(R8),
     AND_u8(Wrapping<u8>),
     BIT_u3_r8(u8, R8),
     CALL_a16(Immediate16),
@@ -98,8 +98,10 @@ pub enum Instruction {
     RETI,
     RL_r8(R8),
     RLA, // Note: this behaves differently than RL A
+    RLCA,
     RR_r8(R8),
     RRA, // Note: this behaves differently than RR A
+    RRCA,
     RST(Immediate16),
     SBC_A_r8(R8),
     SCF,
