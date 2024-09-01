@@ -3,10 +3,10 @@ const WRAM_SIZE: usize = 0x1000;
 
 #[derive(Clone, Debug)]
 pub enum PPUState {
-    OAMSearch,
-    PixelTransfer,
-    HBlank,
-    VBlank,
+    OAMScan,
+    DrawingPixels,
+    HorizontalBlank,
+    VerticalBlank,
 }
 
 #[derive(Clone, Debug)]
@@ -27,7 +27,7 @@ impl PPU {
             rendered_pixels: [0; 160 * 144 * 4],
             ly: 0,
             scanline_t_cycles: 0,
-            state: PPUState::OAMSearch,
+            state: PPUState::OAMScan,
             x: 0,
             vram: [0; VRAM_SIZE],
             wram_0: [0; WRAM_SIZE],
@@ -56,41 +56,41 @@ impl PPU {
 
     pub fn step_one_t_cycle(&mut self) -> &mut Self {
         match self.state {
-            PPUState::OAMSearch => {
+            PPUState::OAMScan => {
                 // TODO: actually scan memory
                 if self.scanline_t_cycles == 40 {
                     self.x = 0;
-                    self.state = PPUState::PixelTransfer
+                    self.state = PPUState::DrawingPixels
                 }
             }
 
-            PPUState::PixelTransfer => {
+            PPUState::DrawingPixels => {
                 // TODO: actually transfer pixels
                 self.x += 1;
                 if self.x == 160 {
-                    self.state = PPUState::HBlank
+                    self.state = PPUState::HorizontalBlank
                 }
             }
 
-            PPUState::HBlank => {
+            PPUState::HorizontalBlank => {
                 if self.scanline_t_cycles == 456 {
                     self.scanline_t_cycles = 0;
                     self.increment_ly();
                     if self.read_ly() == 144 {
-                        self.state = PPUState::VBlank
+                        self.state = PPUState::VerticalBlank
                     } else {
-                        self.state = PPUState::OAMSearch
+                        self.state = PPUState::OAMScan
                     }
                 }
             }
 
-            PPUState::VBlank => {
+            PPUState::VerticalBlank => {
                 if self.scanline_t_cycles == 456 {
                     self.scanline_t_cycles = 0;
                     self.increment_ly();
                     if self.read_ly() == 153 {
                         self.reset_ly();
-                        self.state = PPUState::OAMSearch;
+                        self.state = PPUState::OAMScan;
                     }
                 }
             }
