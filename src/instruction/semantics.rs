@@ -258,11 +258,26 @@ impl Instruction {
                 (8, 2)
             }
 
+            Instruction::INC_mHL => {
+                let res = machine.read_u8(machine.cpu.registers.hl) + Wrapping(1);
+                machine.write_u8(machine.cpu.registers.hl, res);
+                (12, 3)
+            }
+
             Instruction::JR_r8(_) => todo!(),
 
             Instruction::JP_u16(imm16) => {
                 machine.cpu.registers.pc = imm16.as_u16();
                 (16, 4)
+            }
+
+            Instruction::JP_cc_u16(cc, imm16) => {
+                if cc.holds(&machine.cpu) {
+                    machine.cpu.registers.pc = imm16.as_u16();
+                    (16, 4)
+                } else {
+                    (12, 3)
+                }
             }
 
             Instruction::JP_HL => {
@@ -402,6 +417,11 @@ impl Instruction {
                     .cpu
                     .registers
                     .write_r8(r8, machine.read_u8(machine.cpu.registers.read_r16(r16)));
+                (8, 2)
+            }
+
+            Instruction::LD_SP_HL => {
+                machine.cpu.registers.sp = machine.cpu.registers.hl;
                 (8, 2)
             }
 

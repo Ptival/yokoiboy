@@ -168,6 +168,11 @@ impl DecodedInstruction {
                 format!("ADD HL, {}", r16)
             }
             Instruction::JP_HL => String::from("JP HL"),
+            Instruction::LD_SP_HL => String::from("LD SP, HL"),
+            Instruction::JP_cc_u16(cc, imm16) => {
+                format!("JP {}, 0x{:04X}", cc, imm16.as_u16())
+            }
+            Instruction::INC_mHL => String::from("INC [HL]"),
         }
     }
 }
