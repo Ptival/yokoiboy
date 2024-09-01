@@ -7,3 +7,6 @@
 [submodule "Gameboy-logs"]
 	path = Gameboy-logs
 	url = https://github.com/wheremyfoodat/Gameboy-logs.git
+[submodule "gameboy-doctor"]
+	path = gameboy-doctor
+	url = https://github.com/robert/gameboy-doctor

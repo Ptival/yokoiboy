@@ -4,6 +4,7 @@ pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
 
 #[derive(Clone, Debug)]
 pub struct Machine {
+    pub t_cycle_count: u64,
     pub dmg_boot_rom: u8,
     pub cpu: CPU,
     pub ppu: PPU,
@@ -12,7 +13,6 @@ pub struct Machine {
     pub bgp: u8,
     pub interrupt_enable: u8,
     pub interrupt_flag: u8,
-    pub lcdc: u8,
     pub nr11: u8,
     pub nr12: u8,
     pub nr13: u8,
@@ -54,7 +54,7 @@ impl Machine {
             0xFF24..=0xFF24 => self.nr50,
             0xFF25..=0xFF25 => self.nr51,
             0xFF26..=0xFF26 => self.nr52,
-            0xFF40..=0xFF40 => self.lcdc,
+            0xFF40..=0xFF40 => self.ppu.read_lcdc(),
             0xFF42..=0xFF42 => self.scy,
             0xFF43..=0xFF43 => self.scx,
             0xFF44..=0xFF44 => self.ppu.read_ly(),
@@ -85,14 +85,8 @@ impl Machine {
             0xA000..=0xBFFF => self.external_ram[address as usize - 0xA000] = value,
             0xC000..=0xCFFF => PPU::write_wram_0(&mut self.ppu, address - 0xC000, value),
             0xD000..=0xDFFF => PPU::write_wram_1(&mut self.ppu, address - 0xD000, value),
-            0xFF01..=0xFF01 => {
-                println!("SB ← {}", value);
-                self.sb = value
-            }
-            0xFF02..=0xFF02 => {
-                println!("SC ← {}", value);
-                self.sc = value
-            }
+            0xFF01..=0xFF01 => self.sb = value,
+            0xFF02..=0xFF02 => self.sc = value,
             0xFF07..=0xFF07 => self.tac = value,
             0xFF0F..=0xFF0F => self.interrupt_flag = value,
             0xFF11..=0xFF11 => self.nr11 = value,
@@ -102,7 +96,7 @@ impl Machine {
             0xFF24..=0xFF24 => self.nr50 = value,
             0xFF25..=0xFF25 => self.nr51 = value,
             0xFF26..=0xFF26 => self.nr52 = value,
-            0xFF40..=0xFF40 => self.lcdc = value,
+            0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
             0xFF42..=0xFF42 => self.scy = value,
             0xFF43..=0xFF43 => self.scx = value,
             0xFF47..=0xFF47 => self.bgp = value,

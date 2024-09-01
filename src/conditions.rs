@@ -19,10 +19,10 @@ impl fmt::Display for Condition {
 impl Condition {
     pub fn holds(&self, cpu: &CPU) -> bool {
         match self {
-            Condition::C => cpu.registers.get_flag(Flag::C),
-            Condition::Z => cpu.registers.get_flag(Flag::Z),
-            Condition::NC => !cpu.registers.get_flag(Flag::C),
-            Condition::NZ => !cpu.registers.get_flag(Flag::Z),
+            Condition::C => cpu.registers.read_flag(Flag::C),
+            Condition::Z => cpu.registers.read_flag(Flag::Z),
+            Condition::NC => !cpu.registers.read_flag(Flag::C),
+            Condition::NZ => !cpu.registers.read_flag(Flag::Z),
         }
     }
 }

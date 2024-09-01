@@ -9,12 +9,12 @@ use super::type_def::{Immediate16, Instruction};
 
 // Checks whether adding a and b with bitsize (bit - 1) would produce a carry (1) at position bit.
 // Assumes bit < 16, so that all operations can be carried without loss as u32.
-fn add_produces_carry(a: impl Into<u16>, b: impl Into<u16>, bit: u8) -> bool {
+fn add_produces_carry(a: impl Into<u16>, b: impl Into<u16>, c: bool, bit: u8) -> bool {
     let a = a.into() as u32;
     let b = b.into() as u32;
     let bit_mask = 1 << bit;
     let input_mask = bit_mask - 1;
-    ((a & input_mask) + (b & input_mask)) & bit_mask == bit_mask
+    ((a & input_mask) + (b & input_mask) + c as u32) & bit_mask == bit_mask
 }
 
 // Checks whether subtracting b from a with bitsize (bit - 1) would produce a borrow at position
@@ -37,14 +37,18 @@ fn compare(cpu: &mut CPU, a: u8, b: u8) {
         .write_flag(Flag::C, sub_borrows(a, b, 8));
 }
 
-fn add(cpu: &mut CPU, a: u8, b: u8) {
+fn adc(cpu: &mut CPU, a: u8, b: u8, c: bool) {
     let res = a.wrapping_add(b);
     cpu.registers
         .write_a(res)
         .write_flag(Flag::Z, res == 0)
         .unset_flag(Flag::N)
-        .write_flag(Flag::H, add_produces_carry(a, b, 4))
-        .write_flag(Flag::C, add_produces_carry(a, b, 8));
+        .write_flag(Flag::H, add_produces_carry(a, b, c, 4))
+        .write_flag(Flag::C, add_produces_carry(a, b, c, 8));
+}
+
+fn add(cpu: &mut CPU, a: u8, b: u8) {
+    adc(cpu, a, b, false)
 }
 
 fn and(cpu: &mut CPU, a: u8, b: u8) {
@@ -67,6 +71,38 @@ fn or(cpu: &mut CPU, a: u8, b: u8) {
         .unset_flag(Flag::C);
 }
 
+// NOTE: This does not write the result anywhere!
+// NOTE: This does not set the flags like SUB.
+fn dec(cpu: &mut CPU, a: u8) -> u8 {
+    // let a = cpu.registers.read_r8(r8);
+    let res = a.wrapping_sub(1);
+    cpu.registers
+        .write_flag(Flag::Z, res == 0)
+        .set_flag(Flag::N)
+        .write_flag(Flag::H, sub_borrows(a, 1 as u8, 4));
+    res
+}
+
+fn sub(cpu: &mut CPU, a: u8, b: u8) {
+    let res = a.wrapping_sub(b);
+    cpu.registers
+        .write_a(res)
+        .write_flag(Flag::Z, res == 0)
+        .set_flag(Flag::N)
+        .write_flag(Flag::H, sub_borrows(a, b, 4))
+        .write_flag(Flag::C, sub_borrows(a, b, 8));
+}
+
+fn xor(cpu: &mut CPU, a: u8, b: u8) {
+    let res = a ^ b;
+    cpu.registers
+        .write_a(res)
+        .write_flag(Flag::Z, res == 0)
+        .unset_flag(Flag::N)
+        .unset_flag(Flag::H)
+        .unset_flag(Flag::C);
+}
+
 fn call(machine: &mut Machine, address: u16) {
     CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu.registers.pc));
     machine.cpu.registers.pc = address;
@@ -75,9 +111,20 @@ fn call(machine: &mut Machine, address: u16) {
 impl Instruction {
     pub fn execute(self: &Instruction, machine: &mut Machine) -> (u8, u8) {
         match self {
-            Instruction::ADC_A_r8(_) => todo!(),
+            Instruction::ADC_A_r8(r8) => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.cpu.registers.read_r8(r8);
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                adc(&mut machine.cpu, a, b, c);
+                (4, 1)
+            }
 
-            Instruction::ADC_A_u8(_) => todo!(),
+            Instruction::ADC_A_u8(u8) => {
+                let a = machine.cpu.registers.read_a();
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                adc(&mut machine.cpu, a, *u8, c);
+                (8, 2)
+            }
 
             Instruction::ADD_A_mHL => {
                 let a = machine.cpu.registers.read_a();
@@ -149,16 +196,17 @@ impl Instruction {
                 (8, 2)
             }
 
+            Instruction::DEC_mHL => {
+                let a = machine.read_u8(machine.cpu.registers.hl);
+                let res = dec(&mut machine.cpu, a);
+                machine.write_u8(machine.cpu.registers.hl, res);
+                (12, 3)
+            }
+
             Instruction::DEC_r8(r8) => {
-                let r8val = machine.cpu.registers.read_r8(r8);
-                let res = r8val.wrapping_sub(1);
-                machine
-                    .cpu
-                    .registers
-                    .write_r8(r8, res)
-                    .write_flag(Flag::Z, res == 0)
-                    .set_flag(Flag::N)
-                    .write_flag(Flag::H, sub_borrows(r8val, 1 as u8, 4));
+                let a = machine.cpu.registers.read_r8(r8);
+                let res = dec(&mut machine.cpu, a);
+                machine.cpu.registers.write_r8(r8, res);
                 (4, 1)
             }
 
@@ -176,6 +224,7 @@ impl Instruction {
             }
 
             Instruction::INC_r8(r8) => {
+                // NOTE: Can't use `add` because we don't want to touch Flag::C
                 let r8val = machine.cpu.registers.read_r8(r8);
                 let res = r8val.wrapping_add(1);
                 machine
@@ -184,7 +233,7 @@ impl Instruction {
                     .write_r8(r8, res)
                     .write_flag(Flag::Z, res == 0)
                     .unset_flag(Flag::N)
-                    .write_flag(Flag::H, add_produces_carry(r8val, 1 as u16, 4));
+                    .write_flag(Flag::H, add_produces_carry(r8val, 1 as u16, false, 4));
                 (4, 1)
             }
 
@@ -333,6 +382,13 @@ impl Instruction {
 
             Instruction::NOP => (4, 1),
 
+            Instruction::OR_A_mHL => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.read_u8(machine.cpu.registers.hl);
+                or(&mut machine.cpu, a, b);
+                (8, 2)
+            }
+
             Instruction::OR_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);
@@ -358,8 +414,8 @@ impl Instruction {
                 (16, 4)
             }
 
-            Instruction::RET_C => {
-                if Condition::C.holds(&machine.cpu) {
+            Instruction::RET_cc(cc) => {
+                if cc.holds(&machine.cpu) {
                     CPU::pop_r16(machine, &R16::PC);
                     (20, 5)
                 } else {
@@ -367,9 +423,11 @@ impl Instruction {
                 }
             }
 
+            Instruction::RETI => todo!(),
+
             Instruction::RLA => {
                 // Note: for some reason, this always unsets Z
-                let carry = machine.cpu.registers.get_flag(Flag::C) as u16;
+                let carry = machine.cpu.registers.read_flag(Flag::C) as u16;
                 let result_u16 = ((machine.cpu.registers.read_a() as u16) << 1) | carry;
                 let result = result_u16 as u8;
                 machine
@@ -385,7 +443,7 @@ impl Instruction {
 
             Instruction::RL_r8(r8) => {
                 // Doing this as u16 to detect overflow easily
-                let carry = machine.cpu.registers.get_flag(Flag::C) as u16;
+                let carry = machine.cpu.registers.read_flag(Flag::C) as u16;
                 let result_u16 = ((machine.cpu.registers.read_r8(r8) as u16) << 1) | carry;
                 let result = result_u16 as u8;
                 machine
@@ -399,43 +457,84 @@ impl Instruction {
                 (8, 2)
             }
 
-            Instruction::SUB_A_r8(r8) => {
-                let a = machine.cpu.registers.read_a();
-                let r8 = machine.cpu.registers.read_r8(r8);
-                let res = a.wrapping_sub(r8);
-                machine
-                    .cpu
-                    .registers
-                    .write_a(res)
-                    .write_flag(Flag::Z, res == 0)
-                    .set_flag(Flag::N)
-                    .write_flag(Flag::H, sub_borrows(a, r8, 4))
-                    .write_flag(Flag::C, sub_borrows(a, r8, 8));
+            Instruction::RRA => {
+                rotate_right_through_carry(&mut machine.cpu, &R8::A);
+                machine.cpu.registers.unset_flag(Flag::Z); // for some reason...
                 (4, 1)
             }
 
-            Instruction::XOR_r8(r8) => {
-                let res = machine.cpu.registers.read_a() ^ machine.cpu.registers.read_r8(r8);
-                machine
-                    .cpu
-                    .registers
-                    .write_a(res)
-                    .write_flag(Flag::Z, res == 0)
-                    .unset_flag(Flag::N)
-                    .unset_flag(Flag::H)
-                    .unset_flag(Flag::C);
+            Instruction::RR_r8(r8) => {
+                rotate_right_through_carry(&mut machine.cpu, r8);
+                (8, 2)
+            }
+
+            Instruction::SUB_A_r8(r8) => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.cpu.registers.read_r8(r8);
+                sub(&mut machine.cpu, a, b);
                 (4, 1)
+            }
+
+            Instruction::SUB_A_u8(u8) => {
+                let a = machine.cpu.registers.read_a();
+                sub(&mut machine.cpu, a, *u8);
+                (8, 2)
+            }
+
+            Instruction::XOR_A_r8(r8) => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.cpu.registers.read_r8(r8);
+                xor(&mut machine.cpu, a, b);
+                (4, 1)
+            }
+
+            Instruction::XOR_A_u8(u8) => {
+                let a = machine.cpu.registers.read_a();
+                xor(&mut machine.cpu, a, *u8);
+                (8, 2)
             }
 
             Instruction::Prefix => todo!(),
 
-            Instruction::RET_cc(_) => todo!(),
-
-            Instruction::RETI => todo!(),
-
             Instruction::SBC_A_A => todo!(),
 
             Instruction::SBC_A_C => todo!(),
+
+            Instruction::SRL_r8(r8) => {
+                shift_right_logically(&mut machine.cpu, r8);
+                (8, 2)
+            }
+
+            Instruction::XOR_A_mHL => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.read_u8(machine.cpu.registers.hl);
+                xor(&mut machine.cpu, a, b);
+                (8, 2)
+            }
         }
     }
+}
+
+pub fn rotate_right_through_carry(cpu: &mut CPU, r8: &R8) {
+    let r8val = cpu.registers.read_r8(r8);
+    let carry = r8val & 1;
+    let res = (r8val >> 1) | ((cpu.registers.read_flag(Flag::C) as u8) << 7);
+    cpu.registers
+        .write_r8(r8, res)
+        .write_flag(Flag::Z, res == 0)
+        .unset_flag(Flag::N)
+        .unset_flag(Flag::H)
+        .write_flag(Flag::C, carry == 1);
+}
+
+pub fn shift_right_logically(cpu: &mut CPU, r8: &R8) {
+    let r8val = cpu.registers.read_r8(r8);
+    let carry = r8val & 1;
+    let res = r8val >> 1;
+    cpu.registers
+        .write_r8(r8, res)
+        .write_flag(Flag::Z, res == 0)
+        .unset_flag(Flag::N)
+        .unset_flag(Flag::H)
+        .write_flag(Flag::C, carry == 1);
 }

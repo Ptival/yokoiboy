@@ -74,8 +74,11 @@ impl DecodedInstruction {
             Instruction::RL_r8(r8) => {
                 format!("RL {}", r8)
             }
-            Instruction::XOR_r8(r8) => {
-                format!("XOR {}", r8)
+            Instruction::RR_r8(r8) => {
+                format!("RRL {}", r8)
+            }
+            Instruction::XOR_A_r8(r8) => {
+                format!("XOR A, {}", r8)
             }
             Instruction::ADC_A_r8(r8) => {
                 format!("ADC A, {}", r8)
@@ -116,6 +119,7 @@ impl DecodedInstruction {
             Instruction::RET => String::from("RET"),
             Instruction::RETI => String::from("RETI"),
             Instruction::RLA => String::from("RLA"),
+            Instruction::RRA => String::from("RRA"),
             Instruction::SBC_A_A => String::from("SBC A, A"),
             Instruction::SBC_A_C => String::from("SBC A, C"),
             Instruction::LD_A_mHLinc => String::from("LD A [HL+]"),
@@ -138,7 +142,24 @@ impl DecodedInstruction {
             Instruction::CALL_cc_u16(cc, imm16) => {
                 format!("CALL {}, 0x{:04X}", cc, imm16.as_u16())
             }
-            Instruction::RET_C => String::from("RET C"),
+            Instruction::SUB_A_u8(u8) => {
+                format!("SUB A, {:02X}", u8)
+            }
+            Instruction::XOR_A_u8(u8) => {
+                format!("XOR A, 0x{:02X}", u8)
+            }
+            Instruction::XOR_A_mHL => {
+                format!("XOR A, [HL]")
+            }
+            Instruction::SRL_r8(r8) => {
+                format!("SRL {}", r8)
+            }
+            Instruction::OR_A_mHL => {
+                format!("OR A, [HL]")
+            }
+            Instruction::DEC_mHL => {
+                format!("DEC [HL]")
+            }
         }
     }
 }

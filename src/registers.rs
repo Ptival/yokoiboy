@@ -214,7 +214,7 @@ impl Registers {
         (self.read_r8(r8) & (1 << bit)) != 0
     }
 
-    pub fn get_flag(&self, flag: Flag) -> bool {
+    pub fn read_flag(&self, flag: Flag) -> bool {
         self.read_f() & (1 << flag.get_bit()) != 0
     }
 

@@ -12,10 +12,10 @@ pub enum PPUState {
 #[derive(Clone, Debug)]
 pub struct PPU {
     pub rendered_pixels: [u8; 160 * 144 * 4],
+    lcdc: u8,
     ly: u8, // max should be 153
-    scanline_t_cycles: u16,
+    scanline_dots: u16,
     state: PPUState,
-    x: u8,
     vram: [u8; VRAM_SIZE],
     wram_0: [u8; WRAM_SIZE],
     wram_1: [u8; WRAM_SIZE],
@@ -25,56 +25,63 @@ impl PPU {
     pub fn new() -> Self {
         PPU {
             rendered_pixels: [0; 160 * 144 * 4],
+            lcdc: 0,
             ly: 0,
-            scanline_t_cycles: 0,
+            scanline_dots: 0,
             state: PPUState::OAMScan,
-            x: 0,
             vram: [0; VRAM_SIZE],
             wram_0: [0; WRAM_SIZE],
             wram_1: [0; WRAM_SIZE],
         }
     }
 
+    pub fn is_lcd_ppu_on(&self) -> bool {
+        let mask = 1 << 7;
+        self.lcdc & mask == mask
+    }
+
     pub fn increment_ly(&mut self) {
-        self.ly = self.ly + 1;
+        self.ly = self.ly.wrapping_add(1);
     }
 
     pub fn read_ly(&self) -> u8 {
-        self.ly
+        0x90 // while gbdoctoring
+        // self.ly
     }
 
     pub fn reset_ly(&mut self) {
         self.ly = 0;
     }
 
-    pub fn step_t_cycles(&mut self, t_cycles: u8) -> &mut Self {
-        for _ in 0..t_cycles {
+    pub fn step_dots(&mut self, dots: u8) -> &mut Self {
+        for _ in 0..dots {
             self.step_one_t_cycle();
         }
         self
     }
 
     pub fn step_one_t_cycle(&mut self) -> &mut Self {
+        if !self.is_lcd_ppu_on() {
+            return self;
+        }
         match self.state {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
-                if self.scanline_t_cycles == 40 {
-                    self.x = 0;
+                if self.scanline_dots == 80 {
                     self.state = PPUState::DrawingPixels
                 }
             }
 
             PPUState::DrawingPixels => {
                 // TODO: actually transfer pixels
-                self.x += 1;
-                if self.x == 160 {
+                if self.scanline_dots == 172 {
                     self.state = PPUState::HorizontalBlank
                 }
             }
 
             PPUState::HorizontalBlank => {
-                if self.scanline_t_cycles == 456 {
-                    self.scanline_t_cycles = 0;
+                if self.scanline_dots == 456 {
+                    self.scanline_dots = 0;
                     self.increment_ly();
                     if self.read_ly() == 144 {
                         self.state = PPUState::VerticalBlank
@@ -85,8 +92,8 @@ impl PPU {
             }
 
             PPUState::VerticalBlank => {
-                if self.scanline_t_cycles == 456 {
-                    self.scanline_t_cycles = 0;
+                if self.scanline_dots == 456 {
+                    self.scanline_dots = 0;
                     self.increment_ly();
                     if self.read_ly() == 153 {
                         self.reset_ly();
@@ -96,7 +103,7 @@ impl PPU {
             }
         }
 
-        self.scanline_t_cycles += 1;
+        self.scanline_dots += 1;
         self
     }
 
@@ -112,6 +119,10 @@ impl PPU {
         self.wram_1[address as usize]
     }
 
+    pub fn read_lcdc(&self) -> u8 {
+        self.lcdc
+    }
+
     pub fn write_vram(&mut self, address: u16, value: u8) {
         self.vram[address as usize] = value;
     }
@@ -122,5 +133,9 @@ impl PPU {
 
     pub fn write_wram_1(&mut self, address: u16, value: u8) {
         self.wram_1[address as usize] = value;
+    }
+
+    pub fn write_lcdc(&mut self, value: u8) {
+        self.lcdc = value;
     }
 }

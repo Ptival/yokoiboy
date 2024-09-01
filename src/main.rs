@@ -15,12 +15,13 @@ use iced::{
     },
     alignment::{self, Horizontal},
     border::Radius,
+    exit,
     keyboard::{self, key::Named, Key},
     widget::{
         container::{self, Style},
         text, Button, Column, Container, Image, Row,
     },
-    Border, Color, Settings, Task, Theme,
+    Border, Color, Settings, Size, Task, Theme,
 };
 use iced_aw::{grid_row, Grid};
 use machine::{Machine, EXTERNAL_RAM_SIZE};
@@ -60,10 +61,12 @@ impl Default for DebuggerWindow {
             .load_boot_rom(String::from("dmg_boot.bin"))
             .expect("Failed to load boot ROM")
             .load_rom(String::from(
+                // "gb-test-roms/cpu_instrs/individual/09-op r,r.gb",
                 "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
             ))
             .expect("Failed to load ROM");
         queue.push(Machine {
+            t_cycle_count: 0,
             dmg_boot_rom: 0,
             cpu,
             ppu: PPU::new(),
@@ -71,7 +74,6 @@ impl Default for DebuggerWindow {
             external_ram: [0; EXTERNAL_RAM_SIZE],
             interrupt_enable: 0,
             interrupt_flag: 0,
-            lcdc: 0,
             nr11: 0,
             nr12: 0,
             nr13: 0,
@@ -95,6 +97,7 @@ impl Default for DebuggerWindow {
             output_file: OpenOptions::new()
                 .write(true)
                 .create(true)
+                .truncate(true)
                 .open("log")
                 .expect("could not create log"),
             paused: false,
@@ -128,12 +131,16 @@ impl DebuggerWindow {
 
     fn step_machine<'a>(machine: &'a mut Machine) -> &'a mut Machine {
         // Arbitrarily stepping the CPU then the PPU
-        let (t_cycles, _) = CPU::execute_one_instruction(machine).expect("sad");
-        machine.ppu.step_t_cycles(t_cycles); // FIXME: make this part of a machine
+        let (t_cycles, m_cycles) = CPU::execute_one_instruction(machine).expect("sad");
+        if t_cycles != 4 * m_cycles {
+            println!("T-cycle/M-cycle mismatch: {}, {}", t_cycles, m_cycles)
+        }
+        machine.ppu.step_dots(t_cycles);
+        machine.t_cycle_count += t_cycles as u64;
 
         if machine.read_u8(0xFF02) == 0x81 {
             let char = machine.read_u8(0xFF01);
-            print!("{}", char);
+            print!("{}", char as char);
             machine.write_u8(0xFF02, 0x01);
         }
 
@@ -143,8 +150,12 @@ impl DebuggerWindow {
     fn step(&mut self, preserve: PreserveHistory) {
         let current_machine = self.current_machine_immut();
         if !current_machine.is_dmg_boot_rom_on() {
-            write!(self.output_file, "{}\n", CPU::log_string(current_machine))
-                .expect("write to log failed");
+            write!(
+                self.output_file,
+                "{}\n",
+                CPU::gbdoctor_string(current_machine)
+            )
+            .expect("write to log failed");
         }
         let current_machine = self.current_machine();
         match preserve {
@@ -164,6 +175,7 @@ impl DebuggerWindow {
 #[derive(Clone, Debug, Hash)]
 enum Message {
     Pause,
+    Quit,
     RunNextInstruction,
     BeginRunUntilBreakpoint,
     ContinueRunUntilBreakpoint,
@@ -175,6 +187,7 @@ impl DebuggerWindow {
             Key::Named(Named::ArrowDown) => Some(Message::BeginRunUntilBreakpoint),
             Key::Named(Named::ArrowRight) => Some(Message::RunNextInstruction),
             Key::Named(Named::Space) => Some(Message::Pause),
+            Key::Named(Named::Escape) => Some(Message::Quit),
             _ => None,
         })
     }
@@ -184,6 +197,11 @@ impl DebuggerWindow {
             Message::Pause => {
                 self.paused = true;
                 Task::none()
+            }
+
+            Message::Quit => {
+                self.output_file.flush().expect("flush failed");
+                exit()
             }
 
             Message::RunNextInstruction => {
@@ -302,13 +320,13 @@ impl DebuggerWindow {
             text(format!("{:02X}", cpu.registers.read_h())),
             text(format!("{:02X}", cpu.registers.read_l())),
             text(""),
-            text(format!("{:01X}", cpu.registers.get_flag(Flag::Z) as u8)),
+            text(format!("{:01X}", cpu.registers.read_flag(Flag::Z) as u8)),
             text(""),
-            text(format!("{:01X}", cpu.registers.get_flag(Flag::N) as u8)),
+            text(format!("{:01X}", cpu.registers.read_flag(Flag::N) as u8)),
             text(""),
-            text(format!("{:01X}", cpu.registers.get_flag(Flag::H) as u8)),
+            text(format!("{:01X}", cpu.registers.read_flag(Flag::H) as u8)),
             text(""),
-            text(format!("{:01X}", cpu.registers.get_flag(Flag::C) as u8)),
+            text(format!("{:01X}", cpu.registers.read_flag(Flag::C) as u8)),
         ]);
 
         let dmg_row = Row::new().push(text(format!("DMG: {}", machine.is_dmg_boot_rom_on())));
@@ -317,17 +335,47 @@ impl DebuggerWindow {
         let mem_row2 = Row::new().push(text(machine.show_memory_row(0x10C)));
         let mem_row3 = Row::new().push(text(machine.show_memory_row(0x114)));
 
+        let mut lcdc_grid_right = Grid::new();
+        lcdc_grid_right = lcdc_grid_right.push(grid_row![
+            text("7"),
+            text("6"),
+            text("5"),
+            text("4"),
+            text("3"),
+            text("2"),
+            text("1"),
+            text("0"),
+        ]);
+        let lcdc = machine.ppu.read_lcdc();
+        lcdc_grid_right = lcdc_grid_right.push(grid_row![
+            text(format!("{}", (lcdc & (1 << 7)) >> 7)),
+            text(format!("{}", (lcdc & (1 << 6)) >> 6)),
+            text(format!("{}", (lcdc & (1 << 5)) >> 5)),
+            text(format!("{}", (lcdc & (1 << 4)) >> 4)),
+            text(format!("{}", (lcdc & (1 << 3)) >> 3)),
+            text(format!("{}", (lcdc & (1 << 2)) >> 2)),
+            text(format!("{}", (lcdc & (1 << 1)) >> 1)),
+            text(format!("{}", (lcdc & (1 << 0)) >> 0)),
+        ]);
+
+        let mut lcdc_grid = Grid::new();
+        lcdc_grid = lcdc_grid.push(grid_row![text("LCDC"), lcdc_grid_right]);
+
         let ly_row = Row::new()
             .push(text("LY: "))
             .push(text(format!("{}", machine.ppu.read_ly())));
 
+        let cycle_row = Row::new().push(text(format!("Cycles: {}", machine.t_cycle_count)));
+
         let register_column = Column::new()
             .push(registers_grid)
             .push(dmg_row)
+            .push(lcdc_grid)
             .push(ly_row)
             .push(mem_row1)
             .push(mem_row2)
-            .push(mem_row3);
+            .push(mem_row3)
+            .push(cycle_row);
 
         let run_next_instruction_button =
             Button::new("Run next instruction").on_press(Message::RunNextInstruction);
@@ -393,5 +441,6 @@ fn main() -> Result<(), iced::Error> {
     iced::application("Rustyboi", DebuggerWindow::update, DebuggerWindow::view)
         .subscription(DebuggerWindow::subscription)
         .settings(settings)
+        .window_size(Size::new(2000.0, 1200.0))
         .run()
 }

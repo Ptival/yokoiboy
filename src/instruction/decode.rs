@@ -83,6 +83,7 @@ pub fn decode_instruction_at_address(
             Instruction::LD_r8_u8(R8::E, machine.read_u8(address + 1)),
             2,
         ),
+        0x1F => (Instruction::RRA, 1),
 
         0x20 => (
             Instruction::JR_cc_i8(Condition::NZ, machine.read_u8(address + 1) as i8),
@@ -96,6 +97,10 @@ pub fn decode_instruction_at_address(
         0x23 => (Instruction::INC_r16(R16::HL), 1),
         0x24 => (Instruction::INC_r8(R8::H), 1),
         0x25 => (Instruction::DEC_r8(R8::H), 1),
+        0x26 => (
+            Instruction::LD_r8_u8(R8::H, machine.read_u8(address + 1)),
+            2,
+        ),
         0x28 => (
             Instruction::JR_cc_i8(Condition::Z, machine.read_u8(address + 1) as i8),
             2,
@@ -118,6 +123,7 @@ pub fn decode_instruction_at_address(
         ),
         0x32 => (Instruction::LD_mHLdec_A, 1),
         0x33 => (Instruction::INC_r16(R16::SP), 1),
+        0x35 => (Instruction::DEC_mHL, 1),
         0x38 => (
             Instruction::JR_cc_i8(Condition::C, machine.read_u8(address + 1) as i8),
             2,
@@ -180,9 +186,16 @@ pub fn decode_instruction_at_address(
         0x6E => (Instruction::LD_r8_mr16(R8::L, R16::HL), 1),
         0x6F => (Instruction::LD_r8_r8(R8::L, R8::A), 1),
 
+        0x70 => (Instruction::LD_mr16_r8(R16::HL, R8::B), 1),
+        0x71 => (Instruction::LD_mr16_r8(R16::HL, R8::C), 1),
+        0x72 => (Instruction::LD_mr16_r8(R16::HL, R8::D), 1),
         0x73 => (Instruction::LD_mr16_r8(R16::HL, R8::E), 1),
+        0x74 => (Instruction::LD_mr16_r8(R16::HL, R8::H), 1),
+        0x75 => (Instruction::LD_mr16_r8(R16::HL, R8::L), 1),
         0x77 => (Instruction::LD_mr16_r8(R16::HL, R8::A), 1),
         0x78 => (Instruction::LD_r8_r8(R8::A, R8::B), 1),
+        0x79 => (Instruction::LD_r8_r8(R8::A, R8::C), 1),
+        0x7A => (Instruction::LD_r8_r8(R8::A, R8::D), 1),
         0x7B => (Instruction::LD_r8_r8(R8::A, R8::E), 1),
         0x7C => (Instruction::LD_r8_r8(R8::A, R8::H), 1),
         0x7D => (Instruction::LD_r8_r8(R8::A, R8::L), 1),
@@ -197,13 +210,14 @@ pub fn decode_instruction_at_address(
         0x9F => (Instruction::SBC_A_A, 1),
 
         0xA5 => (Instruction::AND_L, 1),
-        0xA8 => (Instruction::XOR_r8(R8::B), 1),
-        0xA9 => (Instruction::XOR_r8(R8::C), 1),
-        0xAA => (Instruction::XOR_r8(R8::D), 1),
-        0xAB => (Instruction::XOR_r8(R8::E), 1),
-        0xAC => (Instruction::XOR_r8(R8::H), 1),
-        0xAD => (Instruction::XOR_r8(R8::L), 1),
-        0xAF => (Instruction::XOR_r8(R8::A), 1),
+        0xA8 => (Instruction::XOR_A_r8(R8::B), 1),
+        0xA9 => (Instruction::XOR_A_r8(R8::C), 1),
+        0xAA => (Instruction::XOR_A_r8(R8::D), 1),
+        0xAB => (Instruction::XOR_A_r8(R8::E), 1),
+        0xAC => (Instruction::XOR_A_r8(R8::H), 1),
+        0xAD => (Instruction::XOR_A_r8(R8::L), 1),
+        0xAE => (Instruction::XOR_A_mHL, 1),
+        0xAF => (Instruction::XOR_A_r8(R8::A), 1),
 
         0xB0 => (Instruction::OR_r8(R8::B), 1),
         0xB1 => (Instruction::OR_r8(R8::C), 1),
@@ -211,6 +225,8 @@ pub fn decode_instruction_at_address(
         0xB3 => (Instruction::OR_r8(R8::E), 1),
         0xB4 => (Instruction::OR_r8(R8::H), 1),
         0xB5 => (Instruction::OR_r8(R8::L), 1),
+        0xB6 => (Instruction::OR_A_mHL, 1),
+        0xB7 => (Instruction::OR_r8(R8::A), 1),
         0xB9 => (Instruction::CP_A_r8(R8::C), 1),
         0xBB => (Instruction::CP_A_r8(R8::E), 1),
         0xBE => (Instruction::CP_A_mHL, 1),
@@ -229,7 +245,7 @@ pub fn decode_instruction_at_address(
             3,
         ),
         0xC5 => (Instruction::PUSH_r16(R16::BC), 1),
-        0xC6 => (Instruction::ADD_A_u8(machine.read_u8(address + 1)), 1),
+        0xC6 => (Instruction::ADD_A_u8(machine.read_u8(address + 1)), 2),
         0xC8 => (Instruction::RET_cc(Condition::Z), 1),
         0xC9 => (Instruction::RET, 1),
         0xCB => match machine.read_u8(address + 1) {
@@ -239,15 +255,24 @@ pub fn decode_instruction_at_address(
             0x13 => (Instruction::RL_r8(R8::E), 2),
             0x14 => (Instruction::RL_r8(R8::H), 2),
             0x15 => (Instruction::RL_r8(R8::L), 2),
+            0x19 => (Instruction::RR_r8(R8::C), 2),
+            0x1A => (Instruction::RR_r8(R8::D), 2),
+            0x1F => (Instruction::RR_r8(R8::A), 2),
+
+            0x38 => (Instruction::SRL_r8(R8::B), 2),
+
             0x78 => (Instruction::BIT_u3_r8(7, R8::B), 2),
             0x79 => (Instruction::BIT_u3_r8(7, R8::C), 2),
             0x7A => (Instruction::BIT_u3_r8(7, R8::D), 2),
             0x7B => (Instruction::BIT_u3_r8(7, R8::E), 2),
             0x7C => (Instruction::BIT_u3_r8(7, R8::H), 2),
+
             _ => {
+                println!(
+                    "TODO: CB-prefixed opcode 0x{:02x}",
+                    machine.read_u8(address + 1)
+                );
                 (Instruction::Prefix, 2) // 1 for prefix, 1 for extension?
-                                         // println!("TODO: CB-prefixed opcode 0x{:x}", slice[1]);
-                                         // todo!()
             }
         },
         0xCC => (
@@ -260,8 +285,11 @@ pub fn decode_instruction_at_address(
         ),
         0xCE => (Instruction::ADC_A_u8(machine.read_u8(address + 1)), 2),
 
+        0xD0 => (Instruction::RET_cc(Condition::NC), 1),
+        0xD1 => (Instruction::POP_r16(R16::DE), 1),
         0xD5 => (Instruction::PUSH_r16(R16::DE), 1),
-        0xD8 => (Instruction::RET_C, 1),
+        0xD6 => (Instruction::SUB_A_u8(machine.read_u8(address + 1)), 2),
+        0xD8 => (Instruction::RET_cc(Condition::C), 1),
         0xD9 => (Instruction::RETI, 1),
 
         0xE0 => (Instruction::LD_FFu8_A(machine.read_u8(address + 1)), 2),
@@ -273,6 +301,7 @@ pub fn decode_instruction_at_address(
             Instruction::LD_mu16_A(Immediate16::from_memory(machine, address + 1)),
             3,
         ),
+        0xEE => (Instruction::XOR_A_u8(machine.read_u8(address + 1)), 2),
 
         0xF0 => (Instruction::LD_A_FFu8(machine.read_u8(address + 1)), 2),
         0xF1 => (Instruction::POP_r16(R16::AF), 1),
