@@ -32,7 +32,7 @@ use registers::Flag;
 
 pub mod conditions;
 pub mod cpu;
-pub mod instruction;
+pub mod instructions;
 pub mod machine;
 pub mod memory;
 pub mod ppu;
@@ -237,7 +237,7 @@ impl DebuggerWindow {
                 }
 
                 if remaining_steps == 0 {
-                    println!("Ran 1 million instructions");
+                    // println!("Ran 1 million instructions");
                     Task::done(Message::ContinueRunUntilBreakpoint)
                 } else {
                     Task::none()

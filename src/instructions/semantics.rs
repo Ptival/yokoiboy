@@ -193,8 +193,6 @@ impl Instruction {
                 }
             }
 
-            Instruction::CALL_Z_a16(_) => todo!(),
-
             Instruction::CP_A_r8(_) => todo!(),
 
             Instruction::CP_A_u8(u8) => {
@@ -473,7 +471,12 @@ impl Instruction {
                 }
             }
 
-            Instruction::RETI => todo!(),
+            Instruction::RETI => {
+                // TODO: Handle IME delay
+                machine.cpu.registers.ime = true;
+                CPU::pop_r16(machine, &R16::PC);
+                (16, 4)
+            }
 
             Instruction::RLA => {
                 // Note: for some reason, this always unsets Z
@@ -516,6 +519,12 @@ impl Instruction {
             Instruction::RR_r8(r8) => {
                 rotate_right_through_carry(&mut machine.cpu, r8);
                 (8, 2)
+            }
+
+            Instruction::RST(imm16) => {
+                CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu.registers.pc));
+                machine.cpu.registers.pc = imm16.as_u16();
+                (16, 4)
             }
 
             Instruction::SUB_A_r8(r8) => {

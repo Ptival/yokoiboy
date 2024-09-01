@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    instruction::decode::{decode_instruction_at_address, DecodedInstruction},
+    instructions::decode::{decode_instruction_at_address, DecodedInstruction},
     machine::Machine,
 };
 
@@ -62,7 +62,7 @@ impl Memory {
         if byte_length > 0x8000 {
             panic!("Loading ROM larger than 0x8000 bytes not supported.");
         }
-        println!("ROM byte length: {:08X}", byte_length);
+        // println!("ROM byte length: {:08X}", byte_length);
         self.bank_00[0..min(BANK_SIZE, byte_length)].clone_from_slice(&bytes[..BANK_SIZE]);
         self.bank_01[0..(byte_length - BANK_SIZE)].clone_from_slice(&bytes[BANK_SIZE..]);
         Ok(self)

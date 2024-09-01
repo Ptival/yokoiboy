@@ -1,7 +1,7 @@
 use std::num::Wrapping;
 
 use crate::{
-    instruction::{decode::decode_instruction_at_address, type_def::Immediate16},
+    instructions::{decode::decode_instruction_at_address, type_def::Immediate16},
     machine::Machine,
     memory::Memory,
     registers::{Registers, R16},

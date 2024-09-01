@@ -98,9 +98,6 @@ impl DecodedInstruction {
                 format!("ADD A, {}", r8)
             }
             Instruction::AND_L => String::from("AND L"),
-            Instruction::CALL_Z_a16(imm16) => {
-                format!("CALL Z {:04X}", imm16.as_u16())
-            }
             Instruction::EI => String::from("EI"),
             Instruction::JP_u16(imm16) => {
                 format!("JP 0x{:04X}", imm16.as_u16())
@@ -173,6 +170,9 @@ impl DecodedInstruction {
                 format!("JP {}, 0x{:04X}", cc, imm16.as_u16())
             }
             Instruction::INC_mHL => String::from("INC [HL]"),
+            Instruction::RST(imm16) => {
+                format!("RST 0x{:04X}", imm16.as_u16())
+            }
         }
     }
 }

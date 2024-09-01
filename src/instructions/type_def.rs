@@ -48,7 +48,6 @@ pub enum Instruction {
     BIT_u3_r8(u8, R8),
     CALL_a16(Immediate16),
     CALL_cc_u16(Condition, Immediate16),
-    CALL_Z_a16(Immediate16),
     CP_A_mHL,
     CP_A_r8(R8),
     CP_A_u8(Wrapping<u8>),
@@ -99,6 +98,7 @@ pub enum Instruction {
     RLA, // Note: this behaves differently than RL A
     RR_r8(R8),
     RRA, // Note: this behaves differently than RR A
+    RST(Immediate16),
     SBC_A_A,
     SBC_A_C,
     SRL_r8(R8),

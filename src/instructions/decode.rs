@@ -214,8 +214,10 @@ pub fn decode_instruction_at_address(
         0xC4 => Instruction::CALL_cc_u16(Condition::NZ, next_imm16(&mut bytes_read)),
         0xC5 => Instruction::PUSH_r16(R16::BC),
         0xC6 => Instruction::ADD_A_u8(next_u8(&mut bytes_read)),
+        0xC7 => Instruction::RST(Immediate16::from_u16(Wrapping(0x0000))),
         0xC8 => Instruction::RET_cc(Condition::Z),
         0xC9 => Instruction::RET,
+        0xCA => Instruction::JP_cc_u16(Condition::Z, next_imm16(&mut bytes_read)),
         0xCB => {
             match next_u8(&mut bytes_read).0 {
                 0x10 => Instruction::RL_r8(R8::B),
@@ -246,34 +248,45 @@ pub fn decode_instruction_at_address(
                 }
             }
         }
-        0xCC => Instruction::CALL_Z_a16(next_imm16(&mut bytes_read)),
+        0xCC => Instruction::CALL_cc_u16(Condition::Z, next_imm16(&mut bytes_read)),
         0xCD => Instruction::CALL_a16(next_imm16(&mut bytes_read)),
         0xCE => Instruction::ADC_A_u8(next_u8(&mut bytes_read)),
+        0xCF => Instruction::RST(Immediate16::from_u16(Wrapping(0x0008))),
 
         0xD0 => Instruction::RET_cc(Condition::NC),
         0xD1 => Instruction::POP_r16(R16::DE),
+        0xD2 => Instruction::JP_cc_u16(Condition::NC, next_imm16(&mut bytes_read)),
+        0xD4 => Instruction::CALL_cc_u16(Condition::NC, next_imm16(&mut bytes_read)),
         0xD5 => Instruction::PUSH_r16(R16::DE),
         0xD6 => Instruction::SUB_A_u8(next_u8(&mut bytes_read)),
+        0xD7 => Instruction::RST(Immediate16::from_u16(Wrapping(0x0010))),
         0xD8 => Instruction::RET_cc(Condition::C),
         0xD9 => Instruction::RETI,
+        0xDA => Instruction::JP_cc_u16(Condition::C, next_imm16(&mut bytes_read)),
+        0xDC => Instruction::CALL_cc_u16(Condition::C, next_imm16(&mut bytes_read)),
+        0xDF => Instruction::RST(Immediate16::from_u16(Wrapping(0x0018))),
 
         0xE0 => Instruction::LD_FFu8_A(next_u8(&mut bytes_read)),
         0xE1 => Instruction::POP_r16(R16::HL),
         0xE2 => Instruction::LD_FFC_A,
         0xE5 => Instruction::PUSH_r16(R16::HL),
         0xE6 => Instruction::AND_u8(next_u8(&mut bytes_read)),
+        0xE7 => Instruction::RST(Immediate16::from_u16(Wrapping(0x0020))),
         0xE9 => Instruction::JP_HL,
         0xEA => Instruction::LD_mu16_A(next_imm16(&mut bytes_read)),
         0xEE => Instruction::XOR_A_u8(next_u8(&mut bytes_read)),
+        0xEF => Instruction::RST(Immediate16::from_u16(Wrapping(0x0028))),
 
         0xF0 => Instruction::LD_A_FFu8(next_u8(&mut bytes_read)),
         0xF1 => Instruction::POP_r16(R16::AF),
         0xF3 => Instruction::DI,
         0xF5 => Instruction::PUSH_r16(R16::AF),
+        0xF7 => Instruction::RST(Immediate16::from_u16(Wrapping(0x0030))),
         0xF9 => Instruction::LD_SP_HL,
         0xFB => Instruction::EI,
         0xFA => Instruction::LD_A_mu16(next_imm16(&mut bytes_read)),
         0xFE => Instruction::CP_A_u8(next_u8(&mut bytes_read)),
+        0xFF => Instruction::RST(Immediate16::from_u16(Wrapping(0x0038))),
 
         unhandled => panic!("Implement decode for {:02X}", unhandled),
     };
