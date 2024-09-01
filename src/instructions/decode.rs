@@ -187,7 +187,7 @@ pub fn decode_instruction_at_address(
         0x7C => Instruction::LD_r8_r8(R8::A, R8::H),
         0x7D => Instruction::LD_r8_r8(R8::A, R8::L),
         0x7E => Instruction::LD_A_mHL,
-        0x7F => todo!(),
+        0x7F => Instruction::LD_r8_r8(R8::A, R8::A),
 
         0x80 => Instruction::ADD_A_r8(R8::B),
         0x81 => Instruction::ADD_A_r8(R8::C),
