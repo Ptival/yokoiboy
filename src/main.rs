@@ -36,7 +36,6 @@ pub mod machine;
 pub mod memory;
 pub mod ppu;
 pub mod registers;
-pub mod timer;
 
 const CPU_SNAPS_CAPACITY: usize = 5;
 
