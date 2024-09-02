@@ -35,7 +35,7 @@ impl DecodedInstruction {
 pub fn decode_instruction_at_address(
     machine: &Machine,
     address: Wrapping<u16>,
-) -> Result<DecodedInstruction, String> {
+) -> DecodedInstruction {
     let mut bytes_read: u16 = 0;
     let next_i8 = |bytes_read: &mut u16| {
         let o = *bytes_read;
@@ -549,7 +549,7 @@ pub fn decode_instruction_at_address(
         0xD0 => Instruction::RET_cc(Condition::NC),
         0xD1 => Instruction::POP_r16(R16::DE),
         0xD2 => Instruction::JP_cc_u16(Condition::NC, next_imm16(&mut bytes_read)),
-        0xD3 => todo!(),
+        0xD3 => Instruction::Illegal(0xD3),
         0xD4 => Instruction::CALL_cc_u16(Condition::NC, next_imm16(&mut bytes_read)),
         0xD5 => Instruction::PUSH_r16(R16::DE),
         0xD6 => Instruction::SUB_A_u8(next_u8(&mut bytes_read)),
@@ -557,26 +557,26 @@ pub fn decode_instruction_at_address(
         0xD8 => Instruction::RET_cc(Condition::C),
         0xD9 => Instruction::RETI,
         0xDA => Instruction::JP_cc_u16(Condition::C, next_imm16(&mut bytes_read)),
-        0xDB => todo!(),
+        0xDB => Instruction::Illegal(0xDB),
         0xDC => Instruction::CALL_cc_u16(Condition::C, next_imm16(&mut bytes_read)),
-        0xDD => todo!(),
+        0xDD => Instruction::Illegal(0xDD),
         0xDE => Instruction::SBC_A_u8(next_u8(&mut bytes_read)),
         0xDF => Instruction::RST(Immediate16::from_u16(Wrapping(0x0018))),
 
         0xE0 => Instruction::LD_FFu8_A(next_u8(&mut bytes_read)),
         0xE1 => Instruction::POP_r16(R16::HL),
         0xE2 => Instruction::LD_FFC_A,
-        0xE3 => todo!(),
-        0xE4 => todo!(),
+        0xE3 => Instruction::Illegal(0xE3),
+        0xE4 => Instruction::Illegal(0xE4),
         0xE5 => Instruction::PUSH_r16(R16::HL),
         0xE6 => Instruction::AND_u8(next_u8(&mut bytes_read)),
         0xE7 => Instruction::RST(Immediate16::from_u16(Wrapping(0x0020))),
         0xE8 => Instruction::ADD_SP_i8(next_i8(&mut bytes_read)),
         0xE9 => Instruction::JP_HL,
         0xEA => Instruction::LD_mu16_A(next_imm16(&mut bytes_read)),
-        0xEB => todo!(),
-        0xEC => todo!(),
-        0xED => todo!(),
+        0xEB => Instruction::Illegal(0xEB),
+        0xEC => Instruction::Illegal(0xEC),
+        0xED => Instruction::Illegal(0xED),
         0xEE => Instruction::XOR_A_u8(next_u8(&mut bytes_read)),
         0xEF => Instruction::RST(Immediate16::from_u16(Wrapping(0x0028))),
 
@@ -584,7 +584,7 @@ pub fn decode_instruction_at_address(
         0xF1 => Instruction::POP_r16(R16::AF),
         0xF2 => Instruction::LD_A_FFC,
         0xF3 => Instruction::DI,
-        0xF4 => todo!(),
+        0xF4 => Instruction::Illegal(0xF4),
         0xF5 => Instruction::PUSH_r16(R16::AF),
         0xF6 => Instruction::OR_A_u8(next_u8(&mut bytes_read)),
         0xF7 => Instruction::RST(Immediate16::from_u16(Wrapping(0x0030))),
@@ -592,15 +592,15 @@ pub fn decode_instruction_at_address(
         0xF9 => Instruction::LD_SP_HL,
         0xFA => Instruction::LD_A_mu16(next_imm16(&mut bytes_read)),
         0xFB => Instruction::EI,
-        0xFC => todo!(),
-        0xFD => todo!(),
+        0xFC => Instruction::Illegal(0xFC),
+        0xFD => Instruction::Illegal(0xFD),
         0xFE => Instruction::CP_A_u8(next_u8(&mut bytes_read)),
         0xFF => Instruction::RST(Immediate16::from_u16(Wrapping(0x0038))),
     };
-    Ok(DecodedInstruction {
+    DecodedInstruction {
         address: address,
         instruction: i,
         instruction_size: bytes_read as u8,
         raw: machine.read_range(address, bytes_read as usize).into(),
-    })
+    }
 }

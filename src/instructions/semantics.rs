@@ -290,6 +290,10 @@ impl Instruction {
                 (4, 1)
             }
 
+            Instruction::Illegal(opcode) => {
+                panic!("Attempted to execute an illegal opcode: 0x{:02X}", opcode)
+            }
+
             Instruction::INC_r8(r8) => {
                 // NOTE: Can't use `add` because we don't want to touch Flag::C
                 let r8val = machine.cpu.registers.read_r8(r8);
@@ -653,8 +657,6 @@ impl Instruction {
                 xor(&mut machine.cpu, a, *u8);
                 (8, 2)
             }
-
-            Instruction::Prefix => todo!(),
 
             Instruction::SBC_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();

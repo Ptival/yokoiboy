@@ -7,6 +7,7 @@ use std::{
 };
 
 use circular_queue::CircularQueue;
+use clap::Parser;
 use cpu::CPU;
 use iced::{
     self,
@@ -26,7 +27,7 @@ use iced::{
     Border, Color, Settings, Size, Task, Theme,
 };
 use iced_aw::{grid_row, Grid};
-use machine::{Machine, EXTERNAL_RAM_SIZE};
+use machine::Machine;
 use memory::Memory;
 use ppu::PPU;
 use registers::Flag;
@@ -41,6 +42,17 @@ pub mod registers;
 
 const CPU_SNAPS_CAPACITY: usize = 5;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct CommandLineArguments {
+    #[arg(short, long)]
+    boot_rom: String,
+    #[arg(short, long)]
+    game_rom: String,
+    #[arg(short, long, default_value_t = false)]
+    log_for_doctor: bool,
+}
+
 enum PreserveHistory {
     DontPreserveHistory,
     PreserveHistory,
@@ -49,54 +61,23 @@ enum PreserveHistory {
 #[derive(Debug)]
 struct DebuggerWindow {
     pub breakpoints: Vec<u16>,
-    pub output_file: File,
+    pub output_file: Option<File>,
     pub paused: bool,
     pub snaps: CircularQueue<Machine>,
 }
 
-impl Default for DebuggerWindow {
-    fn default() -> Self {
+impl DebuggerWindow {
+    fn new(args: &CommandLineArguments) -> Self {
         let mut queue = CircularQueue::with_capacity(CPU_SNAPS_CAPACITY);
-        let mut cpu = CPU::new();
-        cpu.memory
-            .load_boot_rom(String::from("dmg_boot.bin"))
-            .expect("Failed to load boot ROM")
-            .load_rom(String::from(
-                // "gb-test-roms/cpu_instrs/individual/01-special.gb",
-                // "gb-test-roms/cpu_instrs/individual/02-interrupts.gb",
-                // "gb-test-roms/cpu_instrs/individual/03-op sp,hl.gb",
-                // "gb-test-roms/cpu_instrs/individual/04-op r,imm.gb",
-                // "gb-test-roms/cpu_instrs/individual/05-op rp.gb",
-                // "gb-test-roms/cpu_instrs/individual/06-ld r,r.gb",
-                // "gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
-                // "gb-test-roms/cpu_instrs/individual/08-misc instrs.gb",
-                // "gb-test-roms/cpu_instrs/individual/09-op r,r.gb",
-                "gb-test-roms/cpu_instrs/individual/10-bit ops.gb",
-                // "gb-test-roms/cpu_instrs/individual/11-op a,(hl).gb",
-            ))
-            .expect("Failed to load ROM");
-        queue.push(Machine {
-            t_cycle_count: 0,
-            dmg_boot_rom: Wrapping(0),
-            cpu,
-            ppu: PPU::new(),
-            bgp: Wrapping(0),
-            external_ram: [0; EXTERNAL_RAM_SIZE],
-            interrupt_enable: Wrapping(0),
-            interrupt_flag: Wrapping(0),
-            nr11: Wrapping(0),
-            nr12: Wrapping(0),
-            nr13: Wrapping(0),
-            nr14: Wrapping(0),
-            nr50: Wrapping(0),
-            nr51: Wrapping(0),
-            nr52: Wrapping(0),
-            sb: Wrapping(0),
-            sc: Wrapping(0),
-            scx: Wrapping(0),
-            scy: Wrapping(0),
-            tac: Wrapping(0),
-        });
+        let mut machine = Machine::new();
+        machine
+            .cpu
+            .memory
+            .load_boot_rom(&args.boot_rom)
+            .unwrap_or_else(|e| panic!("Failed to load boot ROM: {}", e))
+            .load_rom(&args.game_rom)
+            .unwrap_or_else(|e| panic!("Failed to load game ROM: {}", e));
+        queue.push(machine);
         Self {
             breakpoints: vec![
                 // 0x00F1, // passed logo check
@@ -106,19 +87,23 @@ impl Default for DebuggerWindow {
                        // 0xC662,
                        // 0xDEF8,
             ],
-            output_file: OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open("log")
-                .expect("could not create log"),
+            output_file: if args.log_for_doctor {
+                Some(
+                    OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open("log")
+                        .unwrap_or_else(|e| panic!("Could not create log file: {}", e)),
+                )
+            } else {
+                None
+            },
             paused: false,
             snaps: queue,
         }
     }
-}
 
-impl DebuggerWindow {
     pub fn current_machine(self: &mut Self) -> &mut Machine {
         self.snaps
             .iter_mut()
@@ -143,7 +128,7 @@ impl DebuggerWindow {
 
     fn step_machine<'a>(machine: &'a mut Machine) -> &'a mut Machine {
         // Arbitrarily stepping the CPU then the PPU
-        let (t_cycles, m_cycles) = CPU::execute_one_instruction(machine).expect("sad");
+        let (t_cycles, m_cycles) = CPU::execute_one_instruction(machine);
         if t_cycles != 4 * m_cycles {
             println!("T-cycle/M-cycle mismatch: {}, {}", t_cycles, m_cycles)
         }
@@ -160,14 +145,11 @@ impl DebuggerWindow {
     }
 
     fn step(&mut self, preserve: PreserveHistory) {
-        let current_machine = self.current_machine_immut();
-        if !current_machine.is_dmg_boot_rom_on() {
-            write!(
-                self.output_file,
-                "{}\n",
-                CPU::gbdoctor_string(current_machine)
-            )
-            .expect("write to log failed");
+        let string = CPU::gbdoctor_string(self.current_machine());
+        if !self.current_machine().is_dmg_boot_rom_on() {
+            if let Some(output_file) = self.output_file.as_mut() {
+                write!(output_file, "{}\n", string).expect("write to log failed");
+            }
         }
         let current_machine = self.current_machine();
         match preserve {
@@ -216,7 +198,9 @@ impl DebuggerWindow {
             }
 
             Message::Quit => {
-                self.output_file.flush().expect("flush failed");
+                if let Some(output_file) = self.output_file.as_mut() {
+                    output_file.flush().expect("flush failed");
+                }
                 exit()
             }
 
@@ -238,8 +222,7 @@ impl DebuggerWindow {
 
                 // Run some number of steps before updating the display
                 let mut remaining_steps: u32 = 10000;
-                while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc.0)
-                {
+                while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc.0) {
                     remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
                     pc = self.current_machine().cpu.registers.pc;
@@ -262,7 +245,7 @@ impl DebuggerWindow {
             color: Some(Color::from_rgb(1.0, 0.0, 0.0)),
         };
         for old in self.snaps.asc_iter().take(history_size) {
-            let instr = Memory::decode_instruction_at(old, old.cpu.registers.pc).expect("womp");
+            let instr = Memory::decode_instruction_at(old, old.cpu.registers.pc);
             let row = grid_row![
                 widget::text(self.display_breakpoint(instr.address)).style(history_style),
                 widget::text(""),
@@ -276,7 +259,7 @@ impl DebuggerWindow {
         let machine = self.current_machine_immut();
         let cpu = &machine.cpu;
         let pc = cpu.registers.pc;
-        let instrs = Memory::decode_instructions_at(machine, pc, 10).expect("womp");
+        let instrs = Memory::decode_instructions_at(machine, pc, 10);
         instructions_grid = instructions_grid.push(grid_row![
             widget::text(self.display_breakpoint(instrs[0].address)),
             widget::text("→"),
@@ -468,11 +451,18 @@ impl DebuggerWindow {
 }
 
 fn main() -> Result<(), iced::Error> {
+    let args = CommandLineArguments::parse();
+
     let mut settings = Settings::default();
     settings.default_font = font::Font::MONOSPACE;
     iced::application("YokoiBoy", DebuggerWindow::update, DebuggerWindow::view)
         .subscription(DebuggerWindow::subscription)
         .settings(settings)
         .window_size(Size::new(2000.0, 1200.0))
-        .run()
+        .run_with(move || {
+            (
+                DebuggerWindow::new(&args),
+                Task::done(Message::BeginRunUntilBreakpoint),
+            )
+        })
 }

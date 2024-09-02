@@ -21,12 +21,12 @@ impl CPU {
         }
     }
 
-    pub fn execute_one_instruction(machine: &mut Machine) -> Result<(u8, u8), String> {
-        let next_instruction = decode_instruction_at_address(machine, machine.cpu.registers.pc)?;
+    pub fn execute_one_instruction(machine: &mut Machine) -> (u8, u8) {
+        let next_instruction = decode_instruction_at_address(machine, machine.cpu.registers.pc);
         // This will be the default PC, unless instruction semantics overwrite it
         machine.cpu.registers.pc =
             machine.cpu.registers.pc + Wrapping(next_instruction.instruction_size as u16);
-        Ok(next_instruction.instruction.execute(machine))
+        next_instruction.instruction.execute(machine)
     }
 
     pub fn pop_r16<'a>(machine: &'a mut Machine, r16: &R16) -> &'a mut Machine {

@@ -36,7 +36,6 @@ impl Immediate16 {
 #[derive(Clone, Debug)]
 #[allow(non_camel_case_types)]
 pub enum Instruction {
-    // IllegalOrTODO(u8),
     ADC_A_r8(R8),
     ADC_A_u8(Wrapping<u8>),
     ADD_A_mHL,
@@ -49,10 +48,10 @@ pub enum Instruction {
     BIT_u3_r8(u8, R8),
     CALL_a16(Immediate16),
     CALL_cc_u16(Condition, Immediate16),
+    CCF,
     CP_A_mHL,
     CP_A_r8(R8),
     CP_A_u8(Wrapping<u8>),
-    CCF,
     CPL,
     DEC_mHL,
     DEC_r16(R16),
@@ -62,14 +61,15 @@ pub enum Instruction {
     INC_mHL,
     INC_r16(R16),
     INC_r8(R8),
+    Illegal(u8),
     JP_cc_u16(Condition, Immediate16),
     JP_HL,
     JP_u16(Immediate16),
     JR_cc_i8(Condition, Wrapping<i8>),
     JR_i8(Wrapping<i8>),
     JR_r8(R8),
-    LD_A_FFu8(Wrapping<u8>),
     LD_A_FFC,
+    LD_A_FFu8(Wrapping<u8>),
     LD_A_mHL,
     LD_A_mHLdec,
     LD_A_mHLinc,
@@ -96,19 +96,18 @@ pub enum Instruction {
     OR_A_r8(R8),
     OR_A_u8(Wrapping<u8>),
     POP_r16(R16),
-    Prefix,
     PUSH_r16(R16),
     RET_cc(Condition),
     RET,
     RETI,
     RL_r8(R8),
     RLA, // Note: this is different from "RL A"
-    RLCA, // Note: this is different from "RLC A"
     RLC_r8(R8),
+    RLCA, // Note: this is different from "RLC A"
     RR_r8(R8),
     RRA, // Note: this is different from "RR A"
-    RRCA, // Note: this is different from "RRC A"
     RRC_r8(R8),
+    RRCA, // Note: this is different from "RRC A"
     RST(Immediate16),
     SBC_A_r8(R8),
     SBC_A_u8(Wrapping<u8>),

@@ -30,6 +30,31 @@ pub struct Machine {
 }
 
 impl Machine {
+    pub fn new() -> Self {
+        Machine {
+            t_cycle_count: 0,
+            dmg_boot_rom: Wrapping(0),
+            cpu: CPU::new(),
+            ppu: PPU::new(),
+            bgp: Wrapping(0),
+            external_ram: [0; EXTERNAL_RAM_SIZE],
+            interrupt_enable: Wrapping(0),
+            interrupt_flag: Wrapping(0),
+            nr11: Wrapping(0),
+            nr12: Wrapping(0),
+            nr13: Wrapping(0),
+            nr14: Wrapping(0),
+            nr50: Wrapping(0),
+            nr51: Wrapping(0),
+            nr52: Wrapping(0),
+            sb: Wrapping(0),
+            sc: Wrapping(0),
+            scx: Wrapping(0),
+            scy: Wrapping(0),
+            tac: Wrapping(0),
+        }
+    }
+
     pub fn is_dmg_boot_rom_on(&self) -> bool {
         self.dmg_boot_rom.0 == 0
     }

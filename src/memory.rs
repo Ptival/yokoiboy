@@ -22,10 +22,7 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn decode_instruction_at(
-        machine: &Machine,
-        address: Wrapping<u16>,
-    ) -> Result<DecodedInstruction, String> {
+    pub fn decode_instruction_at(machine: &Machine, address: Wrapping<u16>) -> DecodedInstruction {
         decode_instruction_at_address(machine, address)
     }
 
@@ -33,18 +30,18 @@ impl Memory {
         machine: &Machine,
         address: Wrapping<u16>,
         how_many: u8,
-    ) -> Result<Vec<DecodedInstruction>, String> {
+    ) -> Vec<DecodedInstruction> {
         let mut res = Vec::new();
         let mut pc = address;
         for _ in 0..how_many {
-            let instr = decode_instruction_at_address(machine, pc)?;
+            let instr = decode_instruction_at_address(machine, pc);
             pc = pc + Wrapping(instr.instruction_size as u16);
             res.push(instr);
         }
-        Ok(res)
+        res
     }
 
-    pub fn load_boot_rom(&mut self, path: String) -> Result<&mut Self, io::Error> {
+    pub fn load_boot_rom(&mut self, path: &String) -> Result<&mut Self, io::Error> {
         let bytes = std::fs::read(path)?;
         let byte_length = bytes.len();
         if byte_length > 0x100 {
@@ -56,7 +53,7 @@ impl Memory {
         Ok(self)
     }
 
-    pub fn load_rom(self: &mut Self, path: String) -> Result<&mut Self, io::Error> {
+    pub fn load_rom(self: &mut Self, path: &String) -> Result<&mut Self, io::Error> {
         let bytes = std::fs::read(path)?;
         let byte_length = bytes.len();
         if byte_length > 0x8000 {
