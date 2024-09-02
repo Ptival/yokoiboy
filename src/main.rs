@@ -221,15 +221,6 @@ impl DebuggerWindow {
             }
 
             Message::RunNextInstruction => {
-                // let machine = self.current_machine();
-                // for r in 0..160 {
-                //     for c in 0..144 {
-                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4] = rand::random();
-                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 1] = rand::random();
-                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 2] = rand::random();
-                //         machine.ppu.rendered_pixels[(r * 144 + c) * 4 + 3] = 255
-                //     }
-                // }
                 self.step(PreserveHistory::PreserveHistory);
                 self.current_machine().ppu.render_vram();
                 Task::none()
@@ -237,7 +228,7 @@ impl DebuggerWindow {
 
             Message::BeginRunUntilBreakpoint => {
                 self.paused = false;
-                // make sure to step at least once! :D
+                // step at least once to escape current breakpoint! :D
                 self.step(PreserveHistory::DontPreserveHistory);
                 Task::done(Message::ContinueRunUntilBreakpoint)
             }
@@ -245,12 +236,9 @@ impl DebuggerWindow {
             Message::ContinueRunUntilBreakpoint => {
                 let mut pc = self.current_machine().cpu.registers.pc;
 
-                // Try to run some number of steps before updating the display
-                let mut remaining_steps: u32 = 100;
-                while remaining_steps > 0
-                    && !self.paused
-                    && !self.breakpoints.contains(&pc.0)
-                    && self.current_machine().ppu.read_ly().0 != 144
+                // Run some number of steps before updating the display
+                let mut remaining_steps: u32 = 10000;
+                while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc.0)
                 {
                     remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
@@ -482,7 +470,7 @@ impl DebuggerWindow {
 fn main() -> Result<(), iced::Error> {
     let mut settings = Settings::default();
     settings.default_font = font::Font::MONOSPACE;
-    iced::application("Rustyboi", DebuggerWindow::update, DebuggerWindow::view)
+    iced::application("YokoiBoy", DebuggerWindow::update, DebuggerWindow::view)
         .subscription(DebuggerWindow::subscription)
         .settings(settings)
         .window_size(Size::new(2000.0, 1200.0))

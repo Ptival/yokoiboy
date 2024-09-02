@@ -132,7 +132,7 @@ impl PPU {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
                 if machine.ppu.scanline_dots == 80 {
-                    let ly = machine.ppu.read_ly();
+                    let ly = machine.scy + machine.ppu.read_ly();
                     machine.ppu.fetcher.tile_line = ly % Wrapping(8);
                     machine.ppu.fetcher.row_address =
                         Wrapping(0x9800) + Wrapping((ly.0 as u16 / 8) * 32);
