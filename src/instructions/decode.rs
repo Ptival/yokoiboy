@@ -220,7 +220,7 @@ pub fn decode_instruction_at_address(
         0x9B => Instruction::SBC_A_r8(R8::E),
         0x9C => Instruction::SBC_A_r8(R8::H),
         0x9D => Instruction::SBC_A_r8(R8::L),
-        0x9E => todo!(), // Instruction::SBC_A_mHL,
+        0x9E => Instruction::SBC_A_mHL,
         0x9F => Instruction::SBC_A_r8(R8::A),
 
         0xA0 => Instruction::AND_r8(R8::B),

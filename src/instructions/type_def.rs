@@ -114,6 +114,7 @@ pub enum Instruction {
     RRC_r8(R8),
     RRCA, // Note: this is different from "RRC A"
     RST(Immediate16),
+    SBC_A_mHL,
     SBC_A_r8(R8),
     SBC_A_u8(Wrapping<u8>),
     SCF,

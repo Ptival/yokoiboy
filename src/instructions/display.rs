@@ -101,6 +101,7 @@ impl DecodedInstruction {
             Instruction::RRCA => String::from("RRCA"),
             Instruction::RRC_r8(r8) => format!("RRC {}", r8),
             Instruction::RST(imm16) => format!("RST 0x{:04X}", imm16.as_u16()),
+            Instruction::SBC_A_mHL => String::from("SBC A, [HL]"),
             Instruction::SBC_A_r8(r8) => format!("SBC A, {}", r8),
             Instruction::SBC_A_u8(u8) => format!("SBC A, 0x{:02X}", u8),
             Instruction::SCF => String::from("SCF"),

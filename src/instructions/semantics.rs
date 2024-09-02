@@ -693,6 +693,41 @@ impl Instruction {
                 (16, 4)
             }
 
+            Instruction::SBC_A_mHL => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.read_u8(machine.cpu.registers.hl);
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                subc(&mut machine.cpu, &a, &b, c);
+                (8, 2)
+            }
+
+            Instruction::SBC_A_r8(r8) => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.cpu.registers.read_r8(r8);
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                subc(&mut machine.cpu, &a, &b, c);
+                (4, 1)
+            }
+
+            Instruction::SBC_A_u8(u8) => {
+                let a = machine.cpu.registers.read_a();
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                subc(&mut machine.cpu, &a, u8, c);
+                (8, 2)
+            }
+
+            Instruction::SBC_A_u8(u8) => {
+                let a = machine.cpu.registers.read_a();
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                subc(&mut machine.cpu, &a, u8, c);
+                (8, 2)
+            }
+
+            Instruction::SRL_r8(r8) => {
+                shift_right_logically(&mut machine.cpu, r8);
+                (8, 2)
+            }
+
             Instruction::SCF => {
                 machine
                     .cpu
@@ -770,26 +805,6 @@ impl Instruction {
             Instruction::XOR_A_u8(u8) => {
                 let a = machine.cpu.registers.read_a();
                 xor(&mut machine.cpu, a, *u8);
-                (8, 2)
-            }
-
-            Instruction::SBC_A_r8(r8) => {
-                let a = machine.cpu.registers.read_a();
-                let b = machine.cpu.registers.read_r8(r8);
-                let c = machine.cpu.registers.read_flag(Flag::C);
-                subc(&mut machine.cpu, &a, &b, c);
-                (4, 1)
-            }
-
-            Instruction::SBC_A_u8(u8) => {
-                let a = machine.cpu.registers.read_a();
-                let c = machine.cpu.registers.read_flag(Flag::C);
-                subc(&mut machine.cpu, &a, u8, c);
-                (8, 2)
-            }
-
-            Instruction::SRL_r8(r8) => {
-                shift_right_logically(&mut machine.cpu, r8);
                 (8, 2)
             }
 
