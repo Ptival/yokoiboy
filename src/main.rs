@@ -45,6 +45,18 @@ use registers::Flag;
 const CPU_SNAPS_CAPACITY: usize = 5;
 const LOG_PATH: &str = "log";
 
+const BREAKPOINTS: &[u16] = &[
+    // 0x00F1, // passed logo check
+    // 0x00FC, // passed header checksum check
+    // 0x0100, // made it out of the boot ROM
+    // 0x026C,
+    // 0x0272,
+    // 0xC355,
+    // 0xC738,
+    // 0xC662,
+    // 0xDEF8,
+];
+
 #[derive(Clone, Debug, Parser)]
 #[command(version, about, long_about = None)]
 struct CommandLineArguments {
@@ -82,15 +94,7 @@ impl DebuggerWindow {
             .unwrap_or_else(|e| panic!("Failed to load game ROM: {}", e));
         queue.push(machine);
         Self {
-            breakpoints: vec![
-                // 0x00F1, // passed logo check
-                // 0x00FC, // passed header checksum check
-                // 0x0100, // made it out of the boot ROM
-                // 0xC355,
-                // 0xC738,
-                // 0xC662,
-                // 0xDEF8,
-            ],
+            breakpoints: BREAKPOINTS.into(),
             output_file: if args.log_for_doctor {
                 Some(
                     OpenOptions::new()

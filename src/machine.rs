@@ -22,10 +22,14 @@ pub struct Machine {
     pub nr50: Wrapping<u8>,
     pub nr51: Wrapping<u8>,
     pub nr52: Wrapping<u8>,
+    pub register_ff72: Wrapping<u8>,
+    pub register_ff73: Wrapping<u8>,
+    pub register_ff75: Wrapping<u8>,
     pub sb: Wrapping<u8>,
     pub sc: Wrapping<u8>,
     pub scx: Wrapping<u8>,
     pub scy: Wrapping<u8>,
+    pub wram_bank: Wrapping<u8>,
 }
 
 impl Machine {
@@ -46,10 +50,14 @@ impl Machine {
             nr50: Wrapping(0),
             nr51: Wrapping(0),
             nr52: Wrapping(0),
+            register_ff72: Wrapping(0),
+            register_ff73: Wrapping(0),
+            register_ff75: Wrapping(0),
             sb: Wrapping(0),
             sc: Wrapping(0),
             scx: Wrapping(0),
             scy: Wrapping(0),
+            wram_bank: Wrapping(0),
         }
     }
 
@@ -74,6 +82,7 @@ impl Machine {
             0xFE00..=0xFE9F => {
                 Wrapping(self.ppu.object_attribute_memory[address.0 as usize - 0xFE00])
             }
+            0xFEA0..=0xFEFF => Wrapping(0xFF),
             0xFF00..=0xFF00 => self.inputs.read(),
             0xFF01..=0xFF01 => self.sb,
             0xFF02..=0xFF02 => self.sc,
@@ -101,9 +110,19 @@ impl Machine {
             0xFF4A..=0xFF4A => self.ppu.window_y,
             0xFF4B..=0xFF4B => self.ppu.window_x7,
             0xFF50..=0xFF50 => self.dmg_boot_rom,
+
+            0xFF70..=0xFF70 => self.wram_bank,
+            0xFF72..=0xFF72 => self.register_ff72,
+            0xFF73..=0xFF73 => self.register_ff73,
+            0xFF74..=0xFF74 => Wrapping(0xFF),
+            0xFF75..=0xFF75 => self.register_ff75,
+
             0xFF80..=0xFFFE => self.cpu.memory.read_hram(address - Wrapping(0xFF80)),
             0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable,
-            _ => panic!("Memory read at address {:04X} needs to be handled", address),
+            _ => panic!(
+                "Memory read at address {:04X} needs to be handled (at PC 0x{:04X})",
+                address, self.cpu.registers.pc
+            ),
         }
     }
 
@@ -139,18 +158,41 @@ impl Machine {
             0xFE00..=0xFE9F => {
                 self.ppu.object_attribute_memory[address.0 as usize - 0xFE00] = value.0
             }
+            0xFEA0..=0xFEFF => {
+                println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
+            }
             0xFF00..=0xFF00 => self.inputs.write(value),
             0xFF01..=0xFF01 => self.sb = value,
             0xFF02..=0xFF02 => self.sc = value,
             0xFF04..=0xFF07 => self.cpu.timers.write_u8(address, value),
             0xFF0F..=0xFF0F => self.cpu.interrupts.interrupt_flag = value,
+
+            // AUDIO
+
+            0xFF10..=0xFF10 => {}, // TODO
             0xFF11..=0xFF11 => self.nr11 = value,
             0xFF12..=0xFF12 => self.nr12 = value,
             0xFF13..=0xFF13 => self.nr13 = value,
             0xFF14..=0xFF14 => self.nr14 = value,
+            0xFF15..=0xFF15 => {}, // TODO
+            0xFF16..=0xFF16 => {}, // TODO
+            0xFF17..=0xFF17 => {}, // TODO
+            0xFF18..=0xFF18 => {}, // TODO
+            0xFF19..=0xFF19 => {}, // TODO
+            0xFF1A..=0xFF1A => {}, // TODO
+            0xFF1B..=0xFF1B => {}, // TODO
+            0xFF1C..=0xFF1C => {}, // TODO
+            0xFF1D..=0xFF1D => {}, // TODO
+            0xFF1E..=0xFF1E => {}, // TODO
+            0xFF1F..=0xFF1F => {}, // TODO
+            0xFF20..=0xFF20 => {}, // TODO
+            0xFF21..=0xFF21 => {}, // TODO
+            0xFF22..=0xFF22 => {}, // TODO
+            0xFF23..=0xFF23 => {}, // TODO
             0xFF24..=0xFF24 => self.nr50 = value,
             0xFF25..=0xFF25 => self.nr51 = value,
             0xFF26..=0xFF26 => self.nr52 = value,
+
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
             0xFF41..=0xFF41 => self.ppu.lcd_status = value,
             0xFF42..=0xFF42 => self.scy = value,
@@ -159,20 +201,28 @@ impl Machine {
                 panic!("Something attempted to write to LY")
             }
             0xFF45..=0xFF45 => self.ppu.lcd_y_compare = value,
-            0xFF46..=0xFF46 => {
-                todo!("OAM DMA write")
-            }
+            0xFF46..=0xFF46 => {}, // TODO: OAM DMA
             0xFF47..=0xFF47 => self.bgp = value,
             0xFF48..=0xFF48 => self.ppu.object_palette_0 = value,
             0xFF49..=0xFF49 => self.ppu.object_palette_1 = value,
             0xFF4A..=0xFF4A => self.ppu.window_y = value,
             0xFF4B..=0xFF4B => self.ppu.window_x7 = value,
             0xFF50..=0xFF50 => self.dmg_boot_rom = value,
+
+            0xFF70..=0xFF70 => self.wram_bank = value,
+            0xFF72..=0xFF72 => self.register_ff72 = value,
+            0xFF73..=0xFF73 => self.register_ff73 = value,
+            0xFF74..=0xFF74 => {}
+            0xFF75..=0xFF75 => self.register_ff75 = Wrapping(value.0 & 0x07),
+            0xFF7F..=0xFF7F => {
+                println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
+            }
+
             0xFF80..=0xFFFE => Memory::write_hram(self, address - Wrapping(0xFF80), value),
             0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable = value,
             _ => panic!(
-                "Memory write at address {:04X} needs to be handled",
-                address
+                "Memory write at address {:04X} needs to be handle (at PC 0x{:04X})",
+                address, self.cpu.registers.pc
             ),
         }
     }
