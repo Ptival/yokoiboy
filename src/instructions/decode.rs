@@ -212,7 +212,7 @@ pub fn decode_instruction_at_address(
         0x93 => Instruction::SUB_A_r8(R8::E),
         0x94 => Instruction::SUB_A_r8(R8::H),
         0x95 => Instruction::SUB_A_r8(R8::L),
-        0x96 => todo!(), // Instruction::SUB_A_mHL,
+        0x96 => Instruction::SUB_A_mHL,
         0x97 => Instruction::SUB_A_r8(R8::A),
         0x98 => Instruction::SBC_A_r8(R8::B),
         0x99 => Instruction::SBC_A_r8(R8::C),

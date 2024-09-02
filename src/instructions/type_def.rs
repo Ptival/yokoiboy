@@ -122,6 +122,7 @@ pub enum Instruction {
     SLA_r8(R8),
     SRA_r8(R8),
     SRL_r8(R8),
+    SUB_A_mHL,
     SUB_A_r8(R8),
     SUB_A_u8(Wrapping<u8>),
     SWAP(R8),

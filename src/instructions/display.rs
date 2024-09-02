@@ -109,6 +109,7 @@ impl DecodedInstruction {
             Instruction::SLA_r8(r8) => format!("SLA {}", r8),
             Instruction::SRA_r8(r8) => format!("SRA {}", r8),
             Instruction::SRL_r8(r8) => format!("SRL {}", r8),
+            Instruction::SUB_A_mHL => String::from("SUB A, [HL]"),
             Instruction::SUB_A_r8(r8) => format!("SUB A, {}", r8),
             Instruction::SUB_A_u8(u8) => format!("SUB A, 0x{:02X}", u8),
             Instruction::SWAP(r8) => format!("SWAP {}", r8),
