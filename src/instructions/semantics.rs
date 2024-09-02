@@ -112,6 +112,14 @@ impl Instruction {
         }
 
         match self {
+            Instruction::ADC_A_mHL => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.read_u8(machine.cpu.registers.hl);
+                let c = machine.cpu.registers.read_flag(Flag::C);
+                adc(&mut machine.cpu, a, b, c);
+                (8, 2)
+            }
+
             Instruction::ADC_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);

@@ -11,6 +11,7 @@ impl DecodedInstruction {
 
     pub fn as_string(&self) -> String {
         match &self.instruction {
+            Instruction::ADC_A_mHL => String::from("ADC A [HL]"),
             Instruction::ADC_A_r8(r8) => format!("ADC A, {}", r8),
             Instruction::ADC_A_u8(u8) => format!("ADC A, 0x{:02X}", u8),
             Instruction::ADD_A_mHL => String::from("ADD A [HL]"),

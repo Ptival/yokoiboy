@@ -36,6 +36,7 @@ impl Immediate16 {
 #[derive(Clone, Debug)]
 #[allow(non_camel_case_types)]
 pub enum Instruction {
+    ADC_A_mHL,
     ADC_A_r8(R8),
     ADC_A_u8(Wrapping<u8>),
     ADD_A_mHL,

@@ -203,7 +203,7 @@ pub fn decode_instruction_at_address(
         0x8B => Instruction::ADC_A_r8(R8::E),
         0x8C => Instruction::ADC_A_r8(R8::H),
         0x8D => Instruction::ADC_A_r8(R8::L),
-        0x8E => todo!(), // Instruction::ADC_A_mHL,
+        0x8E => Instruction::ADC_A_mHL,
         0x8F => Instruction::ADC_A_r8(R8::A),
 
         0x90 => Instruction::SUB_A_r8(R8::B),
