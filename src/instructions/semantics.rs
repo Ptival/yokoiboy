@@ -543,14 +543,21 @@ impl Instruction {
 
             Instruction::POP_r16(r16) => {
                 CPU::pop_r16(machine, r16);
+                // Only the flag bits of F are restored
+                if *r16 == R16::AF {
+                    let masked_af = machine.cpu.registers.read_r16(r16) & Wrapping(0xFFF0);
+                    machine.cpu.registers.write_r16(r16, masked_af);
+                }
                 (12, 3)
             }
 
             Instruction::PUSH_r16(r16) => {
-                CPU::push_imm16(
-                    machine,
-                    Immediate16::from_u16(machine.cpu.registers.read_r16(r16)),
-                );
+                let mut byte_to_push = machine.cpu.registers.read_r16(r16);
+                // Only the flag bits of F are pushed
+                if *r16 == R16::AF {
+                    byte_to_push = byte_to_push & Wrapping(0xFFF0);
+                }
+                CPU::push_imm16(machine, Immediate16::from_u16(byte_to_push));
                 (16, 4)
             }
 

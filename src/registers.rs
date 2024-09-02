@@ -19,7 +19,7 @@ impl fmt::Display for R8 {
     }
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum R16 {
     AF,
     BC,
