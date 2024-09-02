@@ -75,7 +75,9 @@ impl Interrupts {
             // Currently simulating this whole thing at once, but might need granularity
             CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu.registers.pc));
             machine.cpu.registers.pc = interrupt_handler_offset(interrupt);
-            (20, 5)
+            // Execute the first instruction of the interrupt handler to match GB doctor
+            let (t_cycles, m_cycles) = CPU::execute_one_instruction(machine);
+            (20 + t_cycles, 5 + m_cycles)
         } else {
             (0, 0)
         }

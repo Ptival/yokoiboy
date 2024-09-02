@@ -37,9 +37,11 @@ impl CPU {
         if machine.cpu.low_power_mode {
             if Interrupts::is_interrupt_pending(machine) {
                 machine.cpu.low_power_mode = false;
+                // Fall through on wakeup to execute one instruction
+            } else {
+                // Otherwise, force the other components to move forward
+                return (4, 1);
             }
-            // Forces the other components to move forward
-            return (4, 1);
         }
         let next_instruction = decode_instruction_at_address(machine, machine.cpu.registers.pc);
         // This will be the default PC, unless instruction semantics overwrite it

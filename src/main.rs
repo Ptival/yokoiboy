@@ -42,7 +42,7 @@ pub mod registers;
 
 const CPU_SNAPS_CAPACITY: usize = 5;
 
-#[derive(Parser, Debug)]
+#[derive(Clone, Debug, Parser)]
 #[command(version, about, long_about = None)]
 struct CommandLineArguments {
     #[arg(short, long)]
@@ -69,7 +69,7 @@ struct DebuggerWindow {
 impl DebuggerWindow {
     fn new(args: &CommandLineArguments) -> Self {
         let mut queue = CircularQueue::with_capacity(CPU_SNAPS_CAPACITY);
-        let mut machine = Machine::new();
+        let mut machine = Machine::new(args.log_for_doctor);
         machine
             .cpu
             .memory
@@ -146,8 +146,10 @@ impl DebuggerWindow {
     }
 
     fn step(&mut self, preserve: PreserveHistory) {
-        let string = CPU::gbdoctor_string(self.current_machine());
-        if !self.current_machine().is_dmg_boot_rom_on() {
+        if !self.current_machine().is_dmg_boot_rom_on()
+            && !self.current_machine().cpu.low_power_mode
+        {
+            let string = CPU::gbdoctor_string(self.current_machine());
             if let Some(output_file) = self.output_file.as_mut() {
                 write!(output_file, "{}\n", string).expect("write to log failed");
             }
@@ -362,7 +364,7 @@ impl DebuggerWindow {
 
         let ly_row = widget::Row::new()
             .push(widget::text("LY: "))
-            .push(widget::text(format!("{}", machine.ppu.read_ly())));
+            .push(widget::text(format!("{}", PPU::read_ly(machine))));
 
         let cycle_row =
             widget::Row::new().push(widget::text(format!("Cycles: {}", machine.t_cycle_count)));

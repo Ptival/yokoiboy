@@ -6,6 +6,7 @@ pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
 
 #[derive(Clone, Debug)]
 pub struct Machine {
+    pub fix_ly_for_gb_doctor: bool,
     pub t_cycle_count: u64,
     pub cpu: CPU,
     pub ppu: PPU,
@@ -27,8 +28,9 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new() -> Self {
+    pub fn new(fix_ly: bool) -> Self {
         Machine {
+            fix_ly_for_gb_doctor: fix_ly,
             t_cycle_count: 0,
             dmg_boot_rom: Wrapping(0),
             cpu: CPU::new(),
@@ -79,7 +81,7 @@ impl Machine {
             0xFF40..=0xFF40 => self.ppu.read_lcdc(),
             0xFF42..=0xFF42 => self.scy,
             0xFF43..=0xFF43 => self.scx,
-            0xFF44..=0xFF44 => self.ppu.read_ly(),
+            0xFF44..=0xFF44 => PPU::read_ly(self),
             0xFF47..=0xFF47 => self.bgp,
             0xFF50..=0xFF50 => self.dmg_boot_rom,
             0xFF80..=0xFFFE => self.cpu.memory.read_hram(address - Wrapping(0xFF80)),

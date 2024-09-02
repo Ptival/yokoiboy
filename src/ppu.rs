@@ -81,9 +81,12 @@ impl PPU {
         self.ly = self.ly + Wrapping(1);
     }
 
-    pub fn read_ly(&self) -> Wrapping<u8> {
-        // Wrapping(144) // while gbdoctoring
-        self.ly
+    pub fn read_ly(machine: &Machine) -> Wrapping<u8> {
+        if machine.fix_ly_for_gb_doctor {
+            Wrapping(144)
+        } else {
+            machine.ppu.ly
+        }
     }
 
     // TODO: Eventually we could update the rendered VRAM on the fly when writes to VRAM happen
@@ -134,7 +137,7 @@ impl PPU {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
                 if machine.ppu.scanline_dots == 80 {
-                    let ly = machine.scy + machine.ppu.read_ly();
+                    let ly = machine.scy + PPU::read_ly(machine);
                     machine.ppu.fetcher.tile_line = ly % Wrapping(8);
                     machine.ppu.fetcher.row_address =
                         Wrapping(0x9800) + Wrapping((ly.0 as u16 / 8) * 32);
@@ -167,7 +170,7 @@ impl PPU {
                 if machine.ppu.scanline_dots == 456 {
                     machine.ppu.scanline_dots = 0;
                     machine.ppu.increment_ly();
-                    if machine.ppu.read_ly().0 == 144 {
+                    if PPU::read_ly(machine).0 == 144 {
                         // println!("Requesting VBLANK interrupt");
                         // println!("IME: {}", machine.cpu.interrupts.interrupt_master_enable);
                         // println!("IE: {:08b}", machine.cpu.interrupts.interrupt_enable);
@@ -184,7 +187,7 @@ impl PPU {
                 if machine.ppu.scanline_dots == 456 {
                     machine.ppu.scanline_dots = 0;
                     machine.ppu.increment_ly();
-                    if machine.ppu.read_ly().0 == 153 {
+                    if PPU::read_ly(machine).0 == 153 {
                         machine.ppu.reset_ly();
                         machine.ppu.state = PPUState::OAMScan;
                     }
