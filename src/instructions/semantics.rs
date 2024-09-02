@@ -181,7 +181,14 @@ impl Instruction {
                 (16, 4)
             }
 
-            Instruction::AND_r8(r8) => {
+            Instruction::AND_A_mHL => {
+                let a = machine.cpu.registers.read_a();
+                let b = machine.read_u8(machine.cpu.registers.hl);
+                and(&mut machine.cpu, a, b);
+                (8, 2)
+            }
+
+            Instruction::AND_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);
                 and(&mut machine.cpu, a, b);
