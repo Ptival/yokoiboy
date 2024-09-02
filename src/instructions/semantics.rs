@@ -253,6 +253,42 @@ impl Instruction {
                 (4, 1)
             }
 
+            Instruction::DAA => {
+                let mut data = Wrapping(machine.cpu.registers.read_a().0 as u16);
+                let subtraction_flag = machine.cpu.registers.read_flag(Flag::N);
+                let mut half_carry = machine.cpu.registers.read_flag(Flag::H);
+                let mut carry = machine.cpu.registers.read_flag(Flag::C);
+                if subtraction_flag {
+                    // post-subtraction
+                    if half_carry {
+                        data -= Wrapping(0x06);
+                    }
+                    if carry {
+                        data -= Wrapping(0x60);
+                    }
+                } else {
+                    // post-addition
+                    if half_carry || ((data.0 & 0x0F) > 0x09) {
+                        data += Wrapping(0x06);
+                        half_carry = true; // set in case we entered because of the right condition
+                    }
+                    if carry || ((data.0 & 0x1FF) > 0x9F) {
+                        data += Wrapping(0x60);
+                        carry = true; // set in case we entered because of the right condition
+                    }
+                }
+
+                machine
+                    .cpu
+                    .registers
+                    .write_a(Wrapping(data.0 as u8))
+                    .write_flag(Flag::Z, data.0 == 0)
+                    .write_flag(Flag::H, half_carry)
+                    .write_flag(Flag::C, carry);
+
+                (4, 1)
+            }
+
             Instruction::DEC_mHL => {
                 let a = machine.read_u8(machine.cpu.registers.hl);
                 let res = dec(&mut machine.cpu, a);

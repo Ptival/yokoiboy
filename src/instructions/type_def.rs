@@ -53,6 +53,7 @@ pub enum Instruction {
     CP_A_r8(R8),
     CP_A_u8(Wrapping<u8>),
     CPL,
+    DAA,
     DEC_mHL,
     DEC_r16(R16),
     DEC_r8(R8),

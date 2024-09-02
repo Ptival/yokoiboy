@@ -94,7 +94,7 @@ pub fn decode_instruction_at_address(
         0x24 => Instruction::INC_r8(R8::H),
         0x25 => Instruction::DEC_r8(R8::H),
         0x26 => Instruction::LD_r8_u8(R8::H, next_u8(&mut bytes_read)),
-        0x27 => todo!(),
+        0x27 => Instruction::DAA,
         0x28 => Instruction::JR_cc_i8(Condition::Z, next_i8(&mut bytes_read)),
         0x29 => Instruction::ADD_HL_r16(R16::HL),
         0x2A => Instruction::LD_A_mHLinc,

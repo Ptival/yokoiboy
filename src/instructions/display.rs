@@ -28,6 +28,7 @@ impl DecodedInstruction {
             Instruction::CP_A_r8(r8) => format!("CP A, {}", r8),
             Instruction::CP_A_u8(u8) => format!("CP A, 0x{:02X} (= {})", u8, u8),
             Instruction::CPL => String::from("CPL"),
+            Instruction::DAA => String::from("DAA"),
             Instruction::DEC_mHL => String::from("DEC [HL]"),
             Instruction::DEC_r16(r16) => format!("DEC {}", r16),
             Instruction::DEC_r8(r8) => format!("DEC {}", r8),
