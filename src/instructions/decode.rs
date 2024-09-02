@@ -63,7 +63,7 @@ pub fn decode_instruction_at_address(
         0x07 => Instruction::RLCA,
         0x08 => Instruction::LD_mu16_SP(next_imm16(&mut bytes_read)),
         0x09 => Instruction::ADD_HL_r16(R16::BC),
-        0x0A => todo!(),
+        0x0A => Instruction::LD_A_mr16(R16::BC),
         0x0B => Instruction::DEC_r16(R16::BC),
         0x0C => Instruction::INC_r8(R8::C),
         0x0D => Instruction::DEC_r8(R8::C),
@@ -186,7 +186,7 @@ pub fn decode_instruction_at_address(
         0x7B => Instruction::LD_r8_r8(R8::A, R8::E),
         0x7C => Instruction::LD_r8_r8(R8::A, R8::H),
         0x7D => Instruction::LD_r8_r8(R8::A, R8::L),
-        0x7E => Instruction::LD_A_mHL,
+        0x7E => Instruction::LD_A_mr16(R16::HL),
         0x7F => Instruction::LD_r8_r8(R8::A, R8::A),
 
         0x80 => Instruction::ADD_A_r8(R8::B),

@@ -71,7 +71,7 @@ pub enum Instruction {
     JR_r8(R8),
     LD_A_FFC,
     LD_A_FFu8(Wrapping<u8>),
-    LD_A_mHL,
+    LD_A_mr16(R16),
     LD_A_mHLdec,
     LD_A_mHLinc,
     LD_A_mu16(Immediate16),

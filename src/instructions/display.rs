@@ -61,7 +61,7 @@ impl DecodedInstruction {
             Instruction::LD_SP_u16(imm) => {
                 format!("LD SP 0x{:04X} (= {})", imm.as_u16(), imm.as_u16())
             }
-            Instruction::LD_A_mHL => String::from("LD A [HL]"),
+            Instruction::LD_A_mr16(r16) => format!("LD A [{}]", r16),
             Instruction::LD_A_mHLdec => String::from("LD A [HL-]"),
             Instruction::LD_A_mHLinc => String::from("LD A [HL+]"),
             Instruction::LD_A_mu16(imm16) => format!("LD A, [0x{:04X}]", imm16.as_u16()),

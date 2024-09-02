@@ -365,11 +365,11 @@ impl Instruction {
                 }
             }
 
-            Instruction::LD_A_mHL => {
+            Instruction::LD_A_mr16(r16) => {
                 machine
                     .cpu
                     .registers
-                    .write_a(machine.read_u8(machine.cpu.registers.hl));
+                    .write_a(machine.read_u8(machine.cpu.registers.read_r16(r16)));
                 (8, 2)
             }
 
@@ -562,7 +562,8 @@ impl Instruction {
             }
 
             Instruction::RES_u3_mHL(u8) => {
-                todo!()
+                todo!();
+                (16, 4)
             }
 
             Instruction::RES_u3_r8(u8, r8) => {
@@ -659,7 +660,8 @@ impl Instruction {
             }
 
             Instruction::SET_u3_mHL(u8) => {
-                todo!()
+                todo!();
+                (16, 4)
             }
 
             Instruction::SET_u3_r8(u8, r8) => {
