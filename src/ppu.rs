@@ -3,6 +3,14 @@ use std::num::Wrapping;
 const VRAM_SIZE: usize = 0x2000;
 const WRAM_SIZE: usize = 0x1000;
 
+const TILE_HORIZONTAL_PIXELS: usize = 8;
+const VRAM_HORIZONTAL_TILES: usize = 16;
+const VRAM_HORIZONTAL_PIXELS: usize = VRAM_HORIZONTAL_TILES * TILE_HORIZONTAL_PIXELS;
+const TILE_VERTICAL_PIXELS: usize = 8;
+const VRAM_VERTICAL_TILES: usize = 16;
+const VRAM_VERTICAL_PIXELS: usize = VRAM_VERTICAL_TILES * TILE_VERTICAL_PIXELS;
+const VRAM_PIXELS_SIZE: usize = VRAM_HORIZONTAL_PIXELS * VRAM_VERTICAL_PIXELS * 4;
+
 #[derive(Clone, Debug)]
 pub enum PPUState {
     OAMScan,
@@ -14,6 +22,7 @@ pub enum PPUState {
 #[derive(Clone, Debug)]
 pub struct PPU {
     pub rendered_pixels: [u8; 160 * 144 * 4],
+    pub vram_pixels: [u8; VRAM_PIXELS_SIZE],
     lcdc: Wrapping<u8>,
     ly: Wrapping<u8>, // max should be 153
     scanline_dots: u16,
@@ -27,6 +36,7 @@ impl PPU {
     pub fn new() -> Self {
         PPU {
             rendered_pixels: [0; 160 * 144 * 4],
+            vram_pixels: [0; VRAM_PIXELS_SIZE],
             lcdc: Wrapping(0),
             ly: Wrapping(0),
             scanline_dots: 0,
@@ -49,6 +59,38 @@ impl PPU {
     pub fn read_ly(&self) -> Wrapping<u8> {
         Wrapping(0x90) // while gbdoctoring
                        // self.ly
+    }
+
+    // TODO: Eventually we could update the rendered VRAM on the fly when writes to VRAM happen
+    pub fn render_vram(&mut self) {
+        for tile_y in 0..VRAM_VERTICAL_TILES {
+            for tile_x in 0..VRAM_HORIZONTAL_TILES {
+                let tile_data_from = (tile_y * 16 + tile_x) * 16;
+                let tile_data = &self.vram[tile_data_from..tile_data_from + 16];
+                for tile_pixel_y in 0..TILE_VERTICAL_PIXELS {
+                    let row_data_from = tile_pixel_y * 2;
+                    let low_bits = tile_data[row_data_from];
+                    let high_bits = tile_data[row_data_from + 1];
+                    for tile_pixel_x in 0..TILE_HORIZONTAL_PIXELS {
+                        let pixel_code = (((high_bits >> (7 - tile_pixel_x)) & 1) << 1)
+                            | ((low_bits >> (7 - tile_pixel_x)) & 1);
+                        let pixel_value: [u8; 4] = match pixel_code {
+                            0b00 => [15, 56, 15, 255],
+                            0b01 => [48, 98, 48, 255],
+                            0b10 => [139, 172, 15, 255],
+                            0b11 => [155, 188, 15, 255],
+                            _ => panic!("pixel_code is: 0x{:08b}", pixel_code),
+                        };
+                        let vram_pixel_x = tile_x * 8 + tile_pixel_x;
+                        let vram_pixel_y = tile_y * 8 + tile_pixel_y;
+                        let vram_pixels_from =
+                            (vram_pixel_y * VRAM_HORIZONTAL_PIXELS + vram_pixel_x) * 4;
+                        self.vram_pixels[vram_pixels_from..vram_pixels_from + 4]
+                            .copy_from_slice(&pixel_value);
+                    }
+                }
+            }
+        }
     }
 
     pub fn reset_ly(&mut self) {

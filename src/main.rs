@@ -19,8 +19,7 @@ use iced::{
     exit,
     keyboard::{self, key::Named, Key},
     widget::{
-        container::{self, Style},
-        text, Button, Column, Container, Image, Row,
+        container::{self, Style}, image::FilterMethod, text, Button, Column, Container, Image, Row
     },
     Border, Color, Settings, Size, Task, Theme,
 };
@@ -100,7 +99,7 @@ impl Default for DebuggerWindow {
             breakpoints: vec![
                 // 0x00F1, // passed logo check
                 // 0x00FC, // passed header checksum check
-                // 0x0100, // goal
+                0x0100, // made it out of the boot ROM
                 // 0xC738,
                 // 0xC662,
                 // 0xDEF8,
@@ -226,6 +225,7 @@ impl DebuggerWindow {
                 //     }
                 // }
                 self.step(PreserveHistory::PreserveHistory);
+                self.current_machine().ppu.render_vram();
                 Task::none()
             }
 
@@ -240,7 +240,7 @@ impl DebuggerWindow {
                 let mut pc = self.current_machine().cpu.registers.pc;
 
                 // Try to run some number of steps before updating the display
-                let mut remaining_steps: u32 = 1_000_000;
+                let mut remaining_steps: u32 = 100;
                 while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc.0) {
                     remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
@@ -248,7 +248,7 @@ impl DebuggerWindow {
                 }
 
                 if remaining_steps == 0 {
-                    // println!("Ran 1 million instructions");
+                    self.current_machine().ppu.render_vram();
                     Task::done(Message::ContinueRunUntilBreakpoint)
                 } else {
                     Task::none()
@@ -440,7 +440,29 @@ impl DebuggerWindow {
         .width(160)
         .height(144)
         .style(|_theme| Style::default());
-        grid = grid.push(grid_row![debugger, canvas]);
+
+        let vram = Container::new(
+            Image::new(Handle::from_rgba(
+                128,
+                128,
+                Bytes::copy_from_slice(&machine.ppu.vram_pixels),
+            ))
+            .content_fit(iced::ContentFit::Fill)
+            .filter_method(FilterMethod::Nearest)
+            .width(512)
+            .height(512),
+        )
+        .width(512)
+        .height(512)
+        .style(|_theme| {
+            container::Style::default().border(Border {
+                color: Color::BLACK,
+                width: 2.0,
+                radius: Radius::default(),
+            })
+        });
+
+        grid = grid.push(grid_row![debugger, vram, canvas]);
         grid.into()
         // debugger.into()
     }
