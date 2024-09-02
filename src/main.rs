@@ -4,6 +4,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::Write,
     num::{Saturating, Wrapping},
+    path::Path,
 };
 
 use circular_queue::CircularQueue;
@@ -41,6 +42,7 @@ pub mod ppu;
 pub mod registers;
 
 const CPU_SNAPS_CAPACITY: usize = 5;
+const LOG_PATH: &str = "log";
 
 #[derive(Clone, Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -82,8 +84,8 @@ impl DebuggerWindow {
             breakpoints: vec![
                 // 0x00F1, // passed logo check
                 // 0x00FC, // passed header checksum check
-                0x0100, // made it out of the boot ROM
-                0xC355,
+                // 0x0100, // made it out of the boot ROM
+                // 0xC355,
                 // 0xC738,
                 // 0xC662,
                 // 0xDEF8,
@@ -94,12 +96,14 @@ impl DebuggerWindow {
                         .write(true)
                         .create(true)
                         .truncate(true)
-                        .open("log")
+                        .open(LOG_PATH)
                         .unwrap_or_else(|e| panic!("Could not create log file: {}", e)),
                 )
             } else {
                 // Avoid accidentally thinking a stale log is the current log
-                fs::remove_file("log").unwrap();
+                if Path::new(LOG_PATH).exists() {
+                    fs::remove_file(LOG_PATH).unwrap();
+                }
                 None
             },
             paused: false,
