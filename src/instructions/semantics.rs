@@ -30,22 +30,22 @@ fn sub_borrows(a: impl Into<u16>, b: impl Into<u16>, c: bool, bit: u8) -> bool {
 }
 
 fn compare(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
-    // println!("Comparing {:02X} and {:02X}", a, b);
-    cpu.registers
-        .write_flag(Flag::Z, a == b)
-        .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a.0, b.0, false, 4))
-        .write_flag(Flag::C, sub_borrows(a.0, b.0, false, 8));
+    cpu.registers.znhc(
+        a == b,
+        true,
+        sub_borrows(a.0, b.0, false, 4),
+        sub_borrows(a.0, b.0, false, 8),
+    );
 }
 
 fn adc(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>, c: bool) {
     let res = a + b + Wrapping(c as u8);
-    cpu.registers
-        .write_a(res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .write_flag(Flag::H, add_produces_carry(a.0, b.0, c, 4))
-        .write_flag(Flag::C, add_produces_carry(a.0, b.0, c, 8));
+    cpu.registers.write_a(res).znhc(
+        res.0 == 0,
+        false,
+        add_produces_carry(a.0, b.0, c, 4),
+        add_produces_carry(a.0, b.0, c, 8),
+    );
 }
 
 fn add(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
@@ -56,20 +56,14 @@ fn and(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     let res = a & b;
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .set_flag(Flag::H)
-        .unset_flag(Flag::C);
+        .znhc(res.0 == 0, false, true, false);
 }
 
 fn or(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     let res = a | b;
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .unset_flag(Flag::H)
-        .unset_flag(Flag::C);
+        .znhc(res.0 == 0, false, false, false);
 }
 
 // NOTE: This does not write the result anywhere!
@@ -85,12 +79,12 @@ fn dec(cpu: &mut CPU, a: Wrapping<u8>) -> Wrapping<u8> {
 
 fn subc(cpu: &mut CPU, a: &Wrapping<u8>, b: &Wrapping<u8>, c: bool) {
     let res = a - b - Wrapping(c as u8);
-    cpu.registers
-        .write_a(res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .set_flag(Flag::N)
-        .write_flag(Flag::H, sub_borrows(a.0, b.0, c, 4))
-        .write_flag(Flag::C, sub_borrows(a.0, b.0, c, 8));
+    cpu.registers.write_a(res).znhc(
+        res.0 == 0,
+        true,
+        sub_borrows(a.0, b.0, c, 4),
+        sub_borrows(a.0, b.0, c, 8),
+    );
 }
 
 fn sub(cpu: &mut CPU, a: &Wrapping<u8>, b: &Wrapping<u8>) {
@@ -101,10 +95,7 @@ fn xor(cpu: &mut CPU, a: Wrapping<u8>, b: Wrapping<u8>) {
     let res = a ^ b;
     cpu.registers
         .write_a(res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .unset_flag(Flag::H)
-        .unset_flag(Flag::C);
+        .znhc(res.0 == 0, false, false, false);
 }
 
 fn call(machine: &mut Machine, address: Wrapping<u16>) {
@@ -173,14 +164,12 @@ impl Instruction {
             Instruction::ADD_SP_i8(i8) => {
                 let a = machine.cpu.registers.sp;
                 let res = Wrapping(a.0.wrapping_add_signed(i8.0 as i16));
-                machine
-                    .cpu
-                    .registers
-                    .write_r16(&R16::SP, res)
-                    .unset_flag(Flag::Z)
-                    .unset_flag(Flag::N)
-                    .write_flag(Flag::H, add_produces_carry(a.0, i8.0, false, 4))
-                    .write_flag(Flag::C, add_produces_carry(a.0, i8.0, false, 8));
+                machine.cpu.registers.write_r16(&R16::SP, res).znhc(
+                    false,
+                    false,
+                    add_produces_carry(a.0, i8.0, false, 4),
+                    add_produces_carry(a.0, i8.0, false, 8),
+                );
                 (16, 4)
             }
 
@@ -414,13 +403,12 @@ impl Instruction {
                 let sp = machine.cpu.registers.sp;
                 let res = Wrapping(sp.0.wrapping_add_signed(i8.0 as i16));
                 machine.cpu.registers.hl = res;
-                machine
-                    .cpu
-                    .registers
-                    .unset_flag(Flag::Z)
-                    .unset_flag(Flag::N)
-                    .write_flag(Flag::H, add_produces_carry(sp.0, i8.0, false, 4))
-                    .write_flag(Flag::C, add_produces_carry(sp.0, i8.0, false, 8));
+                machine.cpu.registers.znhc(
+                    false,
+                    false,
+                    add_produces_carry(sp.0, i8.0, false, 4),
+                    add_produces_carry(sp.0, i8.0, false, 8),
+                );
                 (12, 3)
             }
 
@@ -735,10 +723,7 @@ pub fn rotate_left_with(cpu: &mut CPU, r8: &R8, new_bit: bool) {
     let res = Wrapping((r8val.0 << 1) | (new_bit as u8));
     cpu.registers
         .write_r8(r8, res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .unset_flag(Flag::H)
-        .write_flag(Flag::C, carry == 1);
+        .znhc(res.0 == 0, false, false, carry == 1);
 }
 
 pub fn rotate_left_through_carry(cpu: &mut CPU, r8: &R8) {
@@ -757,10 +742,7 @@ pub fn rotate_right_with(cpu: &mut CPU, r8: &R8, new_bit: bool) {
     let res = Wrapping((r8val.0 >> 1) | ((new_bit as u8) << 7));
     cpu.registers
         .write_r8(r8, res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .unset_flag(Flag::H)
-        .write_flag(Flag::C, carry == 1);
+        .znhc(res.0 == 0, false, false, carry == 1);
 }
 
 pub fn rotate_right_through_carry(cpu: &mut CPU, r8: &R8) {
@@ -780,10 +762,7 @@ pub fn shift_right_arithmetically(cpu: &mut CPU, r8: &R8) {
     let res = (r8val >> 1) | bit7;
     cpu.registers
         .write_r8(r8, res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .unset_flag(Flag::H)
-        .write_flag(Flag::C, carry == 1);
+        .znhc(res.0 == 0, false, false, carry == 1);
 }
 
 pub fn shift_right_logically(cpu: &mut CPU, r8: &R8) {
@@ -792,8 +771,5 @@ pub fn shift_right_logically(cpu: &mut CPU, r8: &R8) {
     let res = r8val >> 1;
     cpu.registers
         .write_r8(r8, res)
-        .write_flag(Flag::Z, res.0 == 0)
-        .unset_flag(Flag::N)
-        .unset_flag(Flag::H)
-        .write_flag(Flag::C, carry == 1);
+        .znhc(res.0 == 0, false, false, carry == 1);
 }

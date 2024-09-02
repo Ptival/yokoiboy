@@ -1,7 +1,7 @@
 use std::{
     cmp::min,
     fmt::Debug,
-    fs::{self, remove_file, File, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::Write,
     num::{Saturating, Wrapping},
 };

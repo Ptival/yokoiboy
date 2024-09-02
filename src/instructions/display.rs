@@ -1,4 +1,4 @@
-use std::{fmt::format, num::Wrapping};
+use std::num::Wrapping;
 
 use super::{decode::DecodedInstruction, type_def::Instruction};
 
