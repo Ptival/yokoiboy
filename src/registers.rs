@@ -232,4 +232,12 @@ impl Registers {
             self.write_f(Wrapping(self.read_f().0 & !(1 << flag.get_bit())))
         }
     }
+
+    pub fn znhc(&mut self, z: bool, n: bool, h: bool, c: bool) -> &mut Self {
+        let clean_f = self.read_f().0 & 0x0F;
+        let new_f =
+            clean_f | ((z as u8) << 7) | ((n as u8) << 6) | ((h as u8) << 5) | ((c as u8) << 4);
+        self.write_f(Wrapping(new_f));
+        self
+    }
 }

@@ -1,7 +1,7 @@
 use std::{
     cmp::min,
     fmt::Debug,
-    fs::{File, OpenOptions},
+    fs::{self, remove_file, File, OpenOptions},
     io::Write,
     num::{Saturating, Wrapping},
 };
@@ -83,9 +83,10 @@ impl DebuggerWindow {
                 // 0x00F1, // passed logo check
                 // 0x00FC, // passed header checksum check
                 0x0100, // made it out of the boot ROM
-                       // 0xC738,
-                       // 0xC662,
-                       // 0xDEF8,
+                0xC355,
+                // 0xC738,
+                // 0xC662,
+                // 0xDEF8,
             ],
             output_file: if args.log_for_doctor {
                 Some(
@@ -97,6 +98,8 @@ impl DebuggerWindow {
                         .unwrap_or_else(|e| panic!("Could not create log file: {}", e)),
                 )
             } else {
+                // Avoid accidentally thinking a stale log is the current log
+                fs::remove_file("log").unwrap();
                 None
             },
             paused: false,

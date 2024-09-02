@@ -606,7 +606,7 @@ impl Instruction {
             }
 
             Instruction::RL_r8(r8) => {
-                rotate_left(&mut machine.cpu, r8);
+                rotate_left_through_carry(&mut machine.cpu, r8);
                 (8, 2)
             }
 
@@ -650,6 +650,16 @@ impl Instruction {
                 (4, 1)
             }
 
+            Instruction::SLA_r8(r8) => {
+                rotate_left_with(&mut machine.cpu, r8, false);
+                (8, 2)
+            }
+
+            Instruction::SRA_r8(r8) => {
+                shift_right_arithmetically(&mut machine.cpu, r8);
+                (8, 2)
+            }
+
             Instruction::SUB_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.cpu.registers.read_r8(r8);
@@ -660,6 +670,19 @@ impl Instruction {
             Instruction::SUB_A_u8(u8) => {
                 let a = machine.cpu.registers.read_a();
                 sub(&mut machine.cpu, &a, u8);
+                (8, 2)
+            }
+
+            Instruction::SWAP(r8) => {
+                let r8val = machine.cpu.registers.read_r8(r8);
+                let new_low = r8val >> 4;
+                let new_high = (r8val & Wrapping(0x0F)) << 4;
+                let res = new_high | new_low;
+                machine
+                    .cpu
+                    .registers
+                    .write_r8(r8, res)
+                    .znhc(res.0 == 0, false, false, false);
                 (8, 2)
             }
 
@@ -748,6 +771,19 @@ pub fn rotate_right_through_carry(cpu: &mut CPU, r8: &R8) {
 pub fn rotate_right(cpu: &mut CPU, r8: &R8) {
     let new_bit = (cpu.registers.read_r8(r8).0 & 1) == 1;
     rotate_right_with(cpu, r8, new_bit);
+}
+
+pub fn shift_right_arithmetically(cpu: &mut CPU, r8: &R8) {
+    let r8val = cpu.registers.read_r8(r8);
+    let carry = r8val.0 & 1;
+    let bit7 = r8val & Wrapping(0x80);
+    let res = (r8val >> 1) | bit7;
+    cpu.registers
+        .write_r8(r8, res)
+        .write_flag(Flag::Z, res.0 == 0)
+        .unset_flag(Flag::N)
+        .unset_flag(Flag::H)
+        .write_flag(Flag::C, carry == 1);
 }
 
 pub fn shift_right_logically(cpu: &mut CPU, r8: &R8) {
