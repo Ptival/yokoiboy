@@ -1,4 +1,10 @@
+mod fetcher;
+
 use std::num::Wrapping;
+
+use fetcher::Fetcher;
+
+use crate::machine::Machine;
 
 const VRAM_SIZE: usize = 0x2000;
 const WRAM_SIZE: usize = 0x1000;
@@ -21,6 +27,7 @@ pub enum PPUState {
 
 #[derive(Clone, Debug)]
 pub struct PPU {
+    pub fetcher: Fetcher,
     pub rendered_pixels: [u8; 160 * 144 * 4],
     pub vram_pixels: [u8; VRAM_PIXELS_SIZE],
     lcdc: Wrapping<u8>,
@@ -30,11 +37,28 @@ pub struct PPU {
     vram: [u8; VRAM_SIZE],
     wram_0: [u8; WRAM_SIZE],
     wram_1: [u8; WRAM_SIZE],
+    drawn_pixels_on_current_row: u8,
+}
+
+pub fn pixel_code_to_rgba(pixel_code: u8) -> [u8; 4] {
+    match pixel_code {
+        0b00 => [15, 56, 15, 255],
+        0b01 => [48, 98, 48, 255],
+        0b10 => [139, 172, 15, 255],
+        0b11 => [155, 188, 15, 255],
+        _ => panic!("pixel_code is: 0x{:08b}", pixel_code),
+    }
+}
+
+// Each pixel takes 4 bytes (R, G, B, A).  Each y results in 160 pixels.
+pub fn pixel_coordinates_in_rgba_slice(x: u8, y: u8) -> usize {
+    (y as usize * 160 + x as usize) * 4
 }
 
 impl PPU {
     pub fn new() -> Self {
         PPU {
+            fetcher: Fetcher::new(),
             rendered_pixels: [0; 160 * 144 * 4],
             vram_pixels: [0; VRAM_PIXELS_SIZE],
             lcdc: Wrapping(0),
@@ -44,6 +68,7 @@ impl PPU {
             vram: [0; VRAM_SIZE],
             wram_0: [0; WRAM_SIZE],
             wram_1: [0; WRAM_SIZE],
+            drawn_pixels_on_current_row: 0,
         }
     }
 
@@ -57,8 +82,8 @@ impl PPU {
     }
 
     pub fn read_ly(&self) -> Wrapping<u8> {
-        Wrapping(0x90) // while gbdoctoring
-                       // self.ly
+        // Wrapping(144) // while gbdoctoring
+        self.ly
     }
 
     // TODO: Eventually we could update the rendered VRAM on the fly when writes to VRAM happen
@@ -74,19 +99,13 @@ impl PPU {
                     for tile_pixel_x in 0..TILE_HORIZONTAL_PIXELS {
                         let pixel_code = (((high_bits >> (7 - tile_pixel_x)) & 1) << 1)
                             | ((low_bits >> (7 - tile_pixel_x)) & 1);
-                        let pixel_value: [u8; 4] = match pixel_code {
-                            0b00 => [15, 56, 15, 255],
-                            0b01 => [48, 98, 48, 255],
-                            0b10 => [139, 172, 15, 255],
-                            0b11 => [155, 188, 15, 255],
-                            _ => panic!("pixel_code is: 0x{:08b}", pixel_code),
-                        };
+                        let pixel_rgba = pixel_code_to_rgba(pixel_code);
                         let vram_pixel_x = tile_x * 8 + tile_pixel_x;
                         let vram_pixel_y = tile_y * 8 + tile_pixel_y;
                         let vram_pixels_from =
                             (vram_pixel_y * VRAM_HORIZONTAL_PIXELS + vram_pixel_x) * 4;
                         self.vram_pixels[vram_pixels_from..vram_pixels_from + 4]
-                            .copy_from_slice(&pixel_value);
+                            .copy_from_slice(&pixel_rgba);
                     }
                 }
             }
@@ -97,58 +116,78 @@ impl PPU {
         self.ly = Wrapping(0);
     }
 
-    pub fn step_dots(&mut self, dots: u8) -> &mut Self {
+    pub fn step_dots(machine: &mut Machine, dots: u8) -> &mut Machine {
         for _ in 0..dots {
-            self.step_one_t_cycle();
+            PPU::step_one_dot(machine);
         }
-        self
+        machine
     }
 
-    pub fn step_one_t_cycle(&mut self) -> &mut Self {
-        if !self.is_lcd_ppu_on() {
-            return self;
+    pub fn step_one_dot(machine: &mut Machine) -> &mut Machine {
+        if !machine.ppu.is_lcd_ppu_on() {
+            return machine;
         }
-        match self.state {
+
+        match machine.ppu.state {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
-                if self.scanline_dots == 80 {
-                    self.state = PPUState::DrawingPixels
+                if machine.ppu.scanline_dots == 80 {
+                    let ly = machine.ppu.read_ly();
+                    machine.ppu.fetcher.tile_line = ly % Wrapping(8);
+                    machine.ppu.fetcher.row_address =
+                        Wrapping(0x9800) + Wrapping((ly.0 as u16 / 8) * 32);
+                    machine.ppu.fetcher.tile_index = Wrapping(0);
+                    machine.ppu.fetcher.fifo.clear();
+                    machine.ppu.state = PPUState::DrawingPixels
                 }
             }
 
             PPUState::DrawingPixels => {
-                // TODO: actually transfer pixels
-                if self.scanline_dots == 172 {
-                    self.state = PPUState::HorizontalBlank
+                Fetcher::step_one_dot(machine);
+                if machine.ppu.fetcher.fifo.len() != 0 {
+                    let pixel = machine.ppu.fetcher.fifo.pop_front().unwrap();
+                    let pixel_x = machine.ppu.drawn_pixels_on_current_row;
+                    let pixel_y = machine.ppu.ly.0;
+
+                    let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
+                    let rgba = pixel_code_to_rgba(pixel.color);
+                    machine.ppu.rendered_pixels[from..from + 4].copy_from_slice(&rgba);
+                    machine.ppu.drawn_pixels_on_current_row += 1;
+
+                    if machine.ppu.drawn_pixels_on_current_row == 160 {
+                        machine.ppu.drawn_pixels_on_current_row = 0;
+                        machine.ppu.state = PPUState::HorizontalBlank
+                    }
                 }
             }
 
             PPUState::HorizontalBlank => {
-                if self.scanline_dots == 456 {
-                    self.scanline_dots = 0;
-                    self.increment_ly();
-                    if self.read_ly().0 == 144 {
-                        self.state = PPUState::VerticalBlank
+                if machine.ppu.scanline_dots == 456 {
+                    machine.ppu.scanline_dots = 0;
+                    machine.ppu.increment_ly();
+                    if machine.ppu.read_ly().0 == 144 {
+                        // TODO: signal VBlank
+                        machine.ppu.state = PPUState::VerticalBlank
                     } else {
-                        self.state = PPUState::OAMScan
+                        machine.ppu.state = PPUState::OAMScan
                     }
                 }
             }
 
             PPUState::VerticalBlank => {
-                if self.scanline_dots == 456 {
-                    self.scanline_dots = 0;
-                    self.increment_ly();
-                    if self.read_ly().0 == 153 {
-                        self.reset_ly();
-                        self.state = PPUState::OAMScan;
+                if machine.ppu.scanline_dots == 456 {
+                    machine.ppu.scanline_dots = 0;
+                    machine.ppu.increment_ly();
+                    if machine.ppu.read_ly().0 == 153 {
+                        machine.ppu.reset_ly();
+                        machine.ppu.state = PPUState::OAMScan;
                     }
                 }
             }
         }
 
-        self.scanline_dots += 1;
-        self
+        machine.ppu.scanline_dots += 1;
+        machine
     }
 
     pub fn read_vram(&self, address: Wrapping<u16>) -> Wrapping<u8> {
