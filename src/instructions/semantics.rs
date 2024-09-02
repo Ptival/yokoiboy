@@ -561,6 +561,19 @@ impl Instruction {
                 (16, 4)
             }
 
+            Instruction::RES_u3_mHL(u8) => {
+                todo!()
+            }
+
+            Instruction::RES_u3_r8(u8, r8) => {
+                let r8val = machine.cpu.registers.read_r8(r8);
+                machine
+                    .cpu
+                    .registers
+                    .write_r8(r8, Wrapping(r8val.0 & !(1 << u8)));
+                (8, 2)
+            }
+
             Instruction::RET => {
                 CPU::pop_r16(machine, &R16::PC);
                 (16, 4)
@@ -643,6 +656,19 @@ impl Instruction {
                     .unset_flag(Flag::H)
                     .set_flag(Flag::C);
                 (4, 1)
+            }
+
+            Instruction::SET_u3_mHL(u8) => {
+                todo!()
+            }
+
+            Instruction::SET_u3_r8(u8, r8) => {
+                let r8val = machine.cpu.registers.read_r8(r8);
+                machine
+                    .cpu
+                    .registers
+                    .write_r8(r8, Wrapping(r8val.0 | (1 << u8)));
+                (8, 2)
             }
 
             Instruction::SLA_r8(r8) => {
