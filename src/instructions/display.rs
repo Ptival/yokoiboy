@@ -33,6 +33,7 @@ impl DecodedInstruction {
             Instruction::DEC_r8(r8) => format!("DEC {}", r8),
             Instruction::DI => String::from("DI"),
             Instruction::EI => String::from("EI"),
+            Instruction::HALT => String::from("HALT"),
             Instruction::Illegal(opcode) => format!("ILLEGAL 0x{:02X}", opcode),
             Instruction::INC_mHL => String::from("INC [HL]"),
             Instruction::INC_r16(r16) => format!("INC {}", r16),

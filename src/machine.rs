@@ -13,8 +13,6 @@ pub struct Machine {
     // Special registers
     pub bgp: Wrapping<u8>,
     pub dmg_boot_rom: Wrapping<u8>,
-    pub interrupt_enable: Wrapping<u8>,
-    pub interrupt_flag: Wrapping<u8>,
     pub nr11: Wrapping<u8>,
     pub nr12: Wrapping<u8>,
     pub nr13: Wrapping<u8>,
@@ -26,7 +24,6 @@ pub struct Machine {
     pub sc: Wrapping<u8>,
     pub scx: Wrapping<u8>,
     pub scy: Wrapping<u8>,
-    pub tac: Wrapping<u8>,
 }
 
 impl Machine {
@@ -38,8 +35,6 @@ impl Machine {
             ppu: PPU::new(),
             bgp: Wrapping(0),
             external_ram: [0; EXTERNAL_RAM_SIZE],
-            interrupt_enable: Wrapping(0),
-            interrupt_flag: Wrapping(0),
             nr11: Wrapping(0),
             nr12: Wrapping(0),
             nr13: Wrapping(0),
@@ -51,7 +46,6 @@ impl Machine {
             sc: Wrapping(0),
             scx: Wrapping(0),
             scy: Wrapping(0),
-            tac: Wrapping(0),
         }
     }
 
@@ -73,8 +67,8 @@ impl Machine {
             0xE000..=0xFDFF => self.read_u8(address - Wrapping(0x2000)),
             0xFF01..=0xFF01 => self.sb,
             0xFF02..=0xFF02 => self.sc,
-            0xFF07..=0xFF07 => self.tac,
-            0xFF0F..=0xFF0F => self.interrupt_flag,
+            0xFF04..=0xFF07 => self.cpu.timers.read_u8(address),
+            0xFF0F..=0xFF0F => self.cpu.interrupts.interrupt_flag,
             0xFF11..=0xFF11 => self.nr11,
             0xFF12..=0xFF12 => self.nr12,
             0xFF13..=0xFF13 => self.nr13,
@@ -89,7 +83,7 @@ impl Machine {
             0xFF47..=0xFF47 => self.bgp,
             0xFF50..=0xFF50 => self.dmg_boot_rom,
             0xFF80..=0xFFFE => self.cpu.memory.read_hram(address - Wrapping(0xFF80)),
-            0xFFFF..=0xFFFF => self.interrupt_enable,
+            0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable,
             _ => panic!("Memory read at address {:04X} needs to be handled", address),
         }
     }
@@ -101,6 +95,10 @@ impl Machine {
             res.push(self.read_u8(Wrapping(a)));
         }
         res
+    }
+
+    pub fn request_interrupt(&mut self, interrupt_bit: u8) {
+        self.cpu.interrupts.request_interrupt(interrupt_bit);
     }
 
     pub fn write_u8(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
@@ -116,8 +114,8 @@ impl Machine {
             0xD000..=0xDFFF => PPU::write_wram_1(&mut self.ppu, address - Wrapping(0xD000), value),
             0xFF01..=0xFF01 => self.sb = value,
             0xFF02..=0xFF02 => self.sc = value,
-            0xFF07..=0xFF07 => self.tac = value,
-            0xFF0F..=0xFF0F => self.interrupt_flag = value,
+            0xFF04..=0xFF07 => self.cpu.timers.write_u8(address, value),
+            0xFF0F..=0xFF0F => self.cpu.interrupts.interrupt_flag = value,
             0xFF11..=0xFF11 => self.nr11 = value,
             0xFF12..=0xFF12 => self.nr12 = value,
             0xFF13..=0xFF13 => self.nr13 = value,
@@ -131,7 +129,7 @@ impl Machine {
             0xFF47..=0xFF47 => self.bgp = value,
             0xFF50..=0xFF50 => self.dmg_boot_rom = value,
             0xFF80..=0xFFFE => Memory::write_hram(self, address - Wrapping(0xFF80), value),
-            0xFFFF..=0xFFFF => self.interrupt_enable = value,
+            0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable = value,
             _ => panic!(
                 "Memory write at address {:04X} needs to be handled",
                 address

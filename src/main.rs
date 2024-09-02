@@ -8,7 +8,7 @@ use std::{
 
 use circular_queue::CircularQueue;
 use clap::Parser;
-use cpu::CPU;
+use cpu::{interrupts::Interrupts, timers::Timers, CPU};
 use iced::{
     self,
     advanced::{
@@ -126,12 +126,13 @@ impl DebuggerWindow {
         })
     }
 
+    // TODO: move in machine.rs
     fn step_machine<'a>(machine: &'a mut Machine) -> &'a mut Machine {
-        // Arbitrarily stepping the CPU then the PPU
-        let (t_cycles, m_cycles) = CPU::execute_one_instruction(machine);
-        if t_cycles != 4 * m_cycles {
-            println!("T-cycle/M-cycle mismatch: {}, {}", t_cycles, m_cycles)
+        let (mut t_cycles, mut _m_cycles) = Interrupts::handle_interrupts(machine);
+        if t_cycles == 0 {
+            (t_cycles, _m_cycles) = CPU::execute_one_instruction(machine)
         }
+        Timers::step_dots(machine, t_cycles);
         PPU::step_dots(machine, t_cycles);
         machine.t_cycle_count += t_cycles as u64;
 

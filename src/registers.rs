@@ -62,7 +62,6 @@ pub struct Registers {
     pub hl: Wrapping<u16>,
     pub sp: Wrapping<u16>,
     pub pc: Wrapping<u16>,
-    pub ime: bool,
 }
 
 pub fn u16_from_u8s(higher: Wrapping<u8>, lower: Wrapping<u8>) -> Wrapping<u16> {
@@ -86,7 +85,6 @@ impl Registers {
             hl: Wrapping(0),
             sp: Wrapping(0),
             pc: Wrapping(0),
-            ime: false,
         }
     }
 

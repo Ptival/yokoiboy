@@ -58,6 +58,7 @@ pub enum Instruction {
     DEC_r8(R8),
     DI,
     EI,
+    HALT,
     INC_mHL,
     INC_r16(R16),
     INC_r8(R8),

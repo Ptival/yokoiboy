@@ -1,4 +1,10 @@
+pub mod interrupts;
+pub mod timers;
+
 use std::num::Wrapping;
+
+use interrupts::Interrupts;
+use timers::Timers;
 
 use crate::{
     instructions::{decode::decode_instruction_at_address, type_def::Immediate16},
@@ -9,19 +15,32 @@ use crate::{
 
 #[derive(Clone, Debug, Hash)]
 pub struct CPU {
+    pub low_power_mode: bool,
+    pub interrupts: Interrupts,
     pub memory: Memory,
     pub registers: Registers,
+    pub timers: Timers,
 }
 
 impl CPU {
     pub fn new() -> Self {
         CPU {
+            low_power_mode: false,
+            interrupts: Interrupts::new(),
             memory: Memory::new(),
             registers: Registers::new(),
+            timers: Timers::new(),
         }
     }
 
     pub fn execute_one_instruction(machine: &mut Machine) -> (u8, u8) {
+        if machine.cpu.low_power_mode {
+            if Interrupts::is_interrupt_pending(machine) {
+                machine.cpu.low_power_mode = false;
+            }
+            // Forces the other components to move forward
+            return (4, 1);
+        }
         let next_instruction = decode_instruction_at_address(machine, machine.cpu.registers.pc);
         // This will be the default PC, unless instruction semantics overwrite it
         machine.cpu.registers.pc =

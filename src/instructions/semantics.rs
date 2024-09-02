@@ -1,7 +1,7 @@
 use std::num::Wrapping;
 
 use crate::{
-    cpu::CPU,
+    cpu::{interrupts::Interrupts, CPU},
     machine::Machine,
     registers::{Flag, R16, R8},
 };
@@ -114,6 +114,12 @@ fn call(machine: &mut Machine, address: Wrapping<u16>) {
 
 impl Instruction {
     pub fn execute(self: &Instruction, machine: &mut Machine) -> (u8, u8) {
+        // EI effects are delayed by one instruction, we resolve it here
+        if machine.cpu.interrupts.interrupt_master_enable_delayed {
+            machine.cpu.interrupts.interrupt_master_enable_delayed = false;
+            machine.cpu.interrupts.interrupt_master_enable = true;
+        }
+
         match self {
             Instruction::ADC_A_r8(r8) => {
                 let a = machine.cpu.registers.read_a();
@@ -280,13 +286,26 @@ impl Instruction {
             }
 
             Instruction::DI => {
-                machine.cpu.registers.ime = false;
+                machine.cpu.interrupts.interrupt_master_enable = false;
                 (4, 1)
             }
 
+            // NOTE: This sets up IME in one instruction
             Instruction::EI => {
-                // FIXME: This should apparently be delayed until the next instruction has finished.
-                machine.cpu.registers.ime = true;
+                machine.cpu.interrupts.interrupt_master_enable_delayed = true;
+                (4, 1)
+            }
+
+            Instruction::HALT => {
+                if machine.cpu.interrupts.interrupt_master_enable {
+                    machine.cpu.low_power_mode = true;
+                } else {
+                    if Interrupts::is_interrupt_pending(machine) {
+                        panic!("Need to emulate HALT bug");
+                    } else {
+                        machine.cpu.low_power_mode = true;
+                    }
+                }
                 (4, 1)
             }
 
@@ -562,8 +581,7 @@ impl Instruction {
             }
 
             Instruction::RETI => {
-                // TODO: Handle IME delay
-                machine.cpu.registers.ime = true;
+                machine.cpu.interrupts.interrupt_master_enable = true;
                 CPU::pop_r16(machine, &R16::PC);
                 (16, 4)
             }

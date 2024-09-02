@@ -4,7 +4,7 @@ use std::num::Wrapping;
 
 use fetcher::Fetcher;
 
-use crate::machine::Machine;
+use crate::{cpu::interrupts::VBLANK_INTERRUPT_BIT, machine::Machine};
 
 const VRAM_SIZE: usize = 0x2000;
 const WRAM_SIZE: usize = 0x1000;
@@ -128,6 +128,8 @@ impl PPU {
             return machine;
         }
 
+        machine.ppu.scanline_dots += 1;
+
         match machine.ppu.state {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
@@ -166,7 +168,11 @@ impl PPU {
                     machine.ppu.scanline_dots = 0;
                     machine.ppu.increment_ly();
                     if machine.ppu.read_ly().0 == 144 {
-                        // TODO: signal VBlank
+                        // println!("Requesting VBLANK interrupt");
+                        // println!("IME: {}", machine.cpu.interrupts.interrupt_master_enable);
+                        // println!("IE: {:08b}", machine.cpu.interrupts.interrupt_enable);
+                        // println!("IF: {:08b}", machine.cpu.interrupts.interrupt_flag);
+                        machine.request_interrupt(VBLANK_INTERRUPT_BIT);
                         machine.ppu.state = PPUState::VerticalBlank
                     } else {
                         machine.ppu.state = PPUState::OAMScan
@@ -186,7 +192,6 @@ impl PPU {
             }
         }
 
-        machine.ppu.scanline_dots += 1;
         machine
     }
 
