@@ -616,16 +616,17 @@ impl Instruction {
             }
 
             Instruction::RES_u3_mHL(u8) => {
-                todo!();
+                let address = machine.cpu.registers.hl;
+                let a = machine.read_u8(address);
+                let res = bit_reset(&a, u8);
+                machine.write_u8(address, res);
                 (16, 4)
             }
 
             Instruction::RES_u3_r8(u8, r8) => {
-                let r8val = machine.cpu.registers.read_r8(r8);
-                machine
-                    .cpu
-                    .registers
-                    .write_r8(r8, Wrapping(r8val.0 & !(1 << u8)));
+                let a = machine.cpu.registers.read_r8(r8);
+                let res = bit_reset(&a, u8);
+                machine.cpu.registers.write_r8(r8, res);
                 (8, 2)
             }
 
@@ -774,13 +775,6 @@ impl Instruction {
                 (8, 2)
             }
 
-            Instruction::SBC_A_u8(u8) => {
-                let a = machine.cpu.registers.read_a();
-                let c = machine.cpu.registers.read_flag(Flag::C);
-                subc(&mut machine.cpu, &a, u8, c);
-                (8, 2)
-            }
-
             Instruction::SCF => {
                 machine
                     .cpu
@@ -792,16 +786,17 @@ impl Instruction {
             }
 
             Instruction::SET_u3_mHL(u8) => {
-                todo!();
+                let address = machine.cpu.registers.hl;
+                let a = machine.read_u8(address);
+                let res = bit_set(&a, u8);
+                machine.write_u8(address, res);
                 (16, 4)
             }
 
             Instruction::SET_u3_r8(u8, r8) => {
-                let r8val = machine.cpu.registers.read_r8(r8);
-                machine
-                    .cpu
-                    .registers
-                    .write_r8(r8, Wrapping(r8val.0 | (1 << u8)));
+                let a = machine.cpu.registers.read_r8(r8);
+                let res = bit_set(&a, u8);
+                machine.cpu.registers.write_r8(r8, res);
                 (8, 2)
             }
 
@@ -970,4 +965,12 @@ pub fn bit_complement(cpu: &mut CPU, value: bool) {
         .write_flag(Flag::Z, !value)
         .unset_flag(Flag::N)
         .set_flag(Flag::H);
+}
+
+pub fn bit_reset(value: &Wrapping<u8>, bit_position: &u8) -> Wrapping<u8> {
+    Wrapping(value.0 & !(1 << bit_position))
+}
+
+pub fn bit_set(value: &Wrapping<u8>, bit_position: &u8) -> Wrapping<u8> {
+    Wrapping(value.0 | (1 << bit_position))
 }

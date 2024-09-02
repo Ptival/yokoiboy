@@ -65,10 +65,15 @@ impl Machine {
             0x0000..=0x3FFF => self.cpu.memory.read_bank_00(address),
             0x4000..=0x7FFF => self.cpu.memory.read_bank_01(address - Wrapping(0x4000)),
             0x8000..=0x9FFF => self.ppu.read_vram(address - Wrapping(0x8000)),
+
             0xA000..=0xBFFF => Wrapping(self.external_ram[(address - Wrapping(0xA000)).0 as usize]),
             0xC000..=0xCFFF => self.ppu.read_wram_0(address - Wrapping(0xC000)),
             0xD000..=0xDFFF => self.ppu.read_wram_1(address - Wrapping(0xD000)),
             0xE000..=0xFDFF => self.read_u8(address - Wrapping(0x2000)),
+
+            0xFE00..=0xFE9F => {
+                Wrapping(self.ppu.object_attribute_memory[address.0 as usize - 0xFE00])
+            }
             0xFF00..=0xFF00 => self.inputs.read(),
             0xFF01..=0xFF01 => self.sb,
             0xFF02..=0xFF02 => self.sc,
@@ -82,10 +87,19 @@ impl Machine {
             0xFF25..=0xFF25 => self.nr51,
             0xFF26..=0xFF26 => self.nr52,
             0xFF40..=0xFF40 => self.ppu.read_lcdc(),
+            0xFF41..=0xFF41 => self.ppu.lcd_status,
             0xFF42..=0xFF42 => self.scy,
             0xFF43..=0xFF43 => self.scx,
             0xFF44..=0xFF44 => PPU::read_ly(self),
+            0xFF45..=0xFF45 => self.ppu.lcd_y_compare,
+            0xFF46..=0xFF46 => {
+                todo!("OAM DMA read")
+            }
             0xFF47..=0xFF47 => self.bgp,
+            0xFF48..=0xFF48 => self.ppu.object_palette_0,
+            0xFF49..=0xFF49 => self.ppu.object_palette_1,
+            0xFF4A..=0xFF4A => self.ppu.window_y,
+            0xFF4B..=0xFF4B => self.ppu.window_x7,
             0xFF50..=0xFF50 => self.dmg_boot_rom,
             0xFF80..=0xFFFE => self.cpu.memory.read_hram(address - Wrapping(0xFF80)),
             0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable,
@@ -114,9 +128,17 @@ impl Machine {
             0x0000..=0x3FFF => Memory::write_bank_00(self, address, value),
             0x4000..=0x7FFF => Memory::write_bank_01(self, address - Wrapping(0x4000), value),
             0x8000..=0x9FFF => PPU::write_vram(&mut self.ppu, address - Wrapping(0x8000), value),
+
             0xA000..=0xBFFF => self.external_ram[(address - Wrapping(0xA000)).0 as usize] = value.0,
             0xC000..=0xCFFF => PPU::write_wram_0(&mut self.ppu, address - Wrapping(0xC000), value),
             0xD000..=0xDFFF => PPU::write_wram_1(&mut self.ppu, address - Wrapping(0xD000), value),
+            0xE000..=0xFDFF => {
+                panic!("Echo RAM write")
+            }
+
+            0xFE00..=0xFE9F => {
+                self.ppu.object_attribute_memory[address.0 as usize - 0xFE00] = value.0
+            }
             0xFF00..=0xFF00 => self.inputs.write(value),
             0xFF01..=0xFF01 => self.sb = value,
             0xFF02..=0xFF02 => self.sc = value,
@@ -130,9 +152,21 @@ impl Machine {
             0xFF25..=0xFF25 => self.nr51 = value,
             0xFF26..=0xFF26 => self.nr52 = value,
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
+            0xFF41..=0xFF41 => self.ppu.lcd_status = value,
             0xFF42..=0xFF42 => self.scy = value,
             0xFF43..=0xFF43 => self.scx = value,
+            0xFF44..=0xFF44 => {
+                panic!("Something attempted to write to LY")
+            }
+            0xFF45..=0xFF45 => self.ppu.lcd_y_compare = value,
+            0xFF46..=0xFF46 => {
+                todo!("OAM DMA write")
+            }
             0xFF47..=0xFF47 => self.bgp = value,
+            0xFF48..=0xFF48 => self.ppu.object_palette_0 = value,
+            0xFF49..=0xFF49 => self.ppu.object_palette_1 = value,
+            0xFF4A..=0xFF4A => self.ppu.window_y = value,
+            0xFF4B..=0xFF4B => self.ppu.window_x7 = value,
             0xFF50..=0xFF50 => self.dmg_boot_rom = value,
             0xFF80..=0xFFFE => Memory::write_hram(self, address - Wrapping(0xFF80), value),
             0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable = value,

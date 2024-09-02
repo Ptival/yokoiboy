@@ -6,6 +6,7 @@ use fetcher::Fetcher;
 
 use crate::{cpu::interrupts::VBLANK_INTERRUPT_BIT, machine::Machine};
 
+const OAM_SIZE: usize = 0xA0;
 const VRAM_SIZE: usize = 0x2000;
 const WRAM_SIZE: usize = 0x1000;
 
@@ -28,10 +29,20 @@ pub enum PPUState {
 #[derive(Clone, Debug)]
 pub struct PPU {
     pub fetcher: Fetcher,
+
+    pub object_attribute_memory: [u8; OAM_SIZE],
     pub rendered_pixels: [u8; 160 * 144 * 4],
     pub vram_pixels: [u8; VRAM_PIXELS_SIZE],
-    lcdc: Wrapping<u8>,
-    ly: Wrapping<u8>, // max should be 153
+
+    pub lcd_control: Wrapping<u8>,
+    lcd_y_coord: Wrapping<u8>,
+    pub lcd_y_compare: Wrapping<u8>,
+    pub lcd_status: Wrapping<u8>,
+    pub object_palette_0: Wrapping<u8>,
+    pub object_palette_1: Wrapping<u8>,
+    pub window_x7: Wrapping<u8>,
+    pub window_y: Wrapping<u8>,
+
     scanline_dots: u16,
     state: PPUState,
     vram: [u8; VRAM_SIZE],
@@ -59,10 +70,20 @@ impl PPU {
     pub fn new() -> Self {
         PPU {
             fetcher: Fetcher::new(),
+
+            object_attribute_memory: [0; OAM_SIZE],
             rendered_pixels: [0; 160 * 144 * 4],
             vram_pixels: [0; VRAM_PIXELS_SIZE],
-            lcdc: Wrapping(0),
-            ly: Wrapping(0),
+
+            lcd_control: Wrapping(0),
+            lcd_y_coord: Wrapping(0),
+            lcd_y_compare: Wrapping(0),
+            lcd_status: Wrapping(0),
+            object_palette_0: Wrapping(0),
+            object_palette_1: Wrapping(0),
+            window_x7: Wrapping(0),
+            window_y: Wrapping(0),
+
             scanline_dots: 0,
             state: PPUState::OAMScan,
             vram: [0; VRAM_SIZE],
@@ -74,18 +95,18 @@ impl PPU {
 
     pub fn is_lcd_ppu_on(&self) -> bool {
         let mask = 1 << 7;
-        self.lcdc.0 & mask == mask
+        self.lcd_control.0 & mask == mask
     }
 
     pub fn increment_ly(&mut self) {
-        self.ly = self.ly + Wrapping(1);
+        self.lcd_y_coord = self.lcd_y_coord + Wrapping(1);
     }
 
     pub fn read_ly(machine: &Machine) -> Wrapping<u8> {
         if machine.fix_ly_for_gb_doctor {
             Wrapping(144)
         } else {
-            machine.ppu.ly
+            machine.ppu.lcd_y_coord
         }
     }
 
@@ -116,7 +137,7 @@ impl PPU {
     }
 
     pub fn reset_ly(&mut self) {
-        self.ly = Wrapping(0);
+        self.lcd_y_coord = Wrapping(0);
     }
 
     pub fn step_dots(machine: &mut Machine, dots: u8) -> &mut Machine {
@@ -137,10 +158,10 @@ impl PPU {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
                 if machine.ppu.scanline_dots == 80 {
-                    let ly = machine.scy + PPU::read_ly(machine);
-                    machine.ppu.fetcher.tile_line = ly % Wrapping(8);
+                    let lcd_y_coord = machine.scy + PPU::read_ly(machine);
+                    machine.ppu.fetcher.tile_line = lcd_y_coord % Wrapping(8);
                     machine.ppu.fetcher.row_address =
-                        Wrapping(0x9800) + Wrapping((ly.0 as u16 / 8) * 32);
+                        Wrapping(0x9800) + Wrapping((lcd_y_coord.0 as u16 / 8) * 32);
                     machine.ppu.fetcher.tile_index = Wrapping(0);
                     machine.ppu.fetcher.fifo.clear();
                     machine.ppu.state = PPUState::DrawingPixels
@@ -152,7 +173,7 @@ impl PPU {
                 if machine.ppu.fetcher.fifo.len() != 0 {
                     let pixel = machine.ppu.fetcher.fifo.pop_front().unwrap();
                     let pixel_x = machine.ppu.drawn_pixels_on_current_row;
-                    let pixel_y = machine.ppu.ly.0;
+                    let pixel_y = machine.ppu.lcd_y_coord.0;
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
                     let rgba = pixel_code_to_rgba(pixel.color);
@@ -211,7 +232,7 @@ impl PPU {
     }
 
     pub fn read_lcdc(&self) -> Wrapping<u8> {
-        self.lcdc
+        self.lcd_control
     }
 
     pub fn write_vram(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
@@ -227,6 +248,6 @@ impl PPU {
     }
 
     pub fn write_lcdc(&mut self, value: Wrapping<u8>) {
-        self.lcdc = value;
+        self.lcd_control = value;
     }
 }
