@@ -1,6 +1,6 @@
 use std::num::Wrapping;
 
-use crate::{cpu::CPU, memory::Memory, ppu::PPU};
+use crate::{cpu::CPU, inputs::Inputs, memory::Memory, ppu::PPU};
 
 pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
 
@@ -8,6 +8,7 @@ pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
 pub struct Machine {
     pub fix_ly_for_gb_doctor: bool,
     pub t_cycle_count: u64,
+    pub inputs: Inputs,
     pub cpu: CPU,
     pub ppu: PPU,
     pub external_ram: [u8; EXTERNAL_RAM_SIZE],
@@ -33,6 +34,7 @@ impl Machine {
             fix_ly_for_gb_doctor: fix_ly,
             t_cycle_count: 0,
             dmg_boot_rom: Wrapping(0),
+            inputs: Inputs::new(),
             cpu: CPU::new(),
             ppu: PPU::new(),
             bgp: Wrapping(0),
@@ -67,6 +69,7 @@ impl Machine {
             0xC000..=0xCFFF => self.ppu.read_wram_0(address - Wrapping(0xC000)),
             0xD000..=0xDFFF => self.ppu.read_wram_1(address - Wrapping(0xD000)),
             0xE000..=0xFDFF => self.read_u8(address - Wrapping(0x2000)),
+            0xFF00..=0xFF00 => self.inputs.read(),
             0xFF01..=0xFF01 => self.sb,
             0xFF02..=0xFF02 => self.sc,
             0xFF04..=0xFF07 => self.cpu.timers.read_u8(address),
@@ -114,6 +117,7 @@ impl Machine {
             0xA000..=0xBFFF => self.external_ram[(address - Wrapping(0xA000)).0 as usize] = value.0,
             0xC000..=0xCFFF => PPU::write_wram_0(&mut self.ppu, address - Wrapping(0xC000), value),
             0xD000..=0xDFFF => PPU::write_wram_1(&mut self.ppu, address - Wrapping(0xD000), value),
+            0xFF00..=0xFF00 => self.inputs.write(value),
             0xFF01..=0xFF01 => self.sb = value,
             0xFF02..=0xFF02 => self.sc = value,
             0xFF04..=0xFF07 => self.cpu.timers.write_u8(address, value),

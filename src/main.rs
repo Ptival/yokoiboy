@@ -1,3 +1,12 @@
+pub mod conditions;
+pub mod cpu;
+pub mod inputs;
+pub mod instructions;
+pub mod machine;
+pub mod memory;
+pub mod ppu;
+pub mod registers;
+
 use std::{
     cmp::min,
     fmt::Debug,
@@ -32,14 +41,6 @@ use machine::Machine;
 use memory::Memory;
 use ppu::PPU;
 use registers::Flag;
-
-pub mod conditions;
-pub mod cpu;
-pub mod instructions;
-pub mod machine;
-pub mod memory;
-pub mod ppu;
-pub mod registers;
 
 const CPU_SNAPS_CAPACITY: usize = 5;
 const LOG_PATH: &str = "log";
