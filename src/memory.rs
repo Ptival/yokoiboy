@@ -57,11 +57,11 @@ impl Memory {
         let bytes = std::fs::read(path)?;
         let byte_length = bytes.len();
         if byte_length > 0x8000 {
-            panic!("Loading ROM larger than 0x8000 bytes not supported.");
+            println!("[WARNING] ROM larger than 0x8000 bytes, errors may occur.");
         }
-        // println!("ROM byte length: {:08X}", byte_length);
-        self.bank_00[0..min(BANK_SIZE, byte_length)].clone_from_slice(&bytes[..BANK_SIZE]);
-        self.bank_01[0..(byte_length - BANK_SIZE)].clone_from_slice(&bytes[BANK_SIZE..]);
+        let effective_byte_length = min(BANK_SIZE * 2, byte_length);
+        self.bank_00[0..min(BANK_SIZE, effective_byte_length)].clone_from_slice(&bytes[..BANK_SIZE]);
+        self.bank_01[0..(effective_byte_length - BANK_SIZE)].clone_from_slice(&bytes[BANK_SIZE..BANK_SIZE*2]);
         Ok(self)
     }
 

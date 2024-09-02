@@ -64,7 +64,6 @@ impl Interrupts {
 
     pub fn handle_interrupts(machine: &mut Machine) -> (u8, u8) {
         if let Some(interrupt) = should_handle_interrupt(machine) {
-            println!("Handling interrupt {}", interrupt);
             machine.cpu.interrupts.interrupt_flag =
                 machine.cpu.interrupts.interrupt_flag & Wrapping(!(1 << interrupt));
             machine.cpu.interrupts.interrupt_master_enable = false;

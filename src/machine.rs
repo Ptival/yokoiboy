@@ -22,6 +22,7 @@ pub struct Machine {
     pub nr50: Wrapping<u8>,
     pub nr51: Wrapping<u8>,
     pub nr52: Wrapping<u8>,
+    pub register_ff4d: Wrapping<u8>,
     pub register_ff72: Wrapping<u8>,
     pub register_ff73: Wrapping<u8>,
     pub register_ff75: Wrapping<u8>,
@@ -50,9 +51,12 @@ impl Machine {
             nr50: Wrapping(0),
             nr51: Wrapping(0),
             nr52: Wrapping(0),
+
+            register_ff4d: Wrapping(0),
             register_ff72: Wrapping(0),
             register_ff73: Wrapping(0),
             register_ff75: Wrapping(0),
+
             sb: Wrapping(0),
             sc: Wrapping(0),
             scx: Wrapping(0),
@@ -95,6 +99,7 @@ impl Machine {
             0xFF24..=0xFF24 => self.nr50,
             0xFF25..=0xFF25 => self.nr51,
             0xFF26..=0xFF26 => self.nr52,
+
             0xFF40..=0xFF40 => self.ppu.read_lcdc(),
             0xFF41..=0xFF41 => self.ppu.lcd_status,
             0xFF42..=0xFF42 => self.scy,
@@ -109,6 +114,8 @@ impl Machine {
             0xFF49..=0xFF49 => self.ppu.object_palette_1,
             0xFF4A..=0xFF4A => self.ppu.window_y,
             0xFF4B..=0xFF4B => self.ppu.window_x7,
+            0xFF4D..=0xFF4D => self.register_ff4d,
+
             0xFF50..=0xFF50 => self.dmg_boot_rom,
 
             0xFF70..=0xFF70 => self.wram_bank,
@@ -207,6 +214,8 @@ impl Machine {
             0xFF49..=0xFF49 => self.ppu.object_palette_1 = value,
             0xFF4A..=0xFF4A => self.ppu.window_y = value,
             0xFF4B..=0xFF4B => self.ppu.window_x7 = value,
+            0xFF4D..=0xFF4D => self.register_ff4d = value,
+
             0xFF50..=0xFF50 => self.dmg_boot_rom = value,
 
             0xFF70..=0xFF70 => self.wram_bank = value,
