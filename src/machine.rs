@@ -166,7 +166,7 @@ impl Machine {
                 self.ppu.object_attribute_memory[address.0 as usize - 0xFE00] = value.0
             }
             0xFEA0..=0xFEFF => {
-                println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
+                // println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
             }
             0xFF00..=0xFF00 => self.inputs.write(value),
             0xFF01..=0xFF01 => self.sb = value,
@@ -224,7 +224,7 @@ impl Machine {
             0xFF74..=0xFF74 => {}
             0xFF75..=0xFF75 => self.register_ff75 = Wrapping(value.0 & 0x07),
             0xFF7F..=0xFF7F => {
-                println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
+                // println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
             }
 
             0xFF80..=0xFFFE => Memory::write_hram(self, address - Wrapping(0xFF80), value),

@@ -221,7 +221,7 @@ impl DebuggerWindow {
 
             Message::RunNextInstruction => {
                 self.step(PreserveHistory::PreserveHistory);
-                self.current_machine().ppu.render_vram();
+                self.current_machine().ppu.render();
                 Task::none()
             }
 
@@ -244,7 +244,7 @@ impl DebuggerWindow {
                 }
 
                 if remaining_steps == 0 {
-                    self.current_machine().ppu.render_vram();
+                    self.current_machine().ppu.render();
                     Task::done(Message::ContinueRunUntilBreakpoint)
                 } else {
                     Task::none()
@@ -435,7 +435,7 @@ impl DebuggerWindow {
             widget::Image::new(image::Handle::from_rgba(
                 160,
                 144,
-                image::Bytes::copy_from_slice(&machine.ppu.rendered_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu.lcd_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -445,11 +445,25 @@ impl DebuggerWindow {
         .width(480)
         .height(432);
 
-        let vram = widget::Container::new(
+        let tile_palette = widget::Container::new(
             widget::Image::new(image::Handle::from_rgba(
                 128,
                 128,
-                image::Bytes::copy_from_slice(&machine.ppu.vram_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu.tile_palette_pixels),
+            ))
+            .content_fit(iced::ContentFit::Fill)
+            .filter_method(FilterMethod::Nearest)
+            .width(256)
+            .height(256),
+        )
+        .width(256)
+        .height(256);
+
+        let tile_map0 = widget::Container::new(
+            widget::Image::new(image::Handle::from_rgba(
+                256,
+                256,
+                image::Bytes::copy_from_slice(&machine.ppu.tile_map0_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -459,7 +473,22 @@ impl DebuggerWindow {
         .width(512)
         .height(512);
 
-        grid = grid.push(grid_row![debugger, vram, lcd]);
+        let tile_map1 = widget::Container::new(
+            widget::Image::new(image::Handle::from_rgba(
+                256,
+                256,
+                image::Bytes::copy_from_slice(&machine.ppu.tile_map1_pixels),
+            ))
+            .content_fit(iced::ContentFit::Fill)
+            .filter_method(FilterMethod::Nearest)
+            .width(512)
+            .height(512),
+        )
+        .width(512)
+        .height(512);
+
+        grid = grid.push(grid_row![debugger, tile_palette, lcd]);
+        grid = grid.push(grid_row![tile_map0, tile_map1]);
         grid.into()
         // debugger.into()
     }
