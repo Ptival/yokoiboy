@@ -4,7 +4,10 @@ use std::num::Wrapping;
 
 use fetcher::Fetcher;
 
-use crate::{cpu::interrupts::VBLANK_INTERRUPT_BIT, machine::Machine};
+use crate::{
+    cpu::interrupts::{STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
+    machine::Machine,
+};
 
 const OAM_SIZE: usize = 0xA0;
 const VRAM_SIZE: usize = 0x2000;
@@ -125,8 +128,14 @@ impl PPU {
         self.lcd_control.0 & mask == mask
     }
 
-    pub fn increment_ly(&mut self) {
-        self.lcd_y_coord = self.lcd_y_coord + Wrapping(1);
+    pub fn increment_ly(machine: &mut Machine) {
+        machine.ppu.lcd_y_coord = machine.ppu.lcd_y_coord + Wrapping(1);
+        if machine.ppu.lcd_y_coord == machine.ppu.lcd_y_compare {
+            machine.ppu.lcd_status |= 1 << 2;
+            machine.cpu.interrupts.request_interrupt(STAT_INTERRUPT_BIT);
+        } else {
+            machine.ppu.lcd_status &= !(1 << 2);
+        }
     }
 
     pub fn read_ly(machine: &Machine) -> Wrapping<u8> {
@@ -284,7 +293,7 @@ impl PPU {
             PPUState::HorizontalBlank => {
                 if machine.ppu.scanline_dots == 456 {
                     machine.ppu.scanline_dots = 0;
-                    machine.ppu.increment_ly();
+                    PPU::increment_ly(machine);
                     if PPU::read_ly(machine).0 == 144 {
                         // println!("Requesting VBLANK interrupt");
                         // println!("IME: {}", machine.cpu.interrupts.interrupt_master_enable);
@@ -301,7 +310,7 @@ impl PPU {
             PPUState::VerticalBlank => {
                 if machine.ppu.scanline_dots == 456 {
                     machine.ppu.scanline_dots = 0;
-                    machine.ppu.increment_ly();
+                    PPU::increment_ly(machine);
                     if PPU::read_ly(machine).0 == 153 {
                         machine.ppu.reset_ly();
                         machine.ppu.state = PPUState::OAMScan;

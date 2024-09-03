@@ -344,7 +344,8 @@ impl Instruction {
                     machine.cpu.low_power_mode = true;
                 } else {
                     if Interrupts::is_interrupt_pending(machine) {
-                        panic!("Need to emulate HALT bug");
+                        // TODO: emulate HALT bug
+                        machine.cpu.low_power_mode = true;
                     } else {
                         machine.cpu.low_power_mode = true;
                     }

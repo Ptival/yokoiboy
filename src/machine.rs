@@ -15,6 +15,7 @@ pub struct Machine {
     // Special registers
     pub bgp: Wrapping<u8>,
     pub dmg_boot_rom: Wrapping<u8>,
+    pub nr10: Wrapping<u8>,
     pub nr11: Wrapping<u8>,
     pub nr12: Wrapping<u8>,
     pub nr13: Wrapping<u8>,
@@ -22,10 +23,20 @@ pub struct Machine {
     pub nr50: Wrapping<u8>,
     pub nr51: Wrapping<u8>,
     pub nr52: Wrapping<u8>,
+
+    pub register_ff03: Wrapping<u8>,
+    pub register_ff08: Wrapping<u8>,
+    pub register_ff09: Wrapping<u8>,
+    pub register_ff0a: Wrapping<u8>,
+    pub register_ff0b: Wrapping<u8>,
+    pub register_ff0c: Wrapping<u8>,
+    pub register_ff0d: Wrapping<u8>,
+    pub register_ff0e: Wrapping<u8>,
     pub register_ff4d: Wrapping<u8>,
     pub register_ff72: Wrapping<u8>,
     pub register_ff73: Wrapping<u8>,
     pub register_ff75: Wrapping<u8>,
+
     pub sb: Wrapping<u8>,
     pub sc: Wrapping<u8>,
     pub wram_bank: Wrapping<u8>,
@@ -42,6 +53,8 @@ impl Machine {
             ppu: PPU::new(),
             bgp: Wrapping(0),
             external_ram: [0; EXTERNAL_RAM_SIZE],
+
+            nr10: Wrapping(0),
             nr11: Wrapping(0),
             nr12: Wrapping(0),
             nr13: Wrapping(0),
@@ -50,6 +63,14 @@ impl Machine {
             nr51: Wrapping(0),
             nr52: Wrapping(0),
 
+            register_ff03: Wrapping(0),
+            register_ff08: Wrapping(0),
+            register_ff09: Wrapping(0),
+            register_ff0a: Wrapping(0),
+            register_ff0b: Wrapping(0),
+            register_ff0c: Wrapping(0),
+            register_ff0d: Wrapping(0),
+            register_ff0e: Wrapping(0),
             register_ff4d: Wrapping(0),
             register_ff72: Wrapping(0),
             register_ff73: Wrapping(0),
@@ -83,18 +104,33 @@ impl Machine {
                 Wrapping(self.ppu.object_attribute_memory[address.0 as usize - 0xFE00])
             }
             0xFEA0..=0xFEFF => Wrapping(0xFF),
+
             0xFF00..=0xFF00 => self.inputs.read(),
             0xFF01..=0xFF01 => self.sb,
             0xFF02..=0xFF02 => self.sc,
+            0xFF03..=0xFF03 => self.register_ff03,
             0xFF04..=0xFF07 => self.cpu.timers.read_u8(address),
+            0xFF08..=0xFF08 => self.register_ff08,
+            0xFF09..=0xFF09 => self.register_ff09,
+            0xFF0A..=0xFF0A => self.register_ff0a,
+            0xFF0B..=0xFF0B => self.register_ff0b,
+            0xFF0C..=0xFF0C => self.register_ff0c,
+            0xFF0D..=0xFF0D => self.register_ff0d,
+            0xFF0E..=0xFF0E => self.register_ff0e,
             0xFF0F..=0xFF0F => self.cpu.interrupts.interrupt_flag,
+
+            0xFF10..=0xFF10 => self.nr10,
             0xFF11..=0xFF11 => self.nr11,
             0xFF12..=0xFF12 => self.nr12,
             0xFF13..=0xFF13 => self.nr13,
             0xFF14..=0xFF14 => self.nr14,
+
             0xFF24..=0xFF24 => self.nr50,
             0xFF25..=0xFF25 => self.nr51,
             0xFF26..=0xFF26 => self.nr52,
+
+            // Wave RAM
+            0xFF30..=0xFF3F => panic!("TODO: read in wave RAM"), // TODO
 
             0xFF40..=0xFF40 => self.ppu.read_lcdc(),
             0xFF41..=0xFF41 => self.ppu.lcd_status,
@@ -164,37 +200,48 @@ impl Machine {
             0xFEA0..=0xFEFF => {
                 // println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
             }
+
             0xFF00..=0xFF00 => self.inputs.write(value),
             0xFF01..=0xFF01 => self.sb = value,
             0xFF02..=0xFF02 => self.sc = value,
+            0xFF03..=0xFF03 => self.register_ff03 = value,
             0xFF04..=0xFF07 => self.cpu.timers.write_u8(address, value),
+            0xFF08..=0xFF08 => self.register_ff08 = value,
+            0xFF09..=0xFF09 => self.register_ff09 = value,
+            0xFF0A..=0xFF0A => self.register_ff0a = value,
+            0xFF0B..=0xFF0B => self.register_ff0b = value,
+            0xFF0C..=0xFF0C => self.register_ff0c = value,
+            0xFF0D..=0xFF0D => self.register_ff0d = value,
+            0xFF0E..=0xFF0E => self.register_ff0e = value,
             0xFF0F..=0xFF0F => self.cpu.interrupts.interrupt_flag = value,
 
             // AUDIO
-
-            0xFF10..=0xFF10 => {}, // TODO
+            0xFF10..=0xFF10 => self.nr10 = value,
             0xFF11..=0xFF11 => self.nr11 = value,
             0xFF12..=0xFF12 => self.nr12 = value,
             0xFF13..=0xFF13 => self.nr13 = value,
             0xFF14..=0xFF14 => self.nr14 = value,
-            0xFF15..=0xFF15 => {}, // TODO
-            0xFF16..=0xFF16 => {}, // TODO
-            0xFF17..=0xFF17 => {}, // TODO
-            0xFF18..=0xFF18 => {}, // TODO
-            0xFF19..=0xFF19 => {}, // TODO
-            0xFF1A..=0xFF1A => {}, // TODO
-            0xFF1B..=0xFF1B => {}, // TODO
-            0xFF1C..=0xFF1C => {}, // TODO
-            0xFF1D..=0xFF1D => {}, // TODO
-            0xFF1E..=0xFF1E => {}, // TODO
-            0xFF1F..=0xFF1F => {}, // TODO
-            0xFF20..=0xFF20 => {}, // TODO
-            0xFF21..=0xFF21 => {}, // TODO
-            0xFF22..=0xFF22 => {}, // TODO
-            0xFF23..=0xFF23 => {}, // TODO
+            0xFF15..=0xFF15 => {} // TODO
+            0xFF16..=0xFF16 => {} // TODO
+            0xFF17..=0xFF17 => {} // TODO
+            0xFF18..=0xFF18 => {} // TODO
+            0xFF19..=0xFF19 => {} // TODO
+            0xFF1A..=0xFF1A => {} // TODO
+            0xFF1B..=0xFF1B => {} // TODO
+            0xFF1C..=0xFF1C => {} // TODO
+            0xFF1D..=0xFF1D => {} // TODO
+            0xFF1E..=0xFF1E => {} // TODO
+            0xFF1F..=0xFF1F => {} // TODO
+            0xFF20..=0xFF20 => {} // TODO
+            0xFF21..=0xFF21 => {} // TODO
+            0xFF22..=0xFF22 => {} // TODO
+            0xFF23..=0xFF23 => {} // TODO
             0xFF24..=0xFF24 => self.nr50 = value,
             0xFF25..=0xFF25 => self.nr51 = value,
             0xFF26..=0xFF26 => self.nr52 = value,
+
+            // WAVE RAM
+            0xFF30..=0xFF3F => {} // TODO
 
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
             0xFF41..=0xFF41 => self.ppu.lcd_status = value,
@@ -204,7 +251,7 @@ impl Machine {
                 panic!("Something attempted to write to LY")
             }
             0xFF45..=0xFF45 => self.ppu.lcd_y_compare = value,
-            0xFF46..=0xFF46 => {}, // TODO: OAM DMA
+            0xFF46..=0xFF46 => {} // TODO: OAM DMA
             0xFF47..=0xFF47 => self.bgp = value,
             0xFF48..=0xFF48 => self.ppu.object_palette_0 = value,
             0xFF49..=0xFF49 => self.ppu.object_palette_1 = value,
