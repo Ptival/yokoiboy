@@ -2,13 +2,15 @@ mod fetcher;
 
 use std::num::Wrapping;
 
-use fetcher::Fetcher;
+use fetcher::{Fetcher, TileAddressingMode};
 
 use crate::{
     cpu::interrupts::{STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
     machine::Machine,
     utils::{self},
 };
+
+const BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
 
 const OAM_SIZE: usize = 0xA0;
 const VRAM_SIZE: usize = 0x2000;
@@ -114,13 +116,6 @@ pub fn pixel_coordinates_in_rgba_slice(x: u8, y: u8) -> usize {
     (y as usize * LCD_HORIZONTAL_PIXEL_COUNT + x as usize) * PIXEL_DATA_SIZE
 }
 
-// Background and Window use one of these based on bit 4 of lcd_control.
-// Sprites always use UnsignedFrom0x8000.
-enum TileAddressingMode {
-    UnsignedFrom0x8000,
-    SignedFrom0x9000,
-}
-
 impl PPU {
     pub fn new() -> Self {
         PPU {
@@ -163,9 +158,9 @@ impl PPU {
 
     pub fn get_addressing_mode(&self) -> TileAddressingMode {
         if utils::is_bit_set(&self.lcd_control, 4) {
-            TileAddressingMode::SignedFrom0x9000
-        } else {
             TileAddressingMode::UnsignedFrom0x8000
+        } else {
+            TileAddressingMode::SignedFrom0x9000
         }
     }
 
@@ -229,6 +224,9 @@ impl PPU {
         let scy = self.scy.0 as usize;
         let bottom = (scy + 143) % 256;
         let right = (scx + 159) % 256;
+
+        // TODO: Technically we should render the scx on the fly as it may change between scanlines
+        // (that's how you get cool effects)
 
         // Draw red horizontal lines above/below the viewport
         let mut x = scx;
@@ -315,8 +313,16 @@ impl PPU {
                 if machine.ppu.scanline_dots == 80 {
                     let lcd_y_coord = PPU::read_ly(machine) + machine.ppu.scy;
                     machine.ppu.fetcher.tile_line = lcd_y_coord % Wrapping(8);
+                    let row_base_address = if utils::is_bit_set(
+                        &machine.ppu.lcd_control,
+                        BACKGROUND_TILE_MAP_AREA_BIT,
+                    ) {
+                        0x9C00
+                    } else {
+                        0x9800
+                    };
                     machine.ppu.fetcher.row_address =
-                        Wrapping(0x9800) + Wrapping((lcd_y_coord.0 as u16 / 8) * 32);
+                        row_base_address + ((lcd_y_coord.0 as u16 / 8) * 32);
                     machine.ppu.fetcher.tile_index = Wrapping(0);
                     machine.ppu.fetcher.fifo.clear();
                     machine.ppu.state = PPUState::DrawingPixels

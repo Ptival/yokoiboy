@@ -15,11 +15,24 @@ pub struct Machine {
     // Special registers
     pub bgp: Wrapping<u8>,
     pub dmg_boot_rom: Wrapping<u8>,
+
     pub nr10: Wrapping<u8>,
     pub nr11: Wrapping<u8>,
     pub nr12: Wrapping<u8>,
     pub nr13: Wrapping<u8>,
     pub nr14: Wrapping<u8>,
+
+    pub nr21: Wrapping<u8>,
+    pub nr22: Wrapping<u8>,
+    pub nr23: Wrapping<u8>,
+    pub nr24: Wrapping<u8>,
+
+    pub nr30: Wrapping<u8>,
+    pub nr31: Wrapping<u8>,
+    pub nr32: Wrapping<u8>,
+    pub nr33: Wrapping<u8>,
+    pub nr34: Wrapping<u8>,
+
     pub nr50: Wrapping<u8>,
     pub nr51: Wrapping<u8>,
     pub nr52: Wrapping<u8>,
@@ -27,6 +40,14 @@ pub struct Machine {
     pub register_ff03: Wrapping<u8>,
     pub register_ff08: Wrapping<u8>,
     pub register_ff09: Wrapping<u8>,
+    pub register_ff15: Wrapping<u8>,
+    pub register_ff1f: Wrapping<u8>,
+    pub register_ff20: Wrapping<u8>,
+    pub register_ff21: Wrapping<u8>,
+    pub register_ff22: Wrapping<u8>,
+    pub register_ff23: Wrapping<u8>,
+    pub slice_ff27_ff2f: [Wrapping<u8>; 9],
+    pub slice_ff30_ff3f: [Wrapping<u8>; 16],
     pub register_ff0a: Wrapping<u8>,
     pub register_ff0b: Wrapping<u8>,
     pub register_ff0c: Wrapping<u8>,
@@ -59,6 +80,18 @@ impl Machine {
             nr12: Wrapping(0),
             nr13: Wrapping(0),
             nr14: Wrapping(0),
+
+            nr21: Wrapping(0),
+            nr22: Wrapping(0),
+            nr23: Wrapping(0),
+            nr24: Wrapping(0),
+
+            nr30: Wrapping(0),
+            nr31: Wrapping(0),
+            nr32: Wrapping(0),
+            nr33: Wrapping(0),
+            nr34: Wrapping(0),
+
             nr50: Wrapping(0),
             nr51: Wrapping(0),
             nr52: Wrapping(0),
@@ -66,6 +99,14 @@ impl Machine {
             register_ff03: Wrapping(0),
             register_ff08: Wrapping(0),
             register_ff09: Wrapping(0),
+            register_ff15: Wrapping(0),
+            register_ff1f: Wrapping(0),
+            register_ff20: Wrapping(0),
+            register_ff21: Wrapping(0),
+            register_ff22: Wrapping(0),
+            register_ff23: Wrapping(0),
+            slice_ff27_ff2f: [Wrapping(0); 9],
+            slice_ff30_ff3f: [Wrapping(0); 16],
             register_ff0a: Wrapping(0),
             register_ff0b: Wrapping(0),
             register_ff0c: Wrapping(0),
@@ -124,13 +165,28 @@ impl Machine {
             0xFF12..=0xFF12 => self.nr12,
             0xFF13..=0xFF13 => self.nr13,
             0xFF14..=0xFF14 => self.nr14,
-
+            0xFF15..=0xFF15 => self.register_ff15,
+            0xFF16..=0xFF16 => self.nr21,
+            0xFF17..=0xFF17 => self.nr22,
+            0xFF18..=0xFF18 => self.nr23,
+            0xFF19..=0xFF19 => self.nr24,
+            0xFF1A..=0xFF1A => self.nr30,
+            0xFF1B..=0xFF1B => self.nr31,
+            0xFF1C..=0xFF1C => self.nr32,
+            0xFF1D..=0xFF1D => self.nr33,
+            0xFF1E..=0xFF1E => self.nr34,
+            0xFF1F..=0xFF1F => self.register_ff1f,
+            0xFF20..=0xFF20 => self.register_ff20,
+            0xFF21..=0xFF21 => self.register_ff21,
+            0xFF22..=0xFF22 => self.register_ff22,
+            0xFF23..=0xFF23 => self.register_ff23,
             0xFF24..=0xFF24 => self.nr50,
             0xFF25..=0xFF25 => self.nr51,
             0xFF26..=0xFF26 => self.nr52,
+            0xFF27..=0xFF2F => self.slice_ff27_ff2f[address.0 as usize - 0xFF27],
 
             // Wave RAM
-            0xFF30..=0xFF3F => panic!("TODO: read in wave RAM"), // TODO
+            0xFF30..=0xFF3F => self.slice_ff30_ff3f[address.0 as usize - 0xFF30],
 
             0xFF40..=0xFF40 => self.ppu.read_lcdc(),
             0xFF41..=0xFF41 => self.ppu.lcd_status,
@@ -227,27 +283,29 @@ impl Machine {
             0xFF12..=0xFF12 => self.nr12 = value,
             0xFF13..=0xFF13 => self.nr13 = value,
             0xFF14..=0xFF14 => self.nr14 = value,
-            0xFF15..=0xFF15 => {} // TODO
-            0xFF16..=0xFF16 => {} // TODO
-            0xFF17..=0xFF17 => {} // TODO
-            0xFF18..=0xFF18 => {} // TODO
-            0xFF19..=0xFF19 => {} // TODO
-            0xFF1A..=0xFF1A => {} // TODO
-            0xFF1B..=0xFF1B => {} // TODO
-            0xFF1C..=0xFF1C => {} // TODO
-            0xFF1D..=0xFF1D => {} // TODO
-            0xFF1E..=0xFF1E => {} // TODO
-            0xFF1F..=0xFF1F => {} // TODO
-            0xFF20..=0xFF20 => {} // TODO
-            0xFF21..=0xFF21 => {} // TODO
-            0xFF22..=0xFF22 => {} // TODO
-            0xFF23..=0xFF23 => {} // TODO
+            0xFF15..=0xFF15 => self.register_ff15 = value,
+            0xFF16..=0xFF16 => self.nr21 = value,
+            0xFF17..=0xFF17 => self.nr22 = value,
+            0xFF18..=0xFF18 => self.nr23 = value,
+            0xFF19..=0xFF19 => self.nr24 = value,
+            0xFF1A..=0xFF1A => self.nr30 = value,
+            0xFF1B..=0xFF1B => self.nr31 = value,
+            0xFF1C..=0xFF1C => self.nr32 = value,
+            0xFF1D..=0xFF1D => self.nr33 = value,
+            0xFF1E..=0xFF1E => self.nr34 = value,
+            0xFF1F..=0xFF1F => self.register_ff1f = value,
+
+            0xFF20..=0xFF20 => self.register_ff20 = value,
+            0xFF21..=0xFF21 => self.register_ff21 = value,
+            0xFF22..=0xFF22 => self.register_ff22 = value,
+            0xFF23..=0xFF23 => self.register_ff23 = value,
             0xFF24..=0xFF24 => self.nr50 = value,
             0xFF25..=0xFF25 => self.nr51 = value,
             0xFF26..=0xFF26 => self.nr52 = value,
+            0xFF27..=0xFF2F => self.slice_ff27_ff2f[address.0 as usize - 0xFF27] = value,
 
             // WAVE RAM
-            0xFF30..=0xFF3F => {} // TODO
+            0xFF30..=0xFF3F => self.slice_ff30_ff3f[address.0 as usize - 0xFF30] = value,
 
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
             0xFF41..=0xFF41 => self.ppu.lcd_status = value,

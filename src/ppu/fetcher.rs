@@ -25,11 +25,18 @@ pub struct FIFOItem {
 pub struct Fetcher {
     pub fifo: VecDeque<FIFOItem>,
     state: FetcherState,
-    pub row_address: Wrapping<u16>,
+    pub row_address: u16,
     pub tile_line: Wrapping<u8>,
     tile_id: Wrapping<u8>,
     pub tile_index: Wrapping<u8>,
     tile_row_data: [u8; 8],
+}
+
+// Background and Window use one of these based on bit 4 of lcd_control.
+// Sprites always use UnsignedFrom0x8000.
+pub enum TileAddressingMode {
+    UnsignedFrom0x8000,
+    SignedFrom0x9000,
 }
 
 impl Fetcher {
@@ -37,7 +44,7 @@ impl Fetcher {
         Fetcher {
             fifo: VecDeque::new(),
             state: FetcherState::GetTileDelay,
-            row_address: Wrapping(0x9800),
+            row_address: 0,
             tile_line: Wrapping(0),
             tile_id: Wrapping(0),
             tile_index: Wrapping(0),
@@ -46,10 +53,21 @@ impl Fetcher {
     }
 
     fn read_tile_line(machine: &mut Machine, bit_plane: bool) {
-        let offset =
-            Wrapping(0x8000) + (Wrapping(machine.ppu.fetcher.tile_id.0 as u16) * Wrapping(16));
-        let address = offset + (Wrapping(machine.ppu.fetcher.tile_line.0 as u16) * Wrapping(2));
-        let pixel_data = machine.read_u8(address + Wrapping(bit_plane as u16)).0;
+        // WARNING: when handling sprites, will need to update this to ignore addressing mode for
+        // their tiles
+        let offset = match machine.ppu.get_addressing_mode() {
+            TileAddressingMode::UnsignedFrom0x8000 => {
+                0x8000 + (machine.ppu.fetcher.tile_id.0 as u16) * 16
+            }
+            TileAddressingMode::SignedFrom0x9000 => {
+                // as i8 interprets the correct bit sign
+                // i32 allows signed arithmetic without accidentally identifying a sign bit
+                // final result interpreted as a u16
+                (0x9000 + ((machine.ppu.fetcher.tile_id.0 as i8) as i32) * 16) as u16
+            }
+        };
+        let address = offset + (machine.ppu.fetcher.tile_line.0 as u16) * 2;
+        let pixel_data = machine.read_u8(Wrapping(address + bit_plane as u16)).0;
         // We just finished reading one byte.  Each bit is half of a pixel value, we coalesce them
         // here Note: This assumes that `tile_row_data` is cleared at each loop.
         for bit_position in 0..8 {
@@ -63,10 +81,9 @@ impl Fetcher {
             FetcherState::GetTileDelay => machine.ppu.fetcher.state = FetcherState::GetTile,
 
             FetcherState::GetTile => {
-                machine.ppu.fetcher.tile_id = machine.read_u8(
-                    machine.ppu.fetcher.row_address
-                        + Wrapping(machine.ppu.fetcher.tile_index.0 as u16),
-                );
+                machine.ppu.fetcher.tile_id = machine.read_u8(Wrapping(
+                    machine.ppu.fetcher.row_address + (machine.ppu.fetcher.tile_index.0 as u16),
+                ));
                 machine.ppu.fetcher.state = FetcherState::GetTileDataLowDelay
             }
 
