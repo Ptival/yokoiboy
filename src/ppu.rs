@@ -365,7 +365,7 @@ fn render_tile_map(
         for tile_map_x in 0..TILE_MAP_HORIZONTAL_TILE_COUNT {
             let tile_entry_offset = (tile_map_y << 5) | tile_map_x;
             let tile_id = vram[tile_map_vram_offset + tile_entry_offset] as usize;
-            // Because tiles have already been rendered as pixels in the  tile palette, here we
+            // Because tiles have already been rendered as pixels in the tile palette, here we
             // can just copy slices of lines for the 8 lines of the tile.
             for tile_pixel_y in 0..VERTICAL_PIXELS_PER_TILE {
                 let tiles_to_skip = tile_map_y * TILE_MAP_HORIZONTAL_TILE_COUNT;

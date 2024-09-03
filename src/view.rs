@@ -45,6 +45,7 @@ impl ApplicationState {
         .width(480)
         .height(432);
 
+        // TODO: Compute and show 3 palettes
         let tile_palette = widget::Container::new(
             widget::Image::new(image::Handle::from_rgba(
                 128,

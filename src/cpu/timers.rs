@@ -47,6 +47,9 @@ impl Timers {
     }
 
     fn step_one_dot(machine: &mut Machine) {
+
+        // TODO: Reset this on STOP
+        // TODO: Freeze this while in STOP mode
         machine.cpu.timers.divide_register_dots += 1;
         if machine.cpu.timers.divide_register_dots == 256 {
             machine.cpu.timers.divide_register_dots = 0;
