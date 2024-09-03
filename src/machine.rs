@@ -147,8 +147,14 @@ impl Machine {
             0xFF4A..=0xFF4A => self.ppu.window_y,
             0xFF4B..=0xFF4B => self.ppu.window_x7,
             0xFF4D..=0xFF4D => self.register_ff4d,
+            0xFF4F..=0xFF4F => self.ppu.vram_bank,
 
             0xFF50..=0xFF50 => self.dmg_boot_rom,
+
+            0xFF68..=0xFF68 => self.ppu.background_palette_spec,
+            0xFF69..=0xFF69 => self.ppu.background_palette_data,
+            0xFF6A..=0xFF6A => self.ppu.object_palette_spec,
+            0xFF6B..=0xFF6B => self.ppu.object_palette_data,
 
             0xFF70..=0xFF70 => self.wram_bank,
             0xFF72..=0xFF72 => self.register_ff72,
@@ -258,8 +264,14 @@ impl Machine {
             0xFF4A..=0xFF4A => self.ppu.window_y = value,
             0xFF4B..=0xFF4B => self.ppu.window_x7 = value,
             0xFF4D..=0xFF4D => self.register_ff4d = value,
+            0xFF4F..=0xFF4F => self.ppu.vram_bank = value,
 
             0xFF50..=0xFF50 => self.dmg_boot_rom = value,
+
+            0xFF68..=0xFF68 => self.ppu.background_palette_spec = value,
+            0xFF69..=0xFF69 => self.ppu.background_palette_data = value,
+            0xFF6A..=0xFF6A => self.ppu.object_palette_spec = value,
+            0xFF6B..=0xFF6B => self.ppu.object_palette_data = value,
 
             0xFF70..=0xFF70 => self.wram_bank = value,
             0xFF72..=0xFF72 => self.register_ff72 = value,

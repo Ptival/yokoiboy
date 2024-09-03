@@ -7,6 +7,7 @@ use fetcher::Fetcher;
 use crate::{
     cpu::interrupts::{STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
     machine::Machine,
+    utils::{self},
 };
 
 const OAM_SIZE: usize = 0xA0;
@@ -38,6 +39,13 @@ const TILE_MAP_PIXELS_TOTAL: usize = TILE_MAP_HORIZONTAL_PIXELS * TILE_MAP_VERTI
 
 const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
 
+// LCD status single bits
+const LYC_EQUALS_LY_BIT: u8 = 2;
+const _MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
+const _MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
+const _MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
+const _LYC_EQUALS_LY_INTERRUPT_SELECT_BIT: u8 = 6;
+
 #[derive(Clone, Debug)]
 pub enum PPUState {
     OAMScan,
@@ -48,31 +56,47 @@ pub enum PPUState {
 
 #[derive(Clone, Debug)]
 pub struct PPU {
+    /** PPU state **/
+    drawn_pixels_on_current_row: u8,
+    /// Because the STAT interrupt is triggered on a rising edge of the STAT line, we need to
+    /// remember its previous value.
+    last_stat_line: u8,
+    scanline_dots: u16,
+    state: PPUState,
+
+    // Subsystems
     pub fetcher: Fetcher,
 
-    pub object_attribute_memory: [u8; OAM_SIZE],
-    pub lcd_pixels: [u8; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
-    pub tile_palette_pixels: [u8; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-    pub tile_map0_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-    pub tile_map1_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-
+    // Hardware registers
+    pub background_palette_data: Wrapping<u8>,
+    pub background_palette_spec: Wrapping<u8>,
     pub lcd_control: Wrapping<u8>,
-    lcd_y_coord: Wrapping<u8>,
-    pub lcd_y_compare: Wrapping<u8>,
     pub lcd_status: Wrapping<u8>,
+    pub lcd_y_compare: Wrapping<u8>,
+    /// LCD Y-coordinate.  Made private to enforce the use of `read_ly()` which allows forcing LY's
+    /// value when using GB Doctor.
+    lcd_y_coord: Wrapping<u8>,
+    pub object_palette_data: Wrapping<u8>,
+    pub object_palette_spec: Wrapping<u8>,
     pub object_palette_0: Wrapping<u8>,
     pub object_palette_1: Wrapping<u8>,
     pub scx: Wrapping<u8>,
     pub scy: Wrapping<u8>,
+    pub vram_bank: Wrapping<u8>,
     pub window_x7: Wrapping<u8>,
     pub window_y: Wrapping<u8>,
 
-    scanline_dots: u16,
-    state: PPUState,
+    // Hardware banks
+    pub object_attribute_memory: [u8; OAM_SIZE], // TODO: make private?
     vram: [u8; VRAM_SIZE],
     wram_0: [u8; WRAM_SIZE],
     wram_1: [u8; WRAM_SIZE],
-    drawn_pixels_on_current_row: u8,
+
+    // Rendered pixel surfaces
+    pub lcd_pixels: [u8; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
+    pub tile_map0_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+    pub tile_map1_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+    pub tile_palette_pixels: [u8; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
 }
 
 pub fn pixel_code_to_rgba(pixel_code: u8) -> [u8; PIXEL_DATA_SIZE] {
@@ -90,51 +114,72 @@ pub fn pixel_coordinates_in_rgba_slice(x: u8, y: u8) -> usize {
     (y as usize * LCD_HORIZONTAL_PIXEL_COUNT + x as usize) * PIXEL_DATA_SIZE
 }
 
+// Background and Window use one of these based on bit 4 of lcd_control.
+// Sprites always use UnsignedFrom0x8000.
+enum TileAddressingMode {
+    UnsignedFrom0x8000,
+    SignedFrom0x9000,
+}
+
 impl PPU {
     pub fn new() -> Self {
         PPU {
+            drawn_pixels_on_current_row: 0,
+            last_stat_line: 0,
+            scanline_dots: 0,
+            state: PPUState::OAMScan,
+
             fetcher: Fetcher::new(),
 
-            object_attribute_memory: [0; OAM_SIZE],
-            lcd_pixels: [0; LCD_HORIZONTAL_PIXEL_COUNT
-                * LCD_VERTICAL_PIXEL_COUNT
-                * PIXEL_DATA_SIZE],
-            tile_palette_pixels: [0; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-            tile_map0_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-            tile_map1_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-
+            background_palette_spec: Wrapping(0),
+            background_palette_data: Wrapping(0),
             lcd_control: Wrapping(0),
-            lcd_y_coord: Wrapping(0),
-            lcd_y_compare: Wrapping(0),
             lcd_status: Wrapping(0),
+            lcd_y_compare: Wrapping(0),
+            lcd_y_coord: Wrapping(0),
+            object_palette_data: Wrapping(0),
             object_palette_0: Wrapping(0),
             object_palette_1: Wrapping(0),
+            object_palette_spec: Wrapping(0),
             scx: Wrapping(0),
             scy: Wrapping(0),
+            vram_bank: Wrapping(0),
             window_x7: Wrapping(0),
             window_y: Wrapping(0),
 
-            scanline_dots: 0,
-            state: PPUState::OAMScan,
+            object_attribute_memory: [0; OAM_SIZE],
             vram: [0; VRAM_SIZE],
             wram_0: [0; WRAM_SIZE],
             wram_1: [0; WRAM_SIZE],
-            drawn_pixels_on_current_row: 0,
+
+            lcd_pixels: [0; LCD_HORIZONTAL_PIXEL_COUNT
+                * LCD_VERTICAL_PIXEL_COUNT
+                * PIXEL_DATA_SIZE],
+            tile_map0_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+            tile_map1_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+            tile_palette_pixels: [0; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+        }
+    }
+
+    pub fn get_addressing_mode(&self) -> TileAddressingMode {
+        if utils::is_bit_set(&self.lcd_control, 4) {
+            TileAddressingMode::SignedFrom0x9000
+        } else {
+            TileAddressingMode::UnsignedFrom0x8000
         }
     }
 
     pub fn is_lcd_ppu_on(&self) -> bool {
-        let mask = 1 << 7;
-        self.lcd_control.0 & mask == mask
+        utils::is_bit_set(&self.lcd_control, 7)
     }
 
     pub fn increment_ly(machine: &mut Machine) {
         machine.ppu.lcd_y_coord = machine.ppu.lcd_y_coord + Wrapping(1);
         if machine.ppu.lcd_y_coord == machine.ppu.lcd_y_compare {
-            machine.ppu.lcd_status |= 1 << 2;
+            utils::set_bit_mut(&mut machine.ppu.lcd_status, LYC_EQUALS_LY_BIT);
             machine.cpu.interrupts.request_interrupt(STAT_INTERRUPT_BIT);
         } else {
-            machine.ppu.lcd_status &= !(1 << 2);
+            utils::unset_bit_mut(&mut machine.ppu.lcd_status, LYC_EQUALS_LY_BIT);
         }
     }
 
@@ -254,6 +299,13 @@ impl PPU {
         if !machine.ppu.is_lcd_ppu_on() {
             return machine;
         }
+
+        // STAT interrupt check
+        let stat_line = (machine.ppu.lcd_status.0 >> 3) & 0xF;
+        if machine.ppu.last_stat_line == 0 && stat_line != 0 {
+            machine.cpu.interrupts.request_interrupt(STAT_INTERRUPT_BIT);
+        }
+        machine.ppu.last_stat_line = stat_line;
 
         machine.ppu.scanline_dots += 1;
 

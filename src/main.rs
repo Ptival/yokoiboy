@@ -9,6 +9,7 @@ pub mod memory;
 pub mod message;
 pub mod ppu;
 pub mod registers;
+pub mod utils;
 pub mod view;
 
 use application_state::ApplicationState;
