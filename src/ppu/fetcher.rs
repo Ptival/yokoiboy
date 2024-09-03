@@ -50,8 +50,8 @@ impl Fetcher {
             Wrapping(0x8000) + (Wrapping(machine.ppu.fetcher.tile_id.0 as u16) * Wrapping(16));
         let address = offset + (Wrapping(machine.ppu.fetcher.tile_line.0 as u16) * Wrapping(2));
         let pixel_data = machine.read_u8(address + Wrapping(bit_plane as u16)).0;
-        // We just read one byte.  Each bit is half of a pixel value, we coalesce them here
-        // Note: This assumes that `tile_row_data` is cleared at each loop.
+        // We just finished reading one byte.  Each bit is half of a pixel value, we coalesce them
+        // here Note: This assumes that `tile_row_data` is cleared at each loop.
         for bit_position in 0..8 {
             machine.ppu.fetcher.tile_row_data[bit_position] |=
                 ((pixel_data >> bit_position) & 1) << (bit_plane as u8);
