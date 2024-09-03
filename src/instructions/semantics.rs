@@ -845,6 +845,11 @@ impl Instruction {
                 (8, 2)
             }
 
+            Instruction::STOP => {
+                // TODO
+                (4, 1)
+            }
+
             Instruction::SUB_A_mHL => {
                 let a = machine.cpu.registers.read_a();
                 let b = machine.read_u8(machine.cpu.registers.hl);

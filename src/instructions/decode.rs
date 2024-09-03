@@ -70,7 +70,7 @@ pub fn decode_instruction_at_address(
         0x0E => Instruction::LD_r8_u8(R8::C, next_u8(&mut bytes_read)),
         0x0F => Instruction::RRCA,
 
-        0x10 => todo!(),
+        0x10 => Instruction::STOP,
         0x11 => Instruction::LD_r16_d16(R16::DE, next_imm16(&mut bytes_read)),
         0x12 => Instruction::LD_mr16_r8(R16::DE, R8::A),
         0x13 => Instruction::INC_r16(R16::DE),
