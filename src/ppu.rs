@@ -59,6 +59,8 @@ pub struct PPU {
     pub lcd_status: Wrapping<u8>,
     pub object_palette_0: Wrapping<u8>,
     pub object_palette_1: Wrapping<u8>,
+    pub scx: Wrapping<u8>,
+    pub scy: Wrapping<u8>,
     pub window_x7: Wrapping<u8>,
     pub window_y: Wrapping<u8>,
 
@@ -104,6 +106,8 @@ impl PPU {
             lcd_status: Wrapping(0),
             object_palette_0: Wrapping(0),
             object_palette_1: Wrapping(0),
+            scx: Wrapping(0),
+            scy: Wrapping(0),
             window_x7: Wrapping(0),
             window_y: Wrapping(0),
 
@@ -166,7 +170,47 @@ impl PPU {
             &self.tile_palette_pixels,
             &mut self.tile_map0_pixels,
             0x1800,
-        )
+        );
+        let scx = self.scx.0 as usize;
+        let scy = self.scy.0 as usize;
+        let bottom = (scy + 143) % 256;
+        let right = (scx + 159) % 256;
+
+        // Draw red horizontal lines above/below the viewport
+        let mut x = scx;
+        while x != right {
+            // write pixel of top border
+            let top_pixel_index = scy * TILE_MAP_HORIZONTAL_PIXELS + x;
+            self.tile_map0_pixels[top_pixel_index * 4..(top_pixel_index + 1) * 4]
+                .copy_from_slice(&[255, 0, 0, 255]);
+            // write pixel of bottom border
+            let bottom_pixel_index = bottom * TILE_MAP_HORIZONTAL_PIXELS + x;
+            self.tile_map0_pixels[bottom_pixel_index * 4..(bottom_pixel_index + 1) * 4]
+                .copy_from_slice(&[255, 0, 0, 255]);
+            // increment and wrap around if necessary
+            x += 1;
+            if x == TILE_MAP_HORIZONTAL_PIXELS {
+                x = 0;
+            }
+        }
+
+        // Draw red horizontal lines left/right of the viewport
+        let mut y = scy;
+        while y != bottom {
+            // write pixel of left border
+            let left_pixel_index = y * TILE_MAP_HORIZONTAL_PIXELS + scx;
+            self.tile_map0_pixels[left_pixel_index * 4..(left_pixel_index + 1) * 4]
+                .copy_from_slice(&[255, 0, 0, 255]);
+            // write pixel of right border
+            let right_pixel_index = y * TILE_MAP_HORIZONTAL_PIXELS + right;
+            self.tile_map0_pixels[right_pixel_index * 4..(right_pixel_index + 1) * 4]
+                .copy_from_slice(&[255, 0, 0, 255]);
+            // increment and wrap around if necessary
+            y += 1;
+            if y == TILE_MAP_VERTICAL_PIXELS {
+                y = 0;
+            }
+        }
     }
 
     // NOTE: Assumes the tile palette has been rendered first
@@ -208,7 +252,7 @@ impl PPU {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
                 if machine.ppu.scanline_dots == 80 {
-                    let lcd_y_coord = machine.scy + PPU::read_ly(machine);
+                    let lcd_y_coord = PPU::read_ly(machine) + machine.ppu.scy;
                     machine.ppu.fetcher.tile_line = lcd_y_coord % Wrapping(8);
                     machine.ppu.fetcher.row_address =
                         Wrapping(0x9800) + Wrapping((lcd_y_coord.0 as u16 / 8) * 32);

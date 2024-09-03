@@ -28,8 +28,6 @@ pub struct Machine {
     pub register_ff75: Wrapping<u8>,
     pub sb: Wrapping<u8>,
     pub sc: Wrapping<u8>,
-    pub scx: Wrapping<u8>,
-    pub scy: Wrapping<u8>,
     pub wram_bank: Wrapping<u8>,
 }
 
@@ -59,8 +57,6 @@ impl Machine {
 
             sb: Wrapping(0),
             sc: Wrapping(0),
-            scx: Wrapping(0),
-            scy: Wrapping(0),
             wram_bank: Wrapping(0),
         }
     }
@@ -102,8 +98,8 @@ impl Machine {
 
             0xFF40..=0xFF40 => self.ppu.read_lcdc(),
             0xFF41..=0xFF41 => self.ppu.lcd_status,
-            0xFF42..=0xFF42 => self.scy,
-            0xFF43..=0xFF43 => self.scx,
+            0xFF42..=0xFF42 => self.ppu.scy,
+            0xFF43..=0xFF43 => self.ppu.scx,
             0xFF44..=0xFF44 => PPU::read_ly(self),
             0xFF45..=0xFF45 => self.ppu.lcd_y_compare,
             0xFF46..=0xFF46 => {
@@ -202,8 +198,8 @@ impl Machine {
 
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
             0xFF41..=0xFF41 => self.ppu.lcd_status = value,
-            0xFF42..=0xFF42 => self.scy = value,
-            0xFF43..=0xFF43 => self.scx = value,
+            0xFF42..=0xFF42 => self.ppu.scy = value,
+            0xFF43..=0xFF43 => self.ppu.scx = value,
             0xFF44..=0xFF44 => {
                 panic!("Something attempted to write to LY")
             }
