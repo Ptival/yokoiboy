@@ -93,7 +93,7 @@ pub struct PPU {
 
     // Hardware banks
     pub object_attribute_memory: [u8; OAM_SIZE], // TODO: make private?
-    vram: [u8; VRAM_SIZE],
+    pub vram: [u8; VRAM_SIZE],
     wram_0: [u8; WRAM_SIZE],
     wram_1: [u8; WRAM_SIZE],
 
@@ -319,7 +319,7 @@ impl PPU {
                 // TODO: actually scan memory
                 if machine.ppu().scanline_dots == 80 {
                     let lcd_y_coord = PPU::read_ly(machine) + machine.ppu().scy;
-                    machine.ppu_mut().fetcher.tile_line = lcd_y_coord % Wrapping(8);
+                    machine.ppu_mut().fetcher.tile_row = lcd_y_coord % Wrapping(8);
                     let row_base_address = if utils::is_bit_set(
                         &machine.ppu().lcd_control,
                         BACKGROUND_TILE_MAP_AREA_BIT,

@@ -26,7 +26,7 @@ pub struct Fetcher {
     pub fifo: VecDeque<FIFOItem>,
     state: FetcherState,
     pub row_address: u16,
-    pub tile_line: Wrapping<u8>,
+    pub tile_row: Wrapping<u8>,
     tile_id: Wrapping<u8>,
     pub tile_index: Wrapping<u8>,
     tile_row_data: [u8; 8],
@@ -39,13 +39,20 @@ pub enum TileAddressingMode {
     SignedFrom0x9000,
 }
 
+fn tile_index_in_palette(tile_id: u8, addressing_mode: TileAddressingMode) -> u16 {
+    match addressing_mode {
+        TileAddressingMode::UnsignedFrom0x8000 => tile_id as u16,
+        TileAddressingMode::SignedFrom0x9000 => (256 + (tile_id as i8) as i16) as u16,
+    }
+}
+
 impl Fetcher {
     pub fn new() -> Self {
         Fetcher {
             fifo: VecDeque::new(),
             state: FetcherState::GetTileDelay,
             row_address: 0,
-            tile_line: Wrapping(0),
+            tile_row: Wrapping(0),
             tile_id: Wrapping(0),
             tile_index: Wrapping(0),
             tile_row_data: [0; 8],
@@ -55,19 +62,16 @@ impl Fetcher {
     fn read_tile_row(machine: &mut Machine, bit_plane: bool) {
         // WARNING: when handling sprites, will need to update this to ignore addressing mode for
         // their tiles
-        let offset = match machine.ppu().get_addressing_mode() {
-            TileAddressingMode::UnsignedFrom0x8000 => {
-                0x8000 + (machine.fetcher().tile_id.0 as u16) * 16
-            }
-            TileAddressingMode::SignedFrom0x9000 => {
-                // as i8 interprets the correct bit sign
-                // i32 allows signed arithmetic without accidentally identifying a sign bit
-                // final result interpreted as a u16
-                (0x9000 + ((machine.fetcher().tile_id.0 as i8) as i32) * 16) as u16
-            }
-        };
-        let address = offset + (machine.fetcher().tile_line.0 as u16) * 2;
-        let pixel_data = machine.read_u8(Wrapping(address + bit_plane as u16)).0;
+
+        // NOTE: rather than going through the MMU again, I'm computing the address relative to VRAM
+        // and reading directly from the VRAM slice.
+        let tile_index_in_palette = tile_index_in_palette(
+            machine.fetcher().tile_id.0,
+            machine.ppu().get_addressing_mode(),
+        );
+        let address_in_vram_slice =
+            tile_index_in_palette * 16 + (machine.fetcher().tile_row.0 as u16) * 2;
+        let pixel_data = machine.ppu().vram[address_in_vram_slice as usize + bit_plane as usize];
         // We just finished reading one byte.  Each bit is half of a pixel value, we coalesce them
         // here Note: This assumes that `tile_row_data` is cleared at each loop.
         for bit_position in 0..8 {
