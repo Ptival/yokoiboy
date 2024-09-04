@@ -46,10 +46,10 @@ const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
 
 // LCD status single bits
 const LYC_EQUALS_LY_BIT: u8 = 2;
-const _MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
-const _MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
-const _MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
-const _LYC_EQUALS_LY_INTERRUPT_SELECT_BIT: u8 = 6;
+const MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
+const MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
+const MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
+const LYC_EQUALS_LY_INTERRUPT_SELECT_BIT: u8 = 6;
 
 #[derive(Clone, Debug)]
 pub enum PPUState {
@@ -132,7 +132,7 @@ impl PPU {
             background_palette_spec: Wrapping(0),
             background_palette_data: Wrapping(0),
             lcd_control: Wrapping(0),
-            lcd_status: Wrapping(0),
+            lcd_status: Wrapping(2), // initially set Mode 2
             lcd_y_compare: Wrapping(0),
             lcd_y_coord: Wrapping(0),
             object_palette_data: Wrapping(0),
@@ -175,9 +175,12 @@ impl PPU {
         machine.ppu_mut().lcd_y_coord = machine.ppu().lcd_y_coord + Wrapping(1);
         if machine.ppu().lcd_y_coord == machine.ppu().lcd_y_compare {
             utils::set_bit_mut(&mut machine.ppu_mut().lcd_status, LYC_EQUALS_LY_BIT);
-            machine
-                .interrupts_mut()
-                .request_interrupt(STAT_INTERRUPT_BIT);
+            if utils::is_bit_set(
+                &machine.ppu().lcd_status,
+                LYC_EQUALS_LY_INTERRUPT_SELECT_BIT,
+            ) {
+                machine.request_interrupt(STAT_INTERRUPT_BIT);
+            }
         } else {
             utils::unset_bit_mut(&mut machine.ppu_mut().lcd_status, LYC_EQUALS_LY_BIT);
         }
@@ -306,9 +309,7 @@ impl PPU {
         // STAT interrupt check
         let stat_line = (machine.ppu().lcd_status.0 >> 3) & 0xF;
         if machine.ppu().last_stat_line == 0 && stat_line != 0 {
-            machine
-                .interrupts_mut()
-                .request_interrupt(STAT_INTERRUPT_BIT);
+            machine.interrupts_mut().request(STAT_INTERRUPT_BIT);
         }
         machine.ppu_mut().last_stat_line = stat_line;
 
@@ -332,7 +333,8 @@ impl PPU {
                         row_base_address + ((lcd_y_coord.0 as u16 / 8) * 32);
                     machine.ppu_mut().fetcher.tile_index = Wrapping(0);
                     machine.ppu_mut().fetcher.fifo.clear();
-                    machine.ppu_mut().state = PPUState::DrawingPixels
+
+                    Self::switch_to_drawing_pixels(machine)
                 }
             }
 
@@ -349,8 +351,7 @@ impl PPU {
                     machine.ppu_mut().drawn_pixels_on_current_row += 1;
 
                     if machine.ppu().drawn_pixels_on_current_row == 160 {
-                        machine.ppu_mut().drawn_pixels_on_current_row = 0;
-                        machine.ppu_mut().state = PPUState::HorizontalBlank
+                        Self::switch_to_horizontal_blank(machine)
                     }
                 }
             }
@@ -360,14 +361,9 @@ impl PPU {
                     machine.ppu_mut().scanline_dots = 0;
                     PPU::increment_ly(machine);
                     if PPU::read_ly(machine).0 == 144 {
-                        // println!("Requesting VBLANK interrupt");
-                        // println!("IME: {}", machine.cpu.interrupts.interrupt_master_enable);
-                        // println!("IE: {:08b}", machine.cpu.interrupts.interrupt_enable);
-                        // println!("IF: {:08b}", machine.cpu.interrupts.interrupt_flag);
-                        machine.request_interrupt(VBLANK_INTERRUPT_BIT);
-                        machine.ppu_mut().state = PPUState::VerticalBlank
+                        Self::switch_to_vertical_blank(machine)
                     } else {
-                        machine.ppu_mut().state = PPUState::OAMScan
+                        Self::switch_to_oam_scan(machine)
                     }
                 }
             }
@@ -378,7 +374,7 @@ impl PPU {
                     PPU::increment_ly(machine);
                     if PPU::read_ly(machine).0 == 153 {
                         machine.ppu_mut().reset_ly();
-                        machine.ppu_mut().state = PPUState::OAMScan;
+                        Self::switch_to_oam_scan(machine)
                     }
                 }
             }
@@ -417,6 +413,37 @@ impl PPU {
 
     pub fn write_lcdc(&mut self, value: Wrapping<u8>) {
         self.lcd_control = value;
+    }
+
+    fn switch_to_oam_scan(machine: &mut Machine) {
+        machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 2);
+        if utils::is_bit_set(&machine.ppu().lcd_status, MODE_2_INTERRUPT_SELECT_BIT) {
+            machine.request_interrupt(STAT_INTERRUPT_BIT);
+        }
+        machine.ppu_mut().state = PPUState::OAMScan;
+    }
+
+    fn switch_to_drawing_pixels(machine: &mut Machine) {
+        machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 3);
+        machine.ppu_mut().state = PPUState::DrawingPixels;
+    }
+
+    fn switch_to_horizontal_blank(machine: &mut Machine) {
+        machine.ppu_mut().drawn_pixels_on_current_row = 0;
+        machine.ppu_mut().lcd_status = Wrapping(machine.ppu().lcd_status.0 & 0b00);
+        if utils::is_bit_set(&machine.ppu().lcd_status, MODE_0_INTERRUPT_SELECT_BIT) {
+            machine.request_interrupt(STAT_INTERRUPT_BIT);
+        }
+        machine.ppu_mut().state = PPUState::HorizontalBlank;
+    }
+
+    fn switch_to_vertical_blank(machine: &mut Machine) {
+        machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 1);
+        machine.request_interrupt(VBLANK_INTERRUPT_BIT);
+        if utils::is_bit_set(&machine.ppu().lcd_status, MODE_1_INTERRUPT_SELECT_BIT) {
+            machine.request_interrupt(STAT_INTERRUPT_BIT);
+        }
+        machine.ppu_mut().state = PPUState::VerticalBlank
     }
 }
 

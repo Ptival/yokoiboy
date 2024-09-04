@@ -246,7 +246,7 @@ impl Machine {
     }
 
     pub fn request_interrupt(&mut self, interrupt_bit: u8) {
-        self.interrupts_mut().request_interrupt(interrupt_bit);
+        self.interrupts_mut().request(interrupt_bit);
     }
 
     pub fn write_u8(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {

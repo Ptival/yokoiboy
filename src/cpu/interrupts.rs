@@ -88,7 +88,7 @@ impl Interrupts {
         (masked_ie & masked_if) != 0
     }
 
-    pub fn request_interrupt(&mut self, interrupt_bit: u8) {
+    pub fn request(&mut self, interrupt_bit: u8) {
         self.interrupt_flag |= 1 << interrupt_bit;
     }
 }
