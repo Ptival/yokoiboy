@@ -9,6 +9,7 @@ use iced_aw::{grid_row, Grid};
 
 use crate::application_state::ApplicationState;
 use crate::message::Message;
+use crate::ppu::{TILE_PALETTE_HORIZONTAL_PIXELS, TILE_PALETTE_VERTICAL_PIXELS};
 
 impl ApplicationState {
     pub fn view(app: &ApplicationState) -> Grid<Message> {
@@ -45,20 +46,21 @@ impl ApplicationState {
         .width(480)
         .height(432);
 
-        // TODO: Compute and show 3 palettes
+        let wanted_width = (TILE_PALETTE_HORIZONTAL_PIXELS * 2) as u16;
+        let wanted_height = (TILE_PALETTE_VERTICAL_PIXELS * 2) as u16;
         let tile_palette = widget::Container::new(
             widget::Image::new(image::Handle::from_rgba(
-                128,
-                128,
+                TILE_PALETTE_HORIZONTAL_PIXELS as u32,
+                TILE_PALETTE_VERTICAL_PIXELS as u32,
                 image::Bytes::copy_from_slice(&machine.ppu.tile_palette_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
-            .width(256)
-            .height(256),
+            .width(wanted_width)
+            .height(wanted_height),
         )
-        .width(256)
-        .height(256);
+        .width(wanted_width)
+        .height(wanted_height);
 
         let tile_map0 = widget::Container::new(
             widget::Image::new(image::Handle::from_rgba(
