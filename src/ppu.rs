@@ -174,7 +174,7 @@ impl PPU {
     pub fn increment_ly(machine: &mut Machine) {
         machine.ppu_mut().lcd_y_coord = machine.ppu().lcd_y_coord + Wrapping(1);
         if machine.ppu().lcd_y_coord == machine.ppu().lcd_y_compare {
-            utils::set_bit_mut(&mut machine.ppu_mut().lcd_status, LYC_EQUALS_LY_BIT);
+            utils::set_bit(machine.lcd_status_mut(), LYC_EQUALS_LY_BIT);
             if utils::is_bit_set(
                 &machine.ppu().lcd_status,
                 LYC_EQUALS_LY_INTERRUPT_SELECT_BIT,
@@ -182,7 +182,7 @@ impl PPU {
                 machine.request_interrupt(STAT_INTERRUPT_BIT);
             }
         } else {
-            utils::unset_bit_mut(&mut machine.ppu_mut().lcd_status, LYC_EQUALS_LY_BIT);
+            utils::unset_bit(machine.lcd_status_mut(), LYC_EQUALS_LY_BIT);
         }
     }
 
@@ -421,25 +421,35 @@ impl PPU {
 
     fn switch_to_oam_scan(machine: &mut Machine) {
         machine.ppu_mut().drawn_pixels_on_current_row = 0;
-        machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 2);
-        utils::set_bit(&machine.ppu().lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
+        // Disabled because it locks LCD for Dr. Mario:
+        // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 2);
+        utils::unset_bit(machine.lcd_status_mut(), MODE_0_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(machine.lcd_status_mut(), MODE_1_INTERRUPT_SELECT_BIT);
+        utils::set_bit(machine.lcd_status_mut(), MODE_2_INTERRUPT_SELECT_BIT);
         machine.ppu_mut().state = PPUState::OAMScan;
     }
 
     fn switch_to_drawing_pixels(machine: &mut Machine) {
-        machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 3);
+        // Disabled because it locks LCD for Dr. Mario:
+        // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 3);
         machine.ppu_mut().state = PPUState::DrawingPixels;
     }
 
     fn switch_to_horizontal_blank(machine: &mut Machine) {
-        machine.ppu_mut().lcd_status = Wrapping(machine.ppu().lcd_status.0 & 0b00);
-        utils::set_bit(&machine.ppu().lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
+        // Disabled because it locks LCD for Dr. Mario:
+        // machine.ppu_mut().lcd_status = Wrapping(machine.ppu().lcd_status.0 & 0xFC);
+        utils::set_bit(machine.lcd_status_mut(), MODE_0_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(machine.lcd_status_mut(), MODE_1_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(machine.lcd_status_mut(), MODE_2_INTERRUPT_SELECT_BIT);
         machine.ppu_mut().state = PPUState::HorizontalBlank;
     }
 
     fn switch_to_vertical_blank(machine: &mut Machine) {
-        machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 1);
-        utils::set_bit(&machine.ppu().lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
+        // Disabled because it locks LCD for Dr. Mario:
+        // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 1);
+        utils::unset_bit(machine.lcd_status_mut(), MODE_0_INTERRUPT_SELECT_BIT);
+        utils::set_bit(machine.lcd_status_mut(), MODE_1_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(machine.lcd_status_mut(), MODE_2_INTERRUPT_SELECT_BIT);
         machine.request_interrupt(VBLANK_INTERRUPT_BIT);
         machine.ppu_mut().state = PPUState::VerticalBlank
     }
@@ -481,5 +491,14 @@ fn render_tile_map(
                     );
             }
         }
+    }
+}
+
+impl Machine {
+    pub fn lcd_status(&self) -> &Wrapping<u8> {
+        &self.ppu().lcd_status
+    }
+    pub fn lcd_status_mut(&mut self) -> &mut Wrapping<u8> {
+        &mut self.ppu_mut().lcd_status
     }
 }
