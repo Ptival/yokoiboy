@@ -306,13 +306,6 @@ impl PPU {
             return machine;
         }
 
-        // STAT interrupt check
-        let stat_line = (machine.ppu().lcd_status.0 >> 3) & 0xF;
-        if machine.ppu().last_stat_line == 0 && stat_line != 0 {
-            machine.interrupts_mut().request(STAT_INTERRUPT_BIT);
-        }
-        machine.ppu_mut().last_stat_line = stat_line;
-
         machine.ppu_mut().scanline_dots += 1;
 
         match machine.ppu().state {
@@ -380,6 +373,13 @@ impl PPU {
             }
         }
 
+        // STAT interrupt check
+        let stat_line = (machine.ppu().lcd_status.0 >> 3) & 0xF;
+        if machine.ppu().last_stat_line == 0 && stat_line != 0 {
+            machine.interrupts_mut().request(STAT_INTERRUPT_BIT);
+        }
+        machine.ppu_mut().last_stat_line = stat_line;
+
         machine
     }
 
@@ -417,9 +417,7 @@ impl PPU {
 
     fn switch_to_oam_scan(machine: &mut Machine) {
         machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 2);
-        if utils::is_bit_set(&machine.ppu().lcd_status, MODE_2_INTERRUPT_SELECT_BIT) {
-            machine.request_interrupt(STAT_INTERRUPT_BIT);
-        }
+        utils::set_bit(&machine.ppu().lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
         machine.ppu_mut().state = PPUState::OAMScan;
     }
 
@@ -431,18 +429,14 @@ impl PPU {
     fn switch_to_horizontal_blank(machine: &mut Machine) {
         machine.ppu_mut().drawn_pixels_on_current_row = 0;
         machine.ppu_mut().lcd_status = Wrapping(machine.ppu().lcd_status.0 & 0b00);
-        if utils::is_bit_set(&machine.ppu().lcd_status, MODE_0_INTERRUPT_SELECT_BIT) {
-            machine.request_interrupt(STAT_INTERRUPT_BIT);
-        }
+        utils::set_bit(&machine.ppu().lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
         machine.ppu_mut().state = PPUState::HorizontalBlank;
     }
 
     fn switch_to_vertical_blank(machine: &mut Machine) {
         machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 1);
+        utils::set_bit(&machine.ppu().lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
         machine.request_interrupt(VBLANK_INTERRUPT_BIT);
-        if utils::is_bit_set(&machine.ppu().lcd_status, MODE_1_INTERRUPT_SELECT_BIT) {
-            machine.request_interrupt(STAT_INTERRUPT_BIT);
-        }
         machine.ppu_mut().state = PPUState::VerticalBlank
     }
 }
