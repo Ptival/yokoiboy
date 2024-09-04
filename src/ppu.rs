@@ -309,6 +309,7 @@ impl PPU {
         machine.ppu_mut().scanline_dots += 1;
 
         match machine.ppu().state {
+            // mode 2
             PPUState::OAMScan => {
                 // TODO: actually scan memory
                 if machine.ppu().scanline_dots == 80 {
@@ -322,15 +323,16 @@ impl PPU {
                     } else {
                         0x9800
                     };
-                    machine.ppu_mut().fetcher.row_address =
-                        row_base_address + ((lcd_y_coord.0 as u16 / 8) * 32);
-                    machine.ppu_mut().fetcher.tile_index = Wrapping(0);
-                    machine.ppu_mut().fetcher.fifo.clear();
+
+                    machine
+                        .fetcher_mut()
+                        .reset(row_base_address + ((lcd_y_coord.0 as u16 / 8) * 32));
 
                     Self::switch_to_drawing_pixels(machine)
                 }
             }
 
+            // mode 3
             PPUState::DrawingPixels => {
                 Fetcher::step_one_dot(machine);
                 if machine.ppu().fetcher.fifo.len() != 0 {
@@ -349,6 +351,7 @@ impl PPU {
                 }
             }
 
+            // mode 0
             PPUState::HorizontalBlank => {
                 if machine.ppu().scanline_dots == 456 {
                     machine.ppu_mut().scanline_dots = 0;
@@ -361,6 +364,7 @@ impl PPU {
                 }
             }
 
+            // mode 1
             PPUState::VerticalBlank => {
                 if machine.ppu().scanline_dots == 456 {
                     machine.ppu_mut().scanline_dots = 0;
@@ -416,6 +420,7 @@ impl PPU {
     }
 
     fn switch_to_oam_scan(machine: &mut Machine) {
+        machine.ppu_mut().drawn_pixels_on_current_row = 0;
         machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0b00) | 2);
         utils::set_bit(&machine.ppu().lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
         machine.ppu_mut().state = PPUState::OAMScan;
@@ -427,7 +432,6 @@ impl PPU {
     }
 
     fn switch_to_horizontal_blank(machine: &mut Machine) {
-        machine.ppu_mut().drawn_pixels_on_current_row = 0;
         machine.ppu_mut().lcd_status = Wrapping(machine.ppu().lcd_status.0 & 0b00);
         utils::set_bit(&machine.ppu().lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
         machine.ppu_mut().state = PPUState::HorizontalBlank;

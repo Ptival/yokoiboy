@@ -18,7 +18,6 @@ enum FetcherState {
 #[derive(Clone, Debug)]
 pub struct FIFOItem {
     pub color: u8,
-    _palette: u8,
 }
 
 #[derive(Clone, Debug)]
@@ -27,8 +26,8 @@ pub struct Fetcher {
     state: FetcherState,
     pub row_address: u16,
     pub tile_row: Wrapping<u8>,
-    tile_id: Wrapping<u8>,
-    pub tile_index: Wrapping<u8>,
+    tile_id: u8,
+    pub tile_index: u8,
     tile_row_data: [u8; 8],
 }
 
@@ -53,10 +52,17 @@ impl Fetcher {
             state: FetcherState::GetTileDelay,
             row_address: 0,
             tile_row: Wrapping(0),
-            tile_id: Wrapping(0),
-            tile_index: Wrapping(0),
+            tile_id: 0,
+            tile_index: 0,
             tile_row_data: [0; 8],
         }
+    }
+
+    pub fn reset(&mut self, row_address: u16) {
+        self.state = FetcherState::GetTileDelay;
+        self.row_address = row_address;
+        self.tile_index = 0;
+        self.fifo.clear();
     }
 
     fn read_tile_row(machine: &mut Machine, bit_plane: bool) {
@@ -66,7 +72,7 @@ impl Fetcher {
         // NOTE: rather than going through the MMU again, I'm computing the address relative to VRAM
         // and reading directly from the VRAM slice.
         let tile_index_in_palette = tile_index_in_palette(
-            machine.fetcher().tile_id.0,
+            machine.fetcher().tile_id,
             machine.ppu().get_addressing_mode(),
         );
         let address_in_vram_slice =
@@ -85,9 +91,11 @@ impl Fetcher {
             FetcherState::GetTileDelay => machine.fetcher_mut().state = FetcherState::GetTile,
 
             FetcherState::GetTile => {
-                machine.fetcher_mut().tile_id = machine.read_u8(Wrapping(
-                    machine.fetcher().row_address + (machine.fetcher().tile_index.0 as u16),
-                ));
+                machine.fetcher_mut().tile_id = machine
+                    .read_u8(Wrapping(
+                        machine.fetcher().row_address + (machine.fetcher().tile_index as u16),
+                    ))
+                    .0;
                 machine.fetcher_mut().state = FetcherState::GetTileDataLowDelay
             }
 
@@ -118,10 +126,7 @@ impl Fetcher {
                 if machine.fetcher().fifo.len() == 0 {
                     for i in (0..8).rev() {
                         let color = machine.fetcher().tile_row_data[i];
-                        machine
-                            .fetcher_mut()
-                            .fifo
-                            .push_back(FIFOItem { color, _palette: 0 });
+                        machine.fetcher_mut().fifo.push_back(FIFOItem { color });
                     }
                     machine.fetcher_mut().tile_index += 1;
                     // clean up so that GetTileData can assume 0
