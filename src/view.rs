@@ -46,8 +46,9 @@ impl ApplicationState {
         .width(480)
         .height(432);
 
-        let wanted_width = (TILE_PALETTE_HORIZONTAL_PIXELS * 2) as u16;
-        let wanted_height = (TILE_PALETTE_VERTICAL_PIXELS * 2) as u16;
+        let tile_palette_zoom_factor = 2;
+        let wanted_width = (TILE_PALETTE_HORIZONTAL_PIXELS * tile_palette_zoom_factor) as u16;
+        let wanted_height = (TILE_PALETTE_VERTICAL_PIXELS * tile_palette_zoom_factor) as u16;
         let tile_palette = widget::Container::new(
             widget::Image::new(image::Handle::from_rgba(
                 TILE_PALETTE_HORIZONTAL_PIXELS as u32,

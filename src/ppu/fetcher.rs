@@ -52,7 +52,7 @@ impl Fetcher {
         }
     }
 
-    fn read_tile_line(machine: &mut Machine, bit_plane: bool) {
+    fn read_tile_row(machine: &mut Machine, bit_plane: bool) {
         // WARNING: when handling sprites, will need to update this to ignore addressing mode for
         // their tiles
         let offset = match machine.ppu().get_addressing_mode() {
@@ -92,7 +92,7 @@ impl Fetcher {
             }
 
             FetcherState::GetTileDataLow => {
-                Self::read_tile_line(machine, false);
+                Self::read_tile_row(machine, false);
                 machine.fetcher_mut().state = FetcherState::GetTileDataHighDelay
             }
 
@@ -101,7 +101,7 @@ impl Fetcher {
             }
 
             FetcherState::GetTileDataHigh => {
-                Self::read_tile_line(machine, true);
+                Self::read_tile_row(machine, true);
                 machine.fetcher_mut().state = FetcherState::Sleep1
             }
 

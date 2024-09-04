@@ -12,6 +12,9 @@ use crate::{
 
 const BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
 
+const TILE_MAP0_VRAM_OFFSET: usize = 0x1800;
+const TILE_MAP1_VRAM_OFFSET: usize = 0x1C00;
+
 const OAM_SIZE: usize = 0xA0;
 const VRAM_SIZE: usize = 0x2000;
 const WRAM_SIZE: usize = 0x1000;
@@ -220,7 +223,7 @@ impl PPU {
             &self.vram,
             &self.tile_palette_pixels,
             &mut self.tile_map0_pixels,
-            0x1800,
+            TILE_MAP0_VRAM_OFFSET,
         );
         let scx = self.scx.0 as usize;
         let scy = self.scy.0 as usize;
@@ -273,7 +276,7 @@ impl PPU {
             &self.vram,
             &self.tile_palette_pixels,
             &mut self.tile_map1_pixels,
-            0x1C00,
+            TILE_MAP1_VRAM_OFFSET,
         )
     }
 
