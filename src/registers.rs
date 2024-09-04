@@ -1,6 +1,8 @@
 use core::fmt;
 use std::num::Wrapping;
 
+use crate::machine::Machine;
+
 #[derive(Clone, Debug, Hash)]
 pub enum R8 {
     A,
@@ -238,6 +240,19 @@ impl Registers {
         let new_f =
             clean_f | ((z as u8) << 7) | ((n as u8) << 6) | ((h as u8) << 5) | ((c as u8) << 4);
         self.write_f(Wrapping(new_f));
+        self
+    }
+}
+
+impl Machine {
+    // Used very frequently
+    pub fn read_r8(&self, r8: &R8) -> Wrapping<u8> {
+        self.registers().read_r8(r8)
+    }
+
+    // Used very frequently
+    pub fn write_r8(&mut self, r8: &R8, value: Wrapping<u8>) -> &mut Self {
+        self.registers_mut().write_r8(r8, value);
         self
     }
 }

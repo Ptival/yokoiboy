@@ -67,7 +67,7 @@ pub struct PPU {
     state: PPUState,
 
     // Subsystems
-    pub fetcher: Fetcher,
+    fetcher: Fetcher,
 
     // Hardware registers
     pub background_palette_data: Wrapping<u8>,
@@ -169,12 +169,14 @@ impl PPU {
     }
 
     pub fn increment_ly(machine: &mut Machine) {
-        machine.ppu.lcd_y_coord = machine.ppu.lcd_y_coord + Wrapping(1);
-        if machine.ppu.lcd_y_coord == machine.ppu.lcd_y_compare {
-            utils::set_bit_mut(&mut machine.ppu.lcd_status, LYC_EQUALS_LY_BIT);
-            machine.cpu.interrupts.request_interrupt(STAT_INTERRUPT_BIT);
+        machine.ppu_mut().lcd_y_coord = machine.ppu().lcd_y_coord + Wrapping(1);
+        if machine.ppu().lcd_y_coord == machine.ppu().lcd_y_compare {
+            utils::set_bit_mut(&mut machine.ppu_mut().lcd_status, LYC_EQUALS_LY_BIT);
+            machine
+                .interrupts_mut()
+                .request_interrupt(STAT_INTERRUPT_BIT);
         } else {
-            utils::unset_bit_mut(&mut machine.ppu.lcd_status, LYC_EQUALS_LY_BIT);
+            utils::unset_bit_mut(&mut machine.ppu_mut().lcd_status, LYC_EQUALS_LY_BIT);
         }
     }
 
@@ -182,7 +184,7 @@ impl PPU {
         if machine.fix_ly_for_gb_doctor {
             Wrapping(144)
         } else {
-            machine.ppu.lcd_y_coord
+            machine.ppu().lcd_y_coord
         }
     }
 
@@ -294,63 +296,65 @@ impl PPU {
     }
 
     pub fn step_one_dot(machine: &mut Machine) -> &mut Machine {
-        if !machine.ppu.is_lcd_ppu_on() {
+        if !machine.ppu().is_lcd_ppu_on() {
             return machine;
         }
 
         // STAT interrupt check
-        let stat_line = (machine.ppu.lcd_status.0 >> 3) & 0xF;
-        if machine.ppu.last_stat_line == 0 && stat_line != 0 {
-            machine.cpu.interrupts.request_interrupt(STAT_INTERRUPT_BIT);
+        let stat_line = (machine.ppu().lcd_status.0 >> 3) & 0xF;
+        if machine.ppu().last_stat_line == 0 && stat_line != 0 {
+            machine
+                .interrupts_mut()
+                .request_interrupt(STAT_INTERRUPT_BIT);
         }
-        machine.ppu.last_stat_line = stat_line;
+        machine.ppu_mut().last_stat_line = stat_line;
 
-        machine.ppu.scanline_dots += 1;
+        machine.ppu_mut().scanline_dots += 1;
 
-        match machine.ppu.state {
+        match machine.ppu().state {
             PPUState::OAMScan => {
                 // TODO: actually scan memory
-                if machine.ppu.scanline_dots == 80 {
-                    let lcd_y_coord = PPU::read_ly(machine) + machine.ppu.scy;
-                    machine.ppu.fetcher.tile_line = lcd_y_coord % Wrapping(8);
+                if machine.ppu().scanline_dots == 80 {
+                    let lcd_y_coord = PPU::read_ly(machine) + machine.ppu().scy;
+                    machine.ppu_mut().fetcher.tile_line = lcd_y_coord % Wrapping(8);
                     let row_base_address = if utils::is_bit_set(
-                        &machine.ppu.lcd_control,
+                        &machine.ppu().lcd_control,
                         BACKGROUND_TILE_MAP_AREA_BIT,
                     ) {
                         0x9C00
                     } else {
                         0x9800
                     };
-                    machine.ppu.fetcher.row_address =
+                    machine.ppu_mut().fetcher.row_address =
                         row_base_address + ((lcd_y_coord.0 as u16 / 8) * 32);
-                    machine.ppu.fetcher.tile_index = Wrapping(0);
-                    machine.ppu.fetcher.fifo.clear();
-                    machine.ppu.state = PPUState::DrawingPixels
+                    machine.ppu_mut().fetcher.tile_index = Wrapping(0);
+                    machine.ppu_mut().fetcher.fifo.clear();
+                    machine.ppu_mut().state = PPUState::DrawingPixels
                 }
             }
 
             PPUState::DrawingPixels => {
                 Fetcher::step_one_dot(machine);
-                if machine.ppu.fetcher.fifo.len() != 0 {
-                    let pixel = machine.ppu.fetcher.fifo.pop_front().unwrap();
-                    let pixel_x = machine.ppu.drawn_pixels_on_current_row;
-                    let pixel_y = machine.ppu.lcd_y_coord.0;
+                if machine.ppu().fetcher.fifo.len() != 0 {
+                    let pixel = machine.ppu_mut().fetcher.fifo.pop_front().unwrap();
+                    let pixel_x = machine.ppu().drawn_pixels_on_current_row;
+                    let pixel_y = machine.ppu().lcd_y_coord.0;
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
                     let rgba = pixel_code_to_rgba(pixel.color);
-                    machine.ppu.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
-                    machine.ppu.drawn_pixels_on_current_row += 1;
+                    machine.ppu_mut().lcd_pixels[from..from + 4].copy_from_slice(&rgba);
+                    machine.ppu_mut().drawn_pixels_on_current_row += 1;
 
-                    if machine.ppu.drawn_pixels_on_current_row == 160 {
-                        machine.ppu.drawn_pixels_on_current_row = 0;
-                        machine.ppu.state = PPUState::HorizontalBlank
+                    if machine.ppu().drawn_pixels_on_current_row == 160 {
+                        machine.ppu_mut().drawn_pixels_on_current_row = 0;
+                        machine.ppu_mut().state = PPUState::HorizontalBlank
                     }
                 }
             }
 
             PPUState::HorizontalBlank => {
-                if machine.ppu.scanline_dots == 456 {
-                    machine.ppu.scanline_dots = 0;
+                if machine.ppu().scanline_dots == 456 {
+                    machine.ppu_mut().scanline_dots = 0;
                     PPU::increment_ly(machine);
                     if PPU::read_ly(machine).0 == 144 {
                         // println!("Requesting VBLANK interrupt");
@@ -358,20 +362,20 @@ impl PPU {
                         // println!("IE: {:08b}", machine.cpu.interrupts.interrupt_enable);
                         // println!("IF: {:08b}", machine.cpu.interrupts.interrupt_flag);
                         machine.request_interrupt(VBLANK_INTERRUPT_BIT);
-                        machine.ppu.state = PPUState::VerticalBlank
+                        machine.ppu_mut().state = PPUState::VerticalBlank
                     } else {
-                        machine.ppu.state = PPUState::OAMScan
+                        machine.ppu_mut().state = PPUState::OAMScan
                     }
                 }
             }
 
             PPUState::VerticalBlank => {
-                if machine.ppu.scanline_dots == 456 {
-                    machine.ppu.scanline_dots = 0;
+                if machine.ppu().scanline_dots == 456 {
+                    machine.ppu_mut().scanline_dots = 0;
                     PPU::increment_ly(machine);
                     if PPU::read_ly(machine).0 == 153 {
-                        machine.ppu.reset_ly();
-                        machine.ppu.state = PPUState::OAMScan;
+                        machine.ppu_mut().reset_ly();
+                        machine.ppu_mut().state = PPUState::OAMScan;
                     }
                 }
             }

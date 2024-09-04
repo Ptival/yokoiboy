@@ -15,7 +15,7 @@ pub fn view(machine: &Machine) -> Grid<Message> {
         widget::text("1"),
         widget::text("0"),
     ]);
-    let lcdc = machine.ppu.read_lcdc().0;
+    let lcdc = machine.ppu().read_lcdc().0;
     lcdc_grid_right = lcdc_grid_right.push(grid_row![
         widget::text(format!("{}", (lcdc & (1 << 7)) >> 7)),
         widget::text(format!("{}", (lcdc & (1 << 6)) >> 6)),

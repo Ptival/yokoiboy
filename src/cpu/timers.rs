@@ -24,7 +24,7 @@ pub struct Timers {
 }
 
 fn get_timer_counter_threshold(machine: &mut Machine) -> u16 {
-    match machine.cpu.timers.timer_control.0 & 0x3 {
+    match machine.timers().timer_control.0 & 0x3 {
         0b00 => 1024,
         0b01 => 16,
         0b10 => 64,
@@ -47,22 +47,21 @@ impl Timers {
     }
 
     fn step_one_dot(machine: &mut Machine) {
-
         // TODO: Reset this on STOP
         // TODO: Freeze this while in STOP mode
-        machine.cpu.timers.divide_register_dots += 1;
-        if machine.cpu.timers.divide_register_dots == 256 {
-            machine.cpu.timers.divide_register_dots = 0;
-            machine.cpu.timers.divide_register += 1;
+        machine.timers_mut().divide_register_dots += 1;
+        if machine.timers().divide_register_dots == 256 {
+            machine.timers_mut().divide_register_dots = 0;
+            machine.timers_mut().divide_register += 1;
         }
 
-        if (machine.cpu.timers.timer_control.0 & 0b100) != 0 {
-            machine.cpu.timers.timer_counter_dots += 1;
-            if machine.cpu.timers.timer_counter_dots == get_timer_counter_threshold(machine) {
-                machine.cpu.timers.timer_counter_dots = 0;
-                machine.cpu.timers.timer_counter += 1;
-                if machine.cpu.timers.timer_counter.0 == 0 {
-                    machine.cpu.timers.timer_counter = machine.cpu.timers.timer_modulo;
+        if (machine.timers().timer_control.0 & 0b100) != 0 {
+            machine.timers_mut().timer_counter_dots += 1;
+            if machine.timers().timer_counter_dots == get_timer_counter_threshold(machine) {
+                machine.timers_mut().timer_counter_dots = 0;
+                machine.timers_mut().timer_counter += 1;
+                if machine.timers().timer_counter.0 == 0 {
+                    machine.timers_mut().timer_counter = machine.timers().timer_modulo;
                     machine.request_interrupt(TIMER_INTERRUPT_BIT);
                 }
             }
@@ -73,9 +72,9 @@ impl Timers {
         for _ in 0..dots {
             Self::step_one_dot(machine);
         }
-        if machine.cpu.timers.divide_register_to_be_reset {
-            machine.cpu.timers.divide_register_to_be_reset = false;
-            machine.cpu.timers.divide_register = Wrapping(0);
+        if machine.timers().divide_register_to_be_reset {
+            machine.timers_mut().divide_register_to_be_reset = false;
+            machine.timers_mut().divide_register = Wrapping(0);
         }
     }
 
@@ -103,5 +102,14 @@ impl Timers {
             TIMER_CONTROL_ADDRESS => self.timer_control = value,
             _ => unreachable!(),
         }
+    }
+}
+
+impl Machine {
+    pub fn timers(&self) -> &Timers {
+        &self.cpu().timers
+    }
+    pub fn timers_mut(&mut self) -> &mut Timers {
+        &mut self.cpu_mut().timers
     }
 }

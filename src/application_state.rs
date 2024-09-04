@@ -37,8 +37,7 @@ impl ApplicationState {
         let mut queue = CircularQueue::with_capacity(CPU_SNAPS_CAPACITY);
         let mut machine = Machine::new(args.log_for_doctor);
         machine
-            .cpu
-            .memory
+            .memory_mut()
             .load_boot_rom(&args.boot_rom)
             .unwrap_or_else(|e| panic!("Failed to load boot ROM: {}", e))
             .load_rom(&args.game_rom)
@@ -111,7 +110,7 @@ impl ApplicationState {
 
     fn step(&mut self, preserve: PreserveHistory) {
         if !self.current_machine().is_dmg_boot_rom_on()
-            && !self.current_machine().cpu.low_power_mode
+            && !self.current_machine().cpu().low_power_mode
         {
             let string = CPU::gbdoctor_string(self.current_machine());
             if let Some(output_file) = self.output_file.as_mut() {
@@ -162,7 +161,7 @@ impl ApplicationState {
 
             Message::RunNextInstruction => {
                 self.step(PreserveHistory::PreserveHistory);
-                self.current_machine().ppu.render();
+                self.current_machine().ppu_mut().render();
                 Task::none()
             }
 
@@ -174,18 +173,18 @@ impl ApplicationState {
             }
 
             Message::ContinueRunUntilBreakpoint => {
-                let mut pc = self.current_machine().cpu.registers.pc;
+                let mut pc = self.current_machine().registers().pc;
 
                 // Run some number of steps before updating the display
                 let mut remaining_steps: u32 = 10000;
                 while remaining_steps > 0 && !self.paused && !self.breakpoints.contains(&pc.0) {
                     remaining_steps -= 1;
                     self.step(PreserveHistory::DontPreserveHistory);
-                    pc = self.current_machine().cpu.registers.pc;
+                    pc = self.current_machine().registers().pc;
                 }
 
                 if remaining_steps == 0 {
-                    self.current_machine().ppu.render();
+                    self.current_machine().ppu_mut().render();
                     Task::done(Message::ContinueRunUntilBreakpoint)
                 } else {
                     Task::none()

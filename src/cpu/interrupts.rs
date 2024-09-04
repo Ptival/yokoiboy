@@ -25,11 +25,11 @@ pub struct Interrupts {
 
 // Returns the bit index of the interrupt to handle (0 = VBlank... 4 = Joypad)
 fn should_handle_interrupt(machine: &mut Machine) -> Option<u8> {
-    if !machine.cpu.interrupts.interrupt_master_enable {
+    if !machine.cpu().interrupts.interrupt_master_enable {
         return None;
     }
-    let masked_ie = machine.cpu.interrupts.interrupt_enable.0 & 0x1F;
-    let masked_if = machine.cpu.interrupts.interrupt_flag.0 & 0x1F;
+    let masked_ie = machine.cpu().interrupts.interrupt_enable.0 & 0x1F;
+    let masked_if = machine.cpu().interrupts.interrupt_flag.0 & 0x1F;
     let conjoined = masked_ie & masked_if;
     // 0 has most priority, 4 has least
     for i in 0..5 {
@@ -64,16 +64,16 @@ impl Interrupts {
 
     pub fn handle_interrupts(machine: &mut Machine) -> (u8, u8) {
         if let Some(interrupt) = should_handle_interrupt(machine) {
-            machine.cpu.interrupts.interrupt_flag =
-                machine.cpu.interrupts.interrupt_flag & Wrapping(!(1 << interrupt));
-            machine.cpu.interrupts.interrupt_master_enable = false;
+            machine.cpu_mut().interrupts.interrupt_flag =
+                machine.cpu().interrupts.interrupt_flag & Wrapping(!(1 << interrupt));
+            machine.cpu_mut().interrupts.interrupt_master_enable = false;
             // Here the CPU:
             // - NOPs twice (2 M-cycles)
             // - PUSHes PC (2 M-cycles)
             // - sets PC to the handle (1 M-cycle)
             // Currently simulating this whole thing at once, but might need granularity
-            CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu.registers.pc));
-            machine.cpu.registers.pc = interrupt_handler_offset(interrupt);
+            CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu().registers.pc));
+            machine.cpu_mut().registers.pc = interrupt_handler_offset(interrupt);
             // Execute the first instruction of the interrupt handler to match GB doctor
             let (t_cycles, m_cycles) = CPU::execute_one_instruction(machine);
             (20 + t_cycles, 5 + m_cycles)
@@ -83,12 +83,21 @@ impl Interrupts {
     }
 
     pub fn is_interrupt_pending(machine: &Machine) -> bool {
-        let masked_ie = machine.cpu.interrupts.interrupt_enable.0 & 0x1F;
-        let masked_if = machine.cpu.interrupts.interrupt_flag.0 & 0x1F;
+        let masked_ie = machine.cpu().interrupts.interrupt_enable.0 & 0x1F;
+        let masked_if = machine.cpu().interrupts.interrupt_flag.0 & 0x1F;
         (masked_ie & masked_if) != 0
     }
 
     pub fn request_interrupt(&mut self, interrupt_bit: u8) {
         self.interrupt_flag |= 1 << interrupt_bit;
+    }
+}
+
+impl Machine {
+    pub fn interrupts(&self) -> &Interrupts {
+        &self.cpu().interrupts
+    }
+    pub fn interrupts_mut(&mut self) -> &mut Interrupts {
+        &mut self.cpu_mut().interrupts
     }
 }

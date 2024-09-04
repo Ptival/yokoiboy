@@ -60,8 +60,10 @@ impl Memory {
             println!("[WARNING] ROM larger than 0x8000 bytes, errors may occur.");
         }
         let effective_byte_length = min(BANK_SIZE * 2, byte_length);
-        self.bank_00[0..min(BANK_SIZE, effective_byte_length)].clone_from_slice(&bytes[..BANK_SIZE]);
-        self.bank_01[0..(effective_byte_length - BANK_SIZE)].clone_from_slice(&bytes[BANK_SIZE..BANK_SIZE*2]);
+        self.bank_00[0..min(BANK_SIZE, effective_byte_length)]
+            .clone_from_slice(&bytes[..BANK_SIZE]);
+        self.bank_01[0..(effective_byte_length - BANK_SIZE)]
+            .clone_from_slice(&bytes[BANK_SIZE..BANK_SIZE * 2]);
         Ok(self)
     }
 
@@ -124,13 +126,13 @@ impl Memory {
         }
         match address.0 as usize {
             0x0000..=0x3FFF => {
-                machine.cpu.memory.bank_00[address.0 as usize] = value;
+                machine.memory_mut().bank_00[address.0 as usize] = value;
             }
             0x4000..=0x7FFF => {
-                machine.cpu.memory.bank_01[(address.0 - 0x4000) as usize];
+                machine.memory_mut().bank_01[(address.0 - 0x4000) as usize];
             }
             0xFF80..=0xFFFE => {
-                machine.cpu.memory.hram[(address.0 - 0xFF80) as usize];
+                machine.memory_mut().hram[(address.0 - 0xFF80) as usize];
             }
             _ => {
                 panic!(
@@ -143,14 +145,14 @@ impl Memory {
     }
 
     pub fn write_bank_00(machine: &mut Machine, address: Wrapping<u16>, value: Wrapping<u8>) {
-        machine.cpu.memory.bank_00[address.0 as usize] = value.0;
+        machine.memory_mut().bank_00[address.0 as usize] = value.0;
     }
 
     pub fn write_bank_01(machine: &mut Machine, address: Wrapping<u16>, value: Wrapping<u8>) {
-        machine.cpu.memory.bank_01[address.0 as usize] = value.0;
+        machine.memory_mut().bank_01[address.0 as usize] = value.0;
     }
 
     pub fn write_hram(machine: &mut Machine, address: Wrapping<u16>, value: Wrapping<u8>) {
-        machine.cpu.memory.hram[address.0 as usize] = value.0;
+        machine.memory_mut().hram[address.0 as usize] = value.0;
     }
 }

@@ -36,7 +36,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 160,
                 144,
-                image::Bytes::copy_from_slice(&machine.ppu.lcd_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu().lcd_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -52,7 +52,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 TILE_PALETTE_HORIZONTAL_PIXELS as u32,
                 TILE_PALETTE_VERTICAL_PIXELS as u32,
-                image::Bytes::copy_from_slice(&machine.ppu.tile_palette_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu().tile_palette_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -66,7 +66,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 256,
                 256,
-                image::Bytes::copy_from_slice(&machine.ppu.tile_map0_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu().tile_map0_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -80,7 +80,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 256,
                 256,
-                image::Bytes::copy_from_slice(&machine.ppu.tile_map1_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu().tile_map1_pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -90,7 +90,7 @@ impl ApplicationState {
         .width(512)
         .height(512);
 
-        grid = grid.push(grid_row![debugger, tile_palette, lcd]);
+        grid = grid.push(grid_row![debugger, lcd, tile_palette]);
         grid = grid.push(grid_row![tile_map0, tile_map1]);
         grid.into()
     }

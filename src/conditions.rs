@@ -18,11 +18,12 @@ impl fmt::Display for Condition {
 
 impl Condition {
     pub fn holds(&self, cpu: &CPU) -> bool {
+        let registers = cpu.registers();
         match self {
-            Condition::C => cpu.registers.read_flag(Flag::C),
-            Condition::Z => cpu.registers.read_flag(Flag::Z),
-            Condition::NC => !cpu.registers.read_flag(Flag::C),
-            Condition::NZ => !cpu.registers.read_flag(Flag::Z),
+            Condition::C => registers.read_flag(Flag::C),
+            Condition::Z => registers.read_flag(Flag::Z),
+            Condition::NC => !registers.read_flag(Flag::C),
+            Condition::NZ => !registers.read_flag(Flag::Z),
         }
     }
 }

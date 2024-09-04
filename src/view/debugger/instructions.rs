@@ -11,7 +11,7 @@ pub fn view(app: &ApplicationState) -> Grid<Message> {
     };
 
     for old in app.snaps.asc_iter().take(history_size) {
-        let instr = Memory::decode_instruction_at(old, old.cpu.registers.pc);
+        let instr = Memory::decode_instruction_at(old, old.registers().pc);
         let row = grid_row![
             widget::text(app.display_breakpoint(instr.address)).style(history_style),
             widget::text(""),
@@ -23,8 +23,7 @@ pub fn view(app: &ApplicationState) -> Grid<Message> {
     }
 
     let machine = app.current_machine_immut();
-    let cpu = &machine.cpu;
-    let pc = cpu.registers.pc;
+    let pc = machine.registers().pc;
     let instrs = Memory::decode_instructions_at(machine, pc, 10);
 
     instructions_grid = instructions_grid.push(grid_row![

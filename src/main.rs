@@ -38,7 +38,7 @@ fn main() -> Result<(), iced::Error> {
     iced::application("YokoiBoy", ApplicationState::update, ApplicationState::view)
         .subscription(ApplicationState::subscription)
         .settings(settings)
-        .window_size(Size::new(2000.0, 1200.0))
+        .window_size(Size::new(1600.0, 1100.0))
         .run_with(move || {
             (
                 ApplicationState::new(&args, BREAKPOINTS),

@@ -4,18 +4,25 @@ use crate::{cpu::CPU, inputs::Inputs, memory::Memory, ppu::PPU};
 
 pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
 
+// TODO: separate MMU from Machine?
+
 #[derive(Clone, Debug)]
 pub struct Machine {
+    // Machine state
+    pub external_ram: [u8; EXTERNAL_RAM_SIZE], // TODO: where should this live?
     pub fix_ly_for_gb_doctor: bool,
     pub t_cycle_count: u64,
-    pub inputs: Inputs,
-    pub cpu: CPU,
-    pub ppu: PPU,
-    pub external_ram: [u8; EXTERNAL_RAM_SIZE],
+
+    // Subsystems
+    cpu: CPU,
+    inputs: Inputs,
+    ppu: PPU,
+
     // Special registers
     pub bgp: Wrapping<u8>,
     pub dmg_boot_rom: Wrapping<u8>,
 
+    // TODO: These should go in audio or other modules
     pub nr10: Wrapping<u8>,
     pub nr11: Wrapping<u8>,
     pub nr12: Wrapping<u8>,
@@ -58,6 +65,7 @@ pub struct Machine {
     pub register_ff73: Wrapping<u8>,
     pub register_ff75: Wrapping<u8>,
 
+    // TODO: move these in PPU?
     pub sb: Wrapping<u8>,
     pub sc: Wrapping<u8>,
     pub wram_bank: Wrapping<u8>,
@@ -129,11 +137,11 @@ impl Machine {
 
     pub fn read_u8(&self, address: Wrapping<u16>) -> Wrapping<u8> {
         if self.is_dmg_boot_rom_on() && address.0 <= 0xFF {
-            return self.cpu.memory.read_boot_rom(address);
+            return self.memory().read_boot_rom(address);
         }
         match address.0 {
-            0x0000..=0x3FFF => self.cpu.memory.read_bank_00(address),
-            0x4000..=0x7FFF => self.cpu.memory.read_bank_01(address - Wrapping(0x4000)),
+            0x0000..=0x3FFF => self.memory().read_bank_00(address),
+            0x4000..=0x7FFF => self.memory().read_bank_01(address - Wrapping(0x4000)),
             0x8000..=0x9FFF => self.ppu.read_vram(address - Wrapping(0x8000)),
 
             0xA000..=0xBFFF => Wrapping(self.external_ram[(address - Wrapping(0xA000)).0 as usize]),
@@ -150,7 +158,7 @@ impl Machine {
             0xFF01..=0xFF01 => self.sb,
             0xFF02..=0xFF02 => self.sc,
             0xFF03..=0xFF03 => self.register_ff03,
-            0xFF04..=0xFF07 => self.cpu.timers.read_u8(address),
+            0xFF04..=0xFF07 => self.timers().read_u8(address),
             0xFF08..=0xFF08 => self.register_ff08,
             0xFF09..=0xFF09 => self.register_ff09,
             0xFF0A..=0xFF0A => self.register_ff0a,
@@ -158,7 +166,7 @@ impl Machine {
             0xFF0C..=0xFF0C => self.register_ff0c,
             0xFF0D..=0xFF0D => self.register_ff0d,
             0xFF0E..=0xFF0E => self.register_ff0e,
-            0xFF0F..=0xFF0F => self.cpu.interrupts.interrupt_flag,
+            0xFF0F..=0xFF0F => self.interrupts().interrupt_flag,
 
             0xFF10..=0xFF10 => self.nr10,
             0xFF11..=0xFF11 => self.nr11,
@@ -218,11 +226,12 @@ impl Machine {
             0xFF74..=0xFF74 => Wrapping(0xFF),
             0xFF75..=0xFF75 => self.register_ff75,
 
-            0xFF80..=0xFFFE => self.cpu.memory.read_hram(address - Wrapping(0xFF80)),
-            0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable,
+            0xFF80..=0xFFFE => self.memory().read_hram(address - Wrapping(0xFF80)),
+            0xFFFF..=0xFFFF => self.interrupts().interrupt_enable,
             _ => panic!(
                 "Memory read at address {:04X} needs to be handled (at PC 0x{:04X})",
-                address, self.cpu.registers.pc
+                address,
+                self.registers().pc
             ),
         }
     }
@@ -237,7 +246,7 @@ impl Machine {
     }
 
     pub fn request_interrupt(&mut self, interrupt_bit: u8) {
-        self.cpu.interrupts.request_interrupt(interrupt_bit);
+        self.interrupts_mut().request_interrupt(interrupt_bit);
     }
 
     pub fn write_u8(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
@@ -267,7 +276,7 @@ impl Machine {
             0xFF01..=0xFF01 => self.sb = value,
             0xFF02..=0xFF02 => self.sc = value,
             0xFF03..=0xFF03 => self.register_ff03 = value,
-            0xFF04..=0xFF07 => self.cpu.timers.write_u8(address, value),
+            0xFF04..=0xFF07 => self.timers_mut().write_u8(address, value),
             0xFF08..=0xFF08 => self.register_ff08 = value,
             0xFF09..=0xFF09 => self.register_ff09 = value,
             0xFF0A..=0xFF0A => self.register_ff0a = value,
@@ -275,7 +284,7 @@ impl Machine {
             0xFF0C..=0xFF0C => self.register_ff0c = value,
             0xFF0D..=0xFF0D => self.register_ff0d = value,
             0xFF0E..=0xFF0E => self.register_ff0e = value,
-            0xFF0F..=0xFF0F => self.cpu.interrupts.interrupt_flag = value,
+            0xFF0F..=0xFF0F => self.interrupts_mut().interrupt_flag = value,
 
             // AUDIO
             0xFF10..=0xFF10 => self.nr10 = value,
@@ -341,10 +350,11 @@ impl Machine {
             }
 
             0xFF80..=0xFFFE => Memory::write_hram(self, address - Wrapping(0xFF80), value),
-            0xFFFF..=0xFFFF => self.cpu.interrupts.interrupt_enable = value,
+            0xFFFF..=0xFFFF => self.interrupts_mut().interrupt_enable = value,
             _ => panic!(
                 "Memory write at address {:04X} needs to be handle (at PC 0x{:04X})",
-                address, self.cpu.registers.pc
+                address,
+                self.registers().pc
             ),
         }
     }
@@ -355,5 +365,21 @@ impl Machine {
             "{:04x}: {:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
             from, range[0], range[1], range[2], range[3], range[4], range[5], range[6], range[7]
         )
+    }
+
+    pub fn cpu(&self) -> &CPU {
+        &self.cpu
+    }
+
+    pub fn cpu_mut(&mut self) -> &mut CPU {
+        &mut self.cpu
+    }
+
+    pub fn ppu(&self) -> &PPU {
+        &self.ppu
+    }
+
+    pub fn ppu_mut(&mut self) -> &mut PPU {
+        &mut self.ppu
     }
 }

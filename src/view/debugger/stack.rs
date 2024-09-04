@@ -13,9 +13,9 @@ pub fn view(machine: &Machine) -> Grid<Message> {
     stack_grid = stack_grid.push(grid_row![widget::text("Stack:")]);
 
     // Note: the stack stops at 0xFFFE, as 0xFFFF is used for interrupt enable
-    let stack_top = machine.cpu.registers.sp.0;
+    let stack_top = machine.registers().sp.0;
     let stack_until = min(
-        (Saturating(machine.cpu.registers.sp.0) + Saturating(4)).0,
+        (Saturating(machine.registers().sp.0) + Saturating(4)).0,
         0xFFFE,
     );
 
