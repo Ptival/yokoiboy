@@ -1,16 +1,14 @@
-mod fetcher;
+mod pixel_fetcher;
 
 use std::num::Wrapping;
 
-use fetcher::{Fetcher, TileAddressingMode};
+use pixel_fetcher::{Fetcher, TileAddressingMode};
 
 use crate::{
     cpu::interrupts::{STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
     machine::Machine,
     utils::{self},
 };
-
-const BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
 
 const TILE_MAP0_VRAM_OFFSET: usize = 0x1800;
 const TILE_MAP1_VRAM_OFFSET: usize = 0x1C00;
@@ -44,7 +42,17 @@ const TILE_MAP_PIXELS_TOTAL: usize = TILE_MAP_HORIZONTAL_PIXELS * TILE_MAP_VERTI
 
 const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
 
-// LCD status single bits
+// LCD control single bits of interest
+const _LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT: u8 = 0;
+const _LCDC_OBJECT_ENABLE_BIT: u8 = 1;
+const _LCDC_OBJECT_SIZE_BIT: u8 = 2;
+const LCDC_BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
+const LCDC_BACKGROUND_AND_WINDOW_TILE_AREA_BIT: u8 = 4;
+const _LCDC_WINDOW_ENABLE_BIT: u8 = 5;
+const _LCDC_WINDOW_TILE_MAP_AREA_BIT: u8 = 6;
+const LCDC_LCD_ENABLE_BIT: u8 = 7;
+
+// LCD status single bits of interest
 const LYC_EQUALS_LY_BIT: u8 = 2;
 const MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
 const MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
@@ -160,7 +168,7 @@ impl PPU {
     }
 
     pub fn get_addressing_mode(&self) -> TileAddressingMode {
-        if utils::is_bit_set(&self.lcd_control, 4) {
+        if utils::is_bit_set(&self.lcd_control, LCDC_BACKGROUND_AND_WINDOW_TILE_AREA_BIT) {
             TileAddressingMode::UnsignedFrom0x8000
         } else {
             TileAddressingMode::SignedFrom0x9000
@@ -168,7 +176,7 @@ impl PPU {
     }
 
     pub fn is_lcd_ppu_on(&self) -> bool {
-        utils::is_bit_set(&self.lcd_control, 7)
+        utils::is_bit_set(&self.lcd_control, LCDC_LCD_ENABLE_BIT)
     }
 
     pub fn increment_ly(machine: &mut Machine) {
@@ -317,7 +325,7 @@ impl PPU {
                     machine.ppu_mut().fetcher.tile_row = lcd_y_coord % Wrapping(8);
                     let row_base_address = if utils::is_bit_set(
                         &machine.ppu().lcd_control,
-                        BACKGROUND_TILE_MAP_AREA_BIT,
+                        LCDC_BACKGROUND_TILE_MAP_AREA_BIT,
                     ) {
                         0x9C00
                     } else {

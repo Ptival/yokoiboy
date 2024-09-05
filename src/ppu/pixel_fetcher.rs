@@ -69,8 +69,9 @@ impl Fetcher {
         // WARNING: when handling sprites, will need to update this to ignore addressing mode for
         // their tiles
 
-        // NOTE: rather than going through the MMU again, I'm computing the address relative to VRAM
-        // and reading directly from the VRAM slice.
+        // NOTE: rather than going through the MMU again with an absolute address, I'm computing the
+        // address relative to VRAM and reading directly from the VRAM slice.  Should be slightly
+        // faster as you don't need to perform range checks to realize you're heading into VRAM.
         let tile_index_in_palette = tile_index_in_palette(
             machine.fetcher().tile_id,
             machine.ppu().get_addressing_mode(),
