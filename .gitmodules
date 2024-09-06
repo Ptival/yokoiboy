@@ -10,3 +10,9 @@
 [submodule "gameboy-doctor"]
 	path = gameboy-doctor
 	url = https://github.com/robert/gameboy-doctor
+[submodule "mealybug-tearoom-tests"]
+	path = mealybug-tearoom-tests
+	url = https://github.com/mattcurrie/mealybug-tearoom-tests.git
+[submodule "gbmicrotest"]
+	path = gbmicrotest
+	url = https://github.com/aappleby/gbmicrotest.git
