@@ -323,23 +323,9 @@ impl PPU {
         match machine.ppu().state {
             // mode 2
             PPUState::OAMScan => {
-                // TODO: actually scan memory
                 if machine.ppu().scanline_dots == 80 {
-                    let lcd_y_coord = PPU::read_ly(machine) + machine.ppu().scy;
-                    machine.ppu_mut().fetcher.tile_row = lcd_y_coord % Wrapping(8);
-                    let row_base_address = if utils::is_bit_set(
-                        &machine.ppu().lcd_control,
-                        LCDC_BACKGROUND_TILE_MAP_AREA_BIT,
-                    ) {
-                        0x9C00
-                    } else {
-                        0x9800
-                    };
-
-                    machine
-                        .fetcher_mut()
-                        .reset(row_base_address + ((lcd_y_coord.0 as u16 / 8) * 32));
-
+                    // TODO: actually scan memory
+                    machine.fetcher_mut().reset();
                     Self::switch_to_drawing_pixels(machine)
                 }
             }

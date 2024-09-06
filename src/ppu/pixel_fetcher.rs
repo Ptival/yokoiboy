@@ -1,6 +1,8 @@
 use std::{collections::VecDeque, num::Wrapping};
 
-use crate::machine::Machine;
+use crate::{machine::Machine, utils};
+
+use super::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU};
 
 #[derive(Clone, Debug)]
 enum FetcherState {
@@ -24,10 +26,9 @@ pub struct FIFOItem {
 pub struct Fetcher {
     pub fifo: VecDeque<FIFOItem>,
     state: FetcherState,
-    pub row_address: u16,
-    pub tile_row: Wrapping<u8>,
+    pub row_of_pixel_within_tile: u8,
     tile_id: u8,
-    pub tile_index: u8,
+    pub vram_tile_column: u8,
     tile_row_data: [u8; 8],
 }
 
@@ -50,18 +51,16 @@ impl Fetcher {
         Fetcher {
             fifo: VecDeque::new(),
             state: FetcherState::GetTileDelay,
-            row_address: 0,
-            tile_row: Wrapping(0),
+            row_of_pixel_within_tile: 0,
             tile_id: 0,
-            tile_index: 0,
+            vram_tile_column: 0,
             tile_row_data: [0; 8],
         }
     }
 
-    pub fn reset(&mut self, row_address: u16) {
+    pub fn reset(&mut self) {
         self.state = FetcherState::GetTileDelay;
-        self.row_address = row_address;
-        self.tile_index = 0;
+        self.vram_tile_column = 0;
         self.fifo.clear();
     }
 
@@ -77,7 +76,7 @@ impl Fetcher {
             machine.ppu().get_addressing_mode(),
         );
         let address_in_vram_slice =
-            tile_index_in_palette * 16 + (machine.fetcher().tile_row.0 as u16) * 2;
+            tile_index_in_palette * 16 + (machine.fetcher().row_of_pixel_within_tile as u16) * 2;
         let pixel_data = machine.ppu().vram[address_in_vram_slice as usize + bit_plane as usize];
         // We just finished reading one byte.  Each bit is half of a pixel value, we coalesce them
         // here Note: This assumes that `tile_row_data` is cleared at each loop.
@@ -92,11 +91,27 @@ impl Fetcher {
             FetcherState::GetTileDelay => machine.fetcher_mut().state = FetcherState::GetTile,
 
             FetcherState::GetTile => {
+                let vram_tile_row = (PPU::read_ly(machine) + machine.ppu().scy).0 & 255;
+                machine.ppu_mut().fetcher.row_of_pixel_within_tile = vram_tile_row % 8;
+
+                // FIXME: more complex rules for the row base address
+                let row_base_address = if utils::is_bit_set(
+                    &machine.ppu().lcd_control,
+                    LCDC_BACKGROUND_TILE_MAP_AREA_BIT,
+                ) {
+                    0x9C00
+                } else {
+                    0x9800
+                };
+
+                let row_address = row_base_address + ((vram_tile_row as u16 / 8) * 32);
+
                 machine.fetcher_mut().tile_id = machine
                     .read_u8(Wrapping(
-                        machine.fetcher().row_address + (machine.fetcher().tile_index as u16),
+                        row_address + (machine.fetcher().vram_tile_column as u16),
                     ))
                     .0;
+
                 machine.fetcher_mut().state = FetcherState::GetTileDataLowDelay
             }
 
@@ -129,7 +144,7 @@ impl Fetcher {
                         let color = machine.fetcher().tile_row_data[i];
                         machine.fetcher_mut().fifo.push_back(FIFOItem { color });
                     }
-                    machine.fetcher_mut().tile_index += 1;
+                    machine.fetcher_mut().vram_tile_column += 1;
                     // clean up so that GetTileData can assume 0
                     machine.fetcher_mut().tile_row_data = [0; 8];
                     machine.fetcher_mut().state = FetcherState::GetTileDelay
