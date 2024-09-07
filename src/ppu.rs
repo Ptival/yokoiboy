@@ -1,8 +1,8 @@
 mod pixel_fetcher;
 
-use std::num::Wrapping;
+use std::{collections::VecDeque, num::Wrapping};
 
-use pixel_fetcher::{Fetcher, TileAddressingMode};
+use pixel_fetcher::{object::Sprite, Fetcher, FetchingFor, TileAddressingMode};
 
 use crate::{
     cpu::interrupts::{STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
@@ -319,27 +319,70 @@ impl PPU {
         }
 
         machine.ppu_mut().scanline_dots += 1;
+        if machine.ppu().scanline_dots > 456 {
+            panic!("Frame did not finish rendering in time, investigate.");
+        }
 
         match machine.ppu().state {
             // mode 2
             PPUState::OAMScan => {
-                if machine.ppu().scanline_dots == 80 {
-                    // TODO: actually scan memory
+                let ppu = machine.ppu();
+                if ppu.scanline_dots == 80 {
+                    let ly = PPU::read_ly(machine).0 as u16 as i16;
+                    let mut selected_objects = VecDeque::new();
+                    let object_size = 8; // TODO: this is either 8 or 16 depending on something
+                    for object_offset in (0x00..0x9F).step_by(4) {
+                        if selected_objects.len() == 10 {
+                            break;
+                        }
+                        let y_screen_plus_16 = ppu.object_attribute_memory[object_offset];
+                        let object_min_y_on_screen = (y_screen_plus_16 as u16 as i16) - 16;
+                        let object_max_y_on_screen = object_min_y_on_screen + object_size - 1;
+                        if object_min_y_on_screen <= ly && ly <= object_max_y_on_screen {
+                            selected_objects.push_back(Sprite {
+                                x_screen_plus_8: ppu.object_attribute_memory[object_offset + 1],
+                                y_screen_plus_16,
+                                tile_index: ppu.object_attribute_memory[object_offset + 2],
+                                attributes: ppu.object_attribute_memory[object_offset + 3],
+                            });
+                        }
+                    }
                     machine.fetcher_mut().reset();
+                    machine.obj_fetcher_mut().selected_objects = selected_objects;
                     Self::switch_to_drawing_pixels(machine)
                 }
             }
 
             // mode 3
             PPUState::DrawingPixels => {
-                Fetcher::step_one_dot(machine);
-                if machine.ppu().fetcher.fifo.len() != 0 {
-                    let pixel = machine.ppu_mut().fetcher.fifo.pop_front().unwrap();
+                let bgw_fifo_len = machine.bgw_fetcher().fifo.len();
+                let obj_fifo_len = machine.obj_fetcher().fifo.len();
+
+                let fetcher_state = &machine.fetcher().fetching_for;
+                if obj_fifo_len == 0 && bgw_fifo_len != 0 {
+                    if *fetcher_state == FetchingFor::BackgroundOrWindowFIFO {
+                        machine.fetcher_mut().switch_to_object_fifo();
+                    }
+                } else {
+                    if *fetcher_state == FetchingFor::ObjectFIFO {
+                        machine.fetcher_mut().switch_to_background_or_window_fifo();
+                    }
+                }
+                Fetcher::tick(machine);
+
+                if !machine.bgw_fetcher().fifo.is_empty() && !machine.obj_fetcher().fifo.is_empty()
+                {
+                    let bgw_pixel = machine.bgw_fetcher_mut().fifo.pop_front().unwrap();
+                    let obj_pixel = machine.obj_fetcher_mut().fifo.pop_front().unwrap();
                     let pixel_x = machine.ppu().drawn_pixels_on_current_row;
                     let pixel_y = machine.ppu().lcd_y_coord.0;
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
-                    let rgba = pixel_code_to_rgba(pixel.color);
+                    let rgba = pixel_code_to_rgba(if obj_pixel.color == 0 {
+                        bgw_pixel.color
+                    } else {
+                        obj_pixel.color
+                    });
                     machine.ppu_mut().lcd_pixels[from..from + 4].copy_from_slice(&rgba);
                     machine.ppu_mut().drawn_pixels_on_current_row += 1;
 
@@ -428,6 +471,7 @@ impl PPU {
     }
 
     fn switch_to_drawing_pixels(machine: &mut Machine) {
+        machine.fetcher_mut().switch_to_background_or_window_fifo();
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 3);
         machine.ppu_mut().state = PPUState::DrawingPixels;
