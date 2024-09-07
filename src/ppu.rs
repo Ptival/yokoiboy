@@ -108,6 +108,12 @@ pub struct PPU {
     pub tile_map0_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
     pub tile_map1_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
     pub tile_palette_pixels: [u8; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+
+    // Transient state saved for debug view purposes
+    frame_scxs: [u8; LCD_VERTICAL_PIXEL_COUNT],
+    frame_scxs_valid: [bool; LCD_VERTICAL_PIXEL_COUNT],
+    frame_scys_at_scanline_0: [u8; LCD_HORIZONTAL_PIXEL_COUNT],
+    frame_scys_first_scanline_valid: [bool; LCD_HORIZONTAL_PIXEL_COUNT],
 }
 
 pub fn pixel_code_to_rgba(pixel_code: u8) -> [u8; PIXEL_DATA_SIZE] {
@@ -161,6 +167,11 @@ impl PPU {
             tile_map0_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
             tile_map1_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
             tile_palette_pixels: [0; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+
+            frame_scxs: [0; LCD_VERTICAL_PIXEL_COUNT],
+            frame_scxs_valid: [true; LCD_VERTICAL_PIXEL_COUNT],
+            frame_scys_at_scanline_0: [0; LCD_HORIZONTAL_PIXEL_COUNT],
+            frame_scys_first_scanline_valid: [true; LCD_HORIZONTAL_PIXEL_COUNT],
         }
     }
 
@@ -230,47 +241,40 @@ impl PPU {
             &mut self.tile_map0_pixels,
             TILE_MAP0_VRAM_OFFSET,
         );
-        let scx = self.scx.0 as usize;
-        let scy = self.scy.0 as usize;
-        let bottom = (scy + 143) % 256;
-        let right = (scx + 159) % 256;
 
-        // TODO: Technically we should render the scx on the fly as it may change between scanlines
-        // (that's how you get cool effects)
-
-        // Draw red horizontal lines above/below the viewport
-        let mut x = scx;
-        while x != right {
-            // write pixel of top border
-            let top_pixel_index = scy * TILE_MAP_HORIZONTAL_PIXELS + x;
-            self.tile_map0_pixels[top_pixel_index * 4..(top_pixel_index + 1) * 4]
-                .copy_from_slice(&[255, 0, 0, 255]);
-            // write pixel of bottom border
-            let bottom_pixel_index = bottom * TILE_MAP_HORIZONTAL_PIXELS + x;
-            self.tile_map0_pixels[bottom_pixel_index * 4..(bottom_pixel_index + 1) * 4]
-                .copy_from_slice(&[255, 0, 0, 255]);
-            // increment and wrap around if necessary
-            x += 1;
-            if x == TILE_MAP_HORIZONTAL_PIXELS {
-                x = 0;
+        // Render the top and bottom SCY lines, where they haven't been messed with mid-frame
+        let scx_top = self.frame_scxs[0] as usize;
+        let scx_bot = self.frame_scxs[LCD_VERTICAL_PIXEL_COUNT - 1] as usize;
+        for y in 0..LCD_HORIZONTAL_PIXEL_COUNT {
+            if self.frame_scys_first_scanline_valid[y] {
+                let scy = self.frame_scys_at_scanline_0[y] as usize;
+                let pixel_index =
+                    scy * TILE_MAP_HORIZONTAL_PIXELS + ((y + scx_top) % TILE_MAP_HORIZONTAL_PIXELS);
+                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                    .copy_from_slice(&[255, 0, 0, 255]);
+                let pixel_index = ((scy + LCD_VERTICAL_PIXEL_COUNT) % TILE_MAP_VERTICAL_PIXELS)
+                    * TILE_MAP_HORIZONTAL_PIXELS
+                    + ((y + scx_bot) % TILE_MAP_HORIZONTAL_PIXELS);
+                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                    .copy_from_slice(&[255, 255, 0, 255]);
             }
         }
 
-        // Draw red horizontal lines left/right of the viewport
-        let mut y = scy;
-        while y != bottom {
-            // write pixel of left border
-            let left_pixel_index = y * TILE_MAP_HORIZONTAL_PIXELS + scx;
-            self.tile_map0_pixels[left_pixel_index * 4..(left_pixel_index + 1) * 4]
-                .copy_from_slice(&[255, 0, 0, 255]);
-            // write pixel of right border
-            let right_pixel_index = y * TILE_MAP_HORIZONTAL_PIXELS + right;
-            self.tile_map0_pixels[right_pixel_index * 4..(right_pixel_index + 1) * 4]
-                .copy_from_slice(&[255, 0, 0, 255]);
-            // increment and wrap around if necessary
-            y += 1;
-            if y == TILE_MAP_VERTICAL_PIXELS {
-                y = 0;
+        // Render the left and right SCY lines, where they haven't been messed with mid-frame
+        let scy_left = self.frame_scys_at_scanline_0[0] as usize;
+        let scy_right = self.frame_scys_at_scanline_0[LCD_HORIZONTAL_PIXEL_COUNT - 1] as usize;
+        for x in 0..LCD_VERTICAL_PIXEL_COUNT {
+            if self.frame_scxs_valid[x] {
+                let scx = self.frame_scxs[x] as usize;
+                let pixel_index =
+                    ((x + scy_left) % TILE_MAP_VERTICAL_PIXELS) * TILE_MAP_HORIZONTAL_PIXELS + scx;
+                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                    .copy_from_slice(&[0, 255, 0, 255]);
+                let pixel_index = ((x + scy_right) % TILE_MAP_VERTICAL_PIXELS)
+                    * TILE_MAP_HORIZONTAL_PIXELS
+                    + ((scx + LCD_HORIZONTAL_PIXEL_COUNT) % TILE_MAP_HORIZONTAL_PIXELS);
+                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                    .copy_from_slice(&[0, 255, 255, 255]);
             }
         }
     }
@@ -292,8 +296,14 @@ impl PPU {
         self.render_tile_map1();
     }
 
-    pub fn reset_ly(&mut self) {
+    pub fn prepare_for_new_frame(&mut self) {
         self.lcd_y_coord = Wrapping(0);
+
+        self.frame_scxs = [0; LCD_VERTICAL_PIXEL_COUNT];
+        self.frame_scxs_valid = [true; LCD_VERTICAL_PIXEL_COUNT];
+
+        self.frame_scys_at_scanline_0 = [0; LCD_HORIZONTAL_PIXEL_COUNT];
+        self.frame_scys_first_scanline_valid = [true; LCD_HORIZONTAL_PIXEL_COUNT];
     }
 
     pub fn ticks(
@@ -329,9 +339,16 @@ impl PPU {
             // mode 2
             PPUState::OAMScan => {
                 if self.scanline_dots == 80 {
-                    let ly = self.read_ly().0 as u16 as i16;
+                    let ly = self.read_ly().0 as usize;
+
+                    // At the start of each scanline, remember SCX
+                    if ly < LCD_VERTICAL_PIXEL_COUNT {
+                        self.frame_scxs[ly] = self.scx.0;
+                    }
+
                     let mut selected_objects = VecDeque::new();
                     let object_size = 8; // TODO: this is either 8 or 16 depending on something
+                    let ly = ly as i16; // from now on it's convenient as a signed (yet >= 0)
                     for object_offset in (0x00..0x9F).step_by(4) {
                         if selected_objects.len() == 10 {
                             break;
@@ -373,6 +390,13 @@ impl PPU {
                 pixel_fetcher.tick(bgw_fetcher, obj_fetcher, self);
 
                 if !bgw_fetcher.fifo.is_empty() && !obj_fetcher.fifo.is_empty() {
+                    // During scanline 0, remember SCY for every pixel pushed
+                    let ly = self.read_ly().0 as usize;
+                    if ly == 0 {
+                        self.frame_scys_at_scanline_0[self.drawn_pixels_on_current_row as usize] =
+                            self.scy.0;
+                    }
+
                     let bgw_pixel = bgw_fetcher.fifo.pop_front().unwrap();
                     let obj_pixel = obj_fetcher.fifo.pop_front().unwrap();
                     let pixel_x = self.drawn_pixels_on_current_row;
@@ -398,7 +422,7 @@ impl PPU {
                 if self.scanline_dots == 456 {
                     self.scanline_dots = 0;
                     self.increment_ly(interrupts);
-                    if self.read_ly().0 == 144 {
+                    if self.read_ly().0 as usize == LCD_VERTICAL_PIXEL_COUNT {
                         self.switch_to_vertical_blank(interrupts)
                     } else {
                         self.switch_to_oam_scan()
@@ -412,7 +436,7 @@ impl PPU {
                     self.scanline_dots = 0;
                     self.increment_ly(interrupts);
                     if self.read_ly().0 == 153 {
-                        self.reset_ly();
+                        self.prepare_for_new_frame();
                         self.switch_to_oam_scan()
                     }
                 }
