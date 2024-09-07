@@ -12,8 +12,6 @@ enum FetcherState {
     GetTileDataLow,
     GetTileDataHighDelay,
     GetTileDataHigh,
-    Sleep1,
-    Sleep2,
     PushRow,
 }
 
@@ -130,11 +128,8 @@ impl Fetcher {
 
             FetcherState::GetTileDataHigh => {
                 Self::read_tile_row(machine, true);
-                machine.fetcher_mut().state = FetcherState::Sleep1
+                machine.fetcher_mut().state = FetcherState::PushRow
             }
-
-            FetcherState::Sleep1 => machine.fetcher_mut().state = FetcherState::Sleep2,
-            FetcherState::Sleep2 => machine.fetcher_mut().state = FetcherState::PushRow,
 
             FetcherState::PushRow => {
                 // Only supporting background tiles at the moment, and those only get pushed on an
