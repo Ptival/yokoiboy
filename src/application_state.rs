@@ -12,10 +12,9 @@ use iced::{exit, keyboard, Task};
 
 use crate::{
     command_line_arguments::CommandLineArguments,
-    cpu::{interrupts::Interrupts, timers::Timers, CPU},
+    cpu::{interrupts::Interrupts, CPU},
     machine::Machine,
     message::Message,
-    ppu::PPU,
 };
 
 const CPU_SNAPS_CAPACITY: usize = 5;
@@ -101,8 +100,17 @@ impl ApplicationState {
         if t_cycles == 0 {
             (t_cycles, _m_cycles) = CPU::execute_one_instruction(machine)
         }
-        Timers::step_dots(machine, t_cycles);
-        PPU::step_dots(machine, t_cycles);
+        machine
+            .cpu
+            .timers
+            .ticks(&mut machine.cpu.interrupts, t_cycles);
+        machine.ppu.ticks(
+            &mut machine.background_window_fetcher,
+            &mut machine.cpu.interrupts,
+            &mut machine.object_fetcher,
+            &mut machine.pixel_fetcher,
+            t_cycles,
+        );
         machine.t_cycle_count += t_cycles as u64;
 
         // // Print characters written to the Link cable on the terminal (useful for blargg w/o LCD)

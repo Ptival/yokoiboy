@@ -4,9 +4,7 @@ pub mod object;
 use background_or_window::BackgroundOrWindowFetcher;
 use object::ObjectFetcher;
 
-use crate::machine::Machine;
-
-use super::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU};
+use crate::ppu::PPU;
 
 #[derive(Clone, Debug)]
 enum FetcherState {
@@ -33,8 +31,6 @@ pub enum FetchingFor {
 #[derive(Clone, Debug)]
 pub struct Fetcher {
     pub fetching_for: FetchingFor,
-    pub background_window_fetcher: BackgroundOrWindowFetcher,
-    pub object_fetcher: ObjectFetcher,
 }
 
 // Background and Window use one of these based on bit 4 of lcd_control.
@@ -55,15 +51,13 @@ impl Fetcher {
     pub fn new() -> Self {
         Fetcher {
             fetching_for: FetchingFor::BackgroundOrWindowFIFO,
-            background_window_fetcher: BackgroundOrWindowFetcher::new(),
-            object_fetcher: ObjectFetcher::new(),
         }
     }
 
-    pub fn reset(&mut self) {
-        self.background_window_fetcher.reset();
-        self.object_fetcher.reset(0);
-    }
+    // pub fn reset(&mut self) {
+    //     self.background_window_fetcher.reset();
+    //     self.object_fetcher.reset(0);
+    // }
 
     fn switch_to(&mut self, fetching_for: FetchingFor) {
         // self.tile_row_data = [0; 8];
@@ -108,25 +102,19 @@ impl Fetcher {
         }
     }
 
-    pub fn tick(machine: &mut Machine) -> &mut Machine {
-        match machine.fetcher().fetching_for {
+    pub fn tick(
+        &mut self,
+        bgw_fetcher: &mut BackgroundOrWindowFetcher,
+        obj_fetcher: &mut ObjectFetcher,
+        ppu: &mut PPU,
+    ) {
+        match self.fetching_for {
             FetchingFor::BackgroundOrWindowFIFO => {
-                BackgroundOrWindowFetcher::tick(machine);
+                bgw_fetcher.tick(ppu);
             }
             FetchingFor::ObjectFIFO => {
-                ObjectFetcher::tick(machine);
+                obj_fetcher.tick(ppu);
             }
         }
-        machine
-    }
-}
-
-impl Machine {
-    pub fn fetcher(&self) -> &Fetcher {
-        &self.ppu().fetcher
-    }
-
-    pub fn fetcher_mut(&mut self) -> &mut Fetcher {
-        &mut self.ppu_mut().fetcher
     }
 }

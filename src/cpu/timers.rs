@@ -2,7 +2,7 @@ use std::num::Wrapping;
 
 use crate::machine::Machine;
 
-use super::interrupts::TIMER_INTERRUPT_BIT;
+use super::interrupts::{Interrupts, TIMER_INTERRUPT_BIT};
 
 const DIVIDE_REGISTER_ADDRESS: u16 = 0xFF04;
 const TIMER_COUNTER_ADDRESS: u16 = 0xFF05;
@@ -23,16 +23,6 @@ pub struct Timers {
     pub timer_control: Wrapping<u8>,
 }
 
-fn get_timer_counter_threshold(machine: &mut Machine) -> u16 {
-    match machine.timers().timer_control.0 & 0x3 {
-        0b00 => 1024,
-        0b01 => 16,
-        0b10 => 64,
-        0b11 => 256,
-        _ => unreachable!(),
-    }
-}
-
 impl Timers {
     pub fn new() -> Self {
         Timers {
@@ -46,35 +36,45 @@ impl Timers {
         }
     }
 
-    fn step_one_dot(machine: &mut Machine) {
+    fn get_timer_counter_threshold(&self) -> u16 {
+        match self.timer_control.0 & 0x3 {
+            0b00 => 1024,
+            0b01 => 16,
+            0b10 => 64,
+            0b11 => 256,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn tick(&mut self, interrupts: &mut Interrupts) {
         // TODO: Reset this on STOP
         // TODO: Freeze this while in STOP mode
-        machine.timers_mut().divide_register_dots += 1;
-        if machine.timers().divide_register_dots == 256 {
-            machine.timers_mut().divide_register_dots = 0;
-            machine.timers_mut().divide_register += 1;
+        self.divide_register_dots += 1;
+        if self.divide_register_dots == 256 {
+            self.divide_register_dots = 0;
+            self.divide_register += 1;
         }
 
-        if (machine.timers().timer_control.0 & 0b100) != 0 {
-            machine.timers_mut().timer_counter_dots += 1;
-            if machine.timers().timer_counter_dots == get_timer_counter_threshold(machine) {
-                machine.timers_mut().timer_counter_dots = 0;
-                machine.timers_mut().timer_counter += 1;
-                if machine.timers().timer_counter.0 == 0 {
-                    machine.timers_mut().timer_counter = machine.timers().timer_modulo;
-                    machine.request_interrupt(TIMER_INTERRUPT_BIT);
+        if (self.timer_control.0 & 0b100) != 0 {
+            self.timer_counter_dots += 1;
+            if self.timer_counter_dots == self.get_timer_counter_threshold() {
+                self.timer_counter_dots = 0;
+                self.timer_counter += 1;
+                if self.timer_counter.0 == 0 {
+                    self.timer_counter = self.timer_modulo;
+                    interrupts.request(TIMER_INTERRUPT_BIT);
                 }
             }
         }
     }
 
-    pub fn step_dots(machine: &mut Machine, dots: u8) {
+    pub fn ticks(&mut self, interrupts: &mut Interrupts, dots: u8) {
         for _ in 0..dots {
-            Self::step_one_dot(machine);
+            self.tick(interrupts);
         }
-        if machine.timers().divide_register_to_be_reset {
-            machine.timers_mut().divide_register_to_be_reset = false;
-            machine.timers_mut().divide_register = Wrapping(0);
+        if self.divide_register_to_be_reset {
+            self.divide_register_to_be_reset = false;
+            self.divide_register = Wrapping(0);
         }
     }
 

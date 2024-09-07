@@ -3,7 +3,7 @@ use std::{
     collections::VecDeque,
 };
 
-use crate::{machine::Machine, ppu::PPU};
+use crate::ppu::PPU;
 
 use super::{FIFOItem, Fetcher, TileAddressingMode};
 
@@ -57,16 +57,16 @@ impl ObjectFetcher {
         self.vram_tile_column = vram_tile_column;
     }
 
-    pub fn tick(machine: &mut Machine) -> &mut Machine {
-        match machine.obj_fetcher().state {
-            FetcherState::GetTileDelay => machine.obj_fetcher_mut().state = FetcherState::GetTile,
+    pub fn tick(&mut self, ppu: &mut PPU) {
+        match self.state {
+            FetcherState::GetTileDelay => self.state = FetcherState::GetTile,
 
             FetcherState::GetTile => {
                 // let vram_tile_row = (PPU::read_ly(machine) + machine.ppu().scy).0 & 255;
-                // machine.obj_fetcher().row_of_pixel_within_tile = vram_tile_row % 8;
+                // self.row_of_pixel_within_tile = vram_tile_row % 8;
 
-                let tile_column = machine.obj_fetcher().vram_tile_column as i16;
-                let selected = &machine.obj_fetcher().selected_objects;
+                let tile_column = self.vram_tile_column as i16;
+                let selected = &self.selected_objects;
                 let tile_id = match selected.iter().find(|item| {
                     let item_x_screen = item.x_screen_plus_8 as u16 as i16 - 8;
                     inclusive_ranges_overlap(
@@ -80,80 +80,63 @@ impl ObjectFetcher {
                     }
                     None => 0,
                 };
-                machine.obj_fetcher_mut().tile_id = tile_id;
-                machine.obj_fetcher_mut().state = FetcherState::GetTileDataLowDelay
+                self.tile_id = tile_id;
+                self.state = FetcherState::GetTileDataLowDelay
             }
 
-            FetcherState::GetTileDataLowDelay => {
-                machine.obj_fetcher_mut().state = FetcherState::GetTileDataLow
-            }
+            FetcherState::GetTileDataLowDelay => self.state = FetcherState::GetTileDataLow,
 
             FetcherState::GetTileDataLow => {
-                let ly = PPU::read_ly(machine);
-                let ppu = machine.ppu_mut();
+                let ly = ppu.read_ly();
                 Fetcher::read_tile_row(
                     &ppu.vram,
                     &TileAddressingMode::UnsignedFrom0x8000,
                     (ly + ppu.scy).0,
-                    ppu.fetcher.object_fetcher.tile_id,
+                    self.tile_id,
                     false,
-                    &mut ppu.fetcher.object_fetcher.tile_row_data,
+                    &mut self.tile_row_data,
                 );
-                machine.obj_fetcher_mut().state = FetcherState::GetTileDataHighDelay
+                self.state = FetcherState::GetTileDataHighDelay
             }
 
-            FetcherState::GetTileDataHighDelay => {
-                machine.obj_fetcher_mut().state = FetcherState::GetTileDataHigh
-            }
+            FetcherState::GetTileDataHighDelay => self.state = FetcherState::GetTileDataHigh,
 
             FetcherState::GetTileDataHigh => {
-                let ly = PPU::read_ly(machine);
-                let ppu = machine.ppu_mut();
+                let ly = ppu.read_ly();
                 Fetcher::read_tile_row(
                     &ppu.vram,
                     &TileAddressingMode::UnsignedFrom0x8000,
                     (ly + ppu.scy).0,
-                    ppu.fetcher.object_fetcher.tile_id,
+                    self.tile_id,
                     true,
-                    &mut ppu.fetcher.object_fetcher.tile_row_data,
+                    &mut self.tile_row_data,
                 );
-                machine.obj_fetcher_mut().state = FetcherState::PushRow
+                self.state = FetcherState::PushRow
             }
 
             FetcherState::PushRow => {
-                let obj_fifo_len = machine.obj_fetcher().fifo.len();
+                let obj_fifo_len = self.fifo.len();
                 // Object FIFO pixels are merged with existing object FIFO pixels:
                 // Those with ID 0 are overwritten by latter ones, otherwise the existing one wins
                 for i in 0..8 {
                     if i < obj_fifo_len {
                         // Pixel merging following OBJ-to-OBJ priority
-                        let old_item = machine.obj_fetcher().fifo[i].clone();
+                        let old_item = self.fifo[i].clone();
                         if old_item.color == 0 {
-                            machine.obj_fetcher_mut().fifo[i] = FIFOItem {
-                                color: machine.obj_fetcher().tile_row_data[i],
+                            self.fifo[i] = FIFOItem {
+                                color: self.tile_row_data[i],
                             };
                         }
                     } else {
                         // No pixel to merge with, just push
-                        let color = machine.obj_fetcher().tile_row_data[i];
-                        machine.obj_fetcher_mut().fifo.push_back(FIFOItem { color });
+                        let color = self.tile_row_data[i];
+                        self.fifo.push_back(FIFOItem { color });
                     }
                 }
                 // clean up so that GetTileData can assume 0
-                machine.obj_fetcher_mut().tile_row_data = [0; 8];
-                machine.obj_fetcher_mut().state = FetcherState::GetTileDelay
+                self.tile_row_data = [0; 8];
+                self.state = FetcherState::GetTileDelay
             }
         }
-        machine
-    }
-}
-
-impl Machine {
-    pub fn obj_fetcher(&self) -> &ObjectFetcher {
-        &self.fetcher().object_fetcher
-    }
-
-    pub fn obj_fetcher_mut(&mut self) -> &mut ObjectFetcher {
-        &mut self.fetcher_mut().object_fetcher
     }
 }

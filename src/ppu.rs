@@ -1,12 +1,13 @@
-mod pixel_fetcher;
-
 use std::{collections::VecDeque, num::Wrapping};
 
-use pixel_fetcher::{object::Sprite, Fetcher, FetchingFor, TileAddressingMode};
-
 use crate::{
-    cpu::interrupts::{STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
+    cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
     machine::Machine,
+    pixel_fetcher::{
+        background_or_window::BackgroundOrWindowFetcher,
+        object::{ObjectFetcher, Sprite},
+        Fetcher, FetchingFor, TileAddressingMode,
+    },
     utils::{self},
 };
 
@@ -46,7 +47,7 @@ const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
 const _LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT: u8 = 0;
 const _LCDC_OBJECT_ENABLE_BIT: u8 = 1;
 const _LCDC_OBJECT_SIZE_BIT: u8 = 2;
-const LCDC_BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
+pub const LCDC_BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
 const LCDC_BACKGROUND_AND_WINDOW_TILE_AREA_BIT: u8 = 4;
 const _LCDC_WINDOW_ENABLE_BIT: u8 = 5;
 const _LCDC_WINDOW_TILE_MAP_AREA_BIT: u8 = 6;
@@ -71,14 +72,12 @@ pub enum PPUState {
 pub struct PPU {
     /** PPU state **/
     drawn_pixels_on_current_row: u8,
+    fix_ly_for_gb_doctor: bool,
     /// Because the STAT interrupt is triggered on a rising edge of the STAT line, we need to
     /// remember its previous value.
     last_stat_line: u8,
     scanline_dots: u16,
     state: PPUState,
-
-    // Subsystems
-    fetcher: Fetcher,
 
     // Hardware registers
     pub background_palette_data: Wrapping<u8>,
@@ -118,10 +117,6 @@ pub fn pixel_code_to_rgba(pixel_code: u8) -> [u8; PIXEL_DATA_SIZE] {
         0b01 => [0x55, 0x55, 0x55, 255],
         0b10 => [0xAA, 0xAA, 0xAA, 255],
         0b11 => [0xFF, 0xFF, 0xFF, 255],
-        // 0b00 => [15, 56, 15, 255],
-        // 0b01 => [48, 98, 48, 255],
-        // 0b10 => [139, 172, 15, 255],
-        // 0b11 => [155, 188, 15, 255],
         _ => panic!("pixel_code is: 0x{:08b}", pixel_code),
     }
 }
@@ -132,14 +127,13 @@ pub fn pixel_coordinates_in_rgba_slice(x: u8, y: u8) -> usize {
 }
 
 impl PPU {
-    pub fn new() -> Self {
+    pub fn new(fix_ly: bool) -> Self {
         PPU {
             drawn_pixels_on_current_row: 0,
+            fix_ly_for_gb_doctor: fix_ly,
             last_stat_line: 0,
             scanline_dots: 0,
             state: PPUState::OAMScan,
-
-            fetcher: Fetcher::new(),
 
             background_palette_spec: Wrapping(0),
             background_palette_data: Wrapping(0),
@@ -183,26 +177,23 @@ impl PPU {
         utils::is_bit_set(&self.lcd_control, LCDC_LCD_ENABLE_BIT)
     }
 
-    pub fn increment_ly(machine: &mut Machine) {
-        machine.ppu_mut().lcd_y_coord = machine.ppu().lcd_y_coord + Wrapping(1);
-        if machine.ppu().lcd_y_coord == machine.ppu().lcd_y_compare {
-            utils::set_bit(machine.lcd_status_mut(), LYC_EQUALS_LY_BIT);
-            if utils::is_bit_set(
-                &machine.ppu().lcd_status,
-                LYC_EQUALS_LY_INTERRUPT_SELECT_BIT,
-            ) {
-                machine.request_interrupt(STAT_INTERRUPT_BIT);
+    pub fn increment_ly(&mut self, interrupts: &mut Interrupts) {
+        self.lcd_y_coord = self.lcd_y_coord + Wrapping(1);
+        if self.lcd_y_coord == self.lcd_y_compare {
+            utils::set_bit(&mut self.lcd_status, LYC_EQUALS_LY_BIT);
+            if utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_INTERRUPT_SELECT_BIT) {
+                interrupts.request(STAT_INTERRUPT_BIT);
             }
         } else {
-            utils::unset_bit(machine.lcd_status_mut(), LYC_EQUALS_LY_BIT);
+            utils::unset_bit(&mut self.lcd_status, LYC_EQUALS_LY_BIT);
         }
     }
 
-    pub fn read_ly(machine: &Machine) -> Wrapping<u8> {
-        if machine.fix_ly_for_gb_doctor {
+    pub fn read_ly(&self) -> Wrapping<u8> {
+        if self.fix_ly_for_gb_doctor {
             Wrapping(144)
         } else {
-            machine.ppu().lcd_y_coord
+            self.lcd_y_coord
         }
     }
 
@@ -306,76 +297,87 @@ impl PPU {
         self.lcd_y_coord = Wrapping(0);
     }
 
-    pub fn step_dots(machine: &mut Machine, dots: u8) -> &mut Machine {
+    pub fn ticks(
+        &mut self,
+        bgw_fetcher: &mut BackgroundOrWindowFetcher,
+        interrupts: &mut Interrupts,
+        obj_fetcher: &mut ObjectFetcher,
+        pixel_fetcher: &mut Fetcher,
+        dots: u8,
+    ) {
         for _ in 0..dots {
-            PPU::step_one_dot(machine);
+            self.tick(bgw_fetcher, obj_fetcher, interrupts, pixel_fetcher);
         }
-        machine
     }
 
-    pub fn step_one_dot(machine: &mut Machine) -> &mut Machine {
-        if !machine.ppu().is_lcd_ppu_on() {
-            return machine;
+    pub fn tick(
+        &mut self,
+        bgw_fetcher: &mut BackgroundOrWindowFetcher,
+        obj_fetcher: &mut ObjectFetcher,
+        interrupts: &mut Interrupts,
+        pixel_fetcher: &mut Fetcher,
+    ) {
+        if !self.is_lcd_ppu_on() {
+            return;
         }
 
-        machine.ppu_mut().scanline_dots += 1;
-        if machine.ppu().scanline_dots > 456 {
+        self.scanline_dots += 1;
+        if self.scanline_dots > 456 {
             panic!("Frame did not finish rendering in time, investigate.");
         }
 
-        match machine.ppu().state {
+        match self.state {
             // mode 2
             PPUState::OAMScan => {
-                let ppu = machine.ppu();
-                if ppu.scanline_dots == 80 {
-                    let ly = PPU::read_ly(machine).0 as u16 as i16;
+                if self.scanline_dots == 80 {
+                    let ly = self.read_ly().0 as u16 as i16;
                     let mut selected_objects = VecDeque::new();
                     let object_size = 8; // TODO: this is either 8 or 16 depending on something
                     for object_offset in (0x00..0x9F).step_by(4) {
                         if selected_objects.len() == 10 {
                             break;
                         }
-                        let y_screen_plus_16 = ppu.object_attribute_memory[object_offset];
+                        let y_screen_plus_16 = self.object_attribute_memory[object_offset];
                         let object_min_y_on_screen = (y_screen_plus_16 as u16 as i16) - 16;
                         let object_max_y_on_screen = object_min_y_on_screen + object_size - 1;
                         if object_min_y_on_screen <= ly && ly <= object_max_y_on_screen {
                             selected_objects.push_back(Sprite {
-                                x_screen_plus_8: ppu.object_attribute_memory[object_offset + 1],
+                                x_screen_plus_8: self.object_attribute_memory[object_offset + 1],
                                 y_screen_plus_16,
-                                tile_index: ppu.object_attribute_memory[object_offset + 2],
-                                attributes: ppu.object_attribute_memory[object_offset + 3],
+                                tile_index: self.object_attribute_memory[object_offset + 2],
+                                attributes: self.object_attribute_memory[object_offset + 3],
                             });
                         }
                     }
-                    machine.fetcher_mut().reset();
-                    machine.obj_fetcher_mut().selected_objects = selected_objects;
-                    Self::switch_to_drawing_pixels(machine)
+                    bgw_fetcher.reset();
+                    obj_fetcher.reset(0);
+                    obj_fetcher.selected_objects = selected_objects;
+                    self.switch_to_drawing_pixels(pixel_fetcher);
                 }
             }
 
             // mode 3
             PPUState::DrawingPixels => {
-                let bgw_fifo_len = machine.bgw_fetcher().fifo.len();
-                let obj_fifo_len = machine.obj_fetcher().fifo.len();
+                let bgw_fifo_len = bgw_fetcher.fifo.len();
+                let obj_fifo_len = obj_fetcher.fifo.len();
 
-                let fetcher_state = &machine.fetcher().fetching_for;
+                let fetcher_state = &pixel_fetcher.fetching_for;
                 if obj_fifo_len == 0 && bgw_fifo_len != 0 {
                     if *fetcher_state == FetchingFor::BackgroundOrWindowFIFO {
-                        machine.fetcher_mut().switch_to_object_fifo();
+                        pixel_fetcher.switch_to_object_fifo();
                     }
                 } else {
                     if *fetcher_state == FetchingFor::ObjectFIFO {
-                        machine.fetcher_mut().switch_to_background_or_window_fifo();
+                        pixel_fetcher.switch_to_background_or_window_fifo();
                     }
                 }
-                Fetcher::tick(machine);
+                pixel_fetcher.tick(bgw_fetcher, obj_fetcher, self);
 
-                if !machine.bgw_fetcher().fifo.is_empty() && !machine.obj_fetcher().fifo.is_empty()
-                {
-                    let bgw_pixel = machine.bgw_fetcher_mut().fifo.pop_front().unwrap();
-                    let obj_pixel = machine.obj_fetcher_mut().fifo.pop_front().unwrap();
-                    let pixel_x = machine.ppu().drawn_pixels_on_current_row;
-                    let pixel_y = machine.ppu().lcd_y_coord.0;
+                if !bgw_fetcher.fifo.is_empty() && !obj_fetcher.fifo.is_empty() {
+                    let bgw_pixel = bgw_fetcher.fifo.pop_front().unwrap();
+                    let obj_pixel = obj_fetcher.fifo.pop_front().unwrap();
+                    let pixel_x = self.drawn_pixels_on_current_row;
+                    let pixel_y = self.lcd_y_coord.0;
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
                     let rgba = pixel_code_to_rgba(if obj_pixel.color == 0 {
@@ -383,49 +385,47 @@ impl PPU {
                     } else {
                         obj_pixel.color
                     });
-                    machine.ppu_mut().lcd_pixels[from..from + 4].copy_from_slice(&rgba);
-                    machine.ppu_mut().drawn_pixels_on_current_row += 1;
+                    self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
+                    self.drawn_pixels_on_current_row += 1;
 
-                    if machine.ppu().drawn_pixels_on_current_row == 160 {
-                        Self::switch_to_horizontal_blank(machine)
+                    if self.drawn_pixels_on_current_row == 160 {
+                        self.switch_to_horizontal_blank()
                     }
                 }
             }
 
             // mode 0
             PPUState::HorizontalBlank => {
-                if machine.ppu().scanline_dots == 456 {
-                    machine.ppu_mut().scanline_dots = 0;
-                    PPU::increment_ly(machine);
-                    if PPU::read_ly(machine).0 == 144 {
-                        Self::switch_to_vertical_blank(machine)
+                if self.scanline_dots == 456 {
+                    self.scanline_dots = 0;
+                    self.increment_ly(interrupts);
+                    if self.read_ly().0 == 144 {
+                        self.switch_to_vertical_blank(interrupts)
                     } else {
-                        Self::switch_to_oam_scan(machine)
+                        self.switch_to_oam_scan()
                     }
                 }
             }
 
             // mode 1
             PPUState::VerticalBlank => {
-                if machine.ppu().scanline_dots == 456 {
-                    machine.ppu_mut().scanline_dots = 0;
-                    PPU::increment_ly(machine);
-                    if PPU::read_ly(machine).0 == 153 {
-                        machine.ppu_mut().reset_ly();
-                        Self::switch_to_oam_scan(machine)
+                if self.scanline_dots == 456 {
+                    self.scanline_dots = 0;
+                    self.increment_ly(interrupts);
+                    if self.read_ly().0 == 153 {
+                        self.reset_ly();
+                        self.switch_to_oam_scan()
                     }
                 }
             }
         }
 
         // STAT interrupt check
-        let stat_line = (machine.ppu().lcd_status.0 >> 3) & 0xF;
-        if machine.ppu().last_stat_line == 0 && stat_line != 0 {
-            machine.interrupts_mut().request(STAT_INTERRUPT_BIT);
+        let stat_line = (self.lcd_status.0 >> 3) & 0xF;
+        if self.last_stat_line == 0 && stat_line != 0 {
+            interrupts.request(STAT_INTERRUPT_BIT);
         }
-        machine.ppu_mut().last_stat_line = stat_line;
-
-        machine
+        self.last_stat_line = stat_line;
     }
 
     pub fn read_vram(&self, address: Wrapping<u16>) -> Wrapping<u8> {
@@ -460,40 +460,40 @@ impl PPU {
         self.lcd_control = value;
     }
 
-    fn switch_to_oam_scan(machine: &mut Machine) {
-        machine.ppu_mut().drawn_pixels_on_current_row = 0;
+    fn switch_to_oam_scan(&mut self) {
+        self.drawn_pixels_on_current_row = 0;
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 2);
-        utils::unset_bit(machine.lcd_status_mut(), MODE_0_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(machine.lcd_status_mut(), MODE_1_INTERRUPT_SELECT_BIT);
-        utils::set_bit(machine.lcd_status_mut(), MODE_2_INTERRUPT_SELECT_BIT);
-        machine.ppu_mut().state = PPUState::OAMScan;
+        utils::unset_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(&mut self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
+        utils::set_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
+        self.state = PPUState::OAMScan;
     }
 
-    fn switch_to_drawing_pixels(machine: &mut Machine) {
-        machine.fetcher_mut().switch_to_background_or_window_fifo();
+    fn switch_to_drawing_pixels(&mut self, pixel_fetcher: &mut Fetcher) {
+        pixel_fetcher.switch_to_background_or_window_fifo();
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 3);
-        machine.ppu_mut().state = PPUState::DrawingPixels;
+        self.state = PPUState::DrawingPixels;
     }
 
-    fn switch_to_horizontal_blank(machine: &mut Machine) {
+    fn switch_to_horizontal_blank(&mut self) {
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping(machine.ppu().lcd_status.0 & 0xFC);
-        utils::set_bit(machine.lcd_status_mut(), MODE_0_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(machine.lcd_status_mut(), MODE_1_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(machine.lcd_status_mut(), MODE_2_INTERRUPT_SELECT_BIT);
-        machine.ppu_mut().state = PPUState::HorizontalBlank;
+        utils::set_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(&mut self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
+        self.state = PPUState::HorizontalBlank;
     }
 
-    fn switch_to_vertical_blank(machine: &mut Machine) {
+    fn switch_to_vertical_blank(&mut self, interrupts: &mut Interrupts) {
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 1);
-        utils::unset_bit(machine.lcd_status_mut(), MODE_0_INTERRUPT_SELECT_BIT);
-        utils::set_bit(machine.lcd_status_mut(), MODE_1_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(machine.lcd_status_mut(), MODE_2_INTERRUPT_SELECT_BIT);
-        machine.request_interrupt(VBLANK_INTERRUPT_BIT);
-        machine.ppu_mut().state = PPUState::VerticalBlank
+        utils::unset_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
+        utils::set_bit(&mut self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
+        utils::unset_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
+        interrupts.request(VBLANK_INTERRUPT_BIT);
+        self.state = PPUState::VerticalBlank
     }
 }
 

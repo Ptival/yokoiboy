@@ -2,6 +2,7 @@ pub mod application_state;
 pub mod command_line_arguments;
 pub mod conditions;
 pub mod cpu;
+pub mod pixel_fetcher;
 pub mod inputs;
 pub mod instructions;
 pub mod machine;

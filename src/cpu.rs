@@ -19,10 +19,10 @@ pub struct CPU {
     pub low_power_mode: bool,
 
     // Subsystems
-    interrupts: Interrupts,
+    pub interrupts: Interrupts,
     memory: Memory,
     registers: Registers,
-    timers: Timers,
+    pub timers: Timers,
 }
 
 impl CPU {

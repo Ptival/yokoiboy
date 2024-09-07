@@ -1,6 +1,14 @@
 use std::num::Wrapping;
 
-use crate::{cpu::CPU, inputs::Inputs, memory::Memory, ppu::PPU};
+use crate::{
+    cpu::CPU,
+    inputs::Inputs,
+    memory::Memory,
+    pixel_fetcher::{
+        background_or_window::BackgroundOrWindowFetcher, object::ObjectFetcher, Fetcher,
+    },
+    ppu::PPU,
+};
 
 pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
 
@@ -10,13 +18,15 @@ pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
 pub struct Machine {
     // Machine state
     pub external_ram: [u8; EXTERNAL_RAM_SIZE], // TODO: where should this live?
-    pub fix_ly_for_gb_doctor: bool,
     pub t_cycle_count: u64,
 
     // Subsystems
-    cpu: CPU,
-    inputs: Inputs,
-    ppu: PPU,
+    pub cpu: CPU,
+    pub inputs: Inputs,
+    pub ppu: PPU,
+    pub pixel_fetcher: Fetcher,
+    pub background_window_fetcher: BackgroundOrWindowFetcher,
+    pub object_fetcher: ObjectFetcher,
 
     // Special registers
     pub bgp: Wrapping<u8>,
@@ -75,12 +85,16 @@ pub struct Machine {
 impl Machine {
     pub fn new(fix_ly: bool) -> Self {
         Machine {
-            fix_ly_for_gb_doctor: fix_ly,
             t_cycle_count: 0,
             dmg_boot_rom: Wrapping(0),
-            inputs: Inputs::new(),
+
+            background_window_fetcher: BackgroundOrWindowFetcher::new(),
             cpu: CPU::new(),
-            ppu: PPU::new(),
+            inputs: Inputs::new(),
+            object_fetcher: ObjectFetcher::new(),
+            pixel_fetcher: Fetcher::new(),
+            ppu: PPU::new(fix_ly),
+
             bgp: Wrapping(0),
             external_ram: [0; EXTERNAL_RAM_SIZE],
 
@@ -202,7 +216,7 @@ impl Machine {
             0xFF41..=0xFF41 => self.ppu.lcd_status,
             0xFF42..=0xFF42 => self.ppu.scy,
             0xFF43..=0xFF43 => self.ppu.scx,
-            0xFF44..=0xFF44 => PPU::read_ly(self),
+            0xFF44..=0xFF44 => self.ppu.read_ly(),
             0xFF45..=0xFF45 => self.ppu.lcd_y_compare,
             0xFF46..=0xFF46 => self.register_ff46,
             0xFF47..=0xFF47 => self.bgp,
@@ -373,6 +387,14 @@ impl Machine {
 
     pub fn cpu_mut(&mut self) -> &mut CPU {
         &mut self.cpu
+    }
+
+    pub fn pixel_fetcher(&self) -> &Fetcher {
+        &self.pixel_fetcher
+    }
+
+    pub fn pixel_fetcher_mut(&mut self) -> &mut Fetcher {
+        &mut self.pixel_fetcher
     }
 
     pub fn ppu(&self) -> &PPU {
