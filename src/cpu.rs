@@ -3,9 +3,6 @@ pub mod timers;
 
 use std::num::Wrapping;
 
-use interrupts::Interrupts;
-use timers::Timers;
-
 use crate::{
     instructions::{decode::decode_instruction_at_address, type_def::Immediate16},
     machine::Machine,
@@ -19,26 +16,22 @@ pub struct CPU {
     pub low_power_mode: bool,
 
     // Subsystems
-    pub interrupts: Interrupts,
     memory: Memory,
     registers: Registers,
-    pub timers: Timers,
 }
 
 impl CPU {
     pub fn new() -> Self {
         CPU {
             low_power_mode: false,
-            interrupts: Interrupts::new(),
             memory: Memory::new(),
             registers: Registers::new(),
-            timers: Timers::new(),
         }
     }
 
     pub fn execute_one_instruction(machine: &mut Machine) -> (u8, u8) {
         if machine.cpu_mut().low_power_mode {
-            if Interrupts::is_interrupt_pending(machine) {
+            if machine.interrupts.is_interrupt_pending() {
                 machine.cpu_mut().low_power_mode = false;
                 // Fall through on wakeup to execute one instruction
             } else {

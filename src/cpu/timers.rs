@@ -107,9 +107,9 @@ impl Timers {
 
 impl Machine {
     pub fn timers(&self) -> &Timers {
-        &self.cpu().timers
+        &self.timers
     }
     pub fn timers_mut(&mut self) -> &mut Timers {
-        &mut self.cpu_mut().timers
+        &mut self.timers
     }
 }

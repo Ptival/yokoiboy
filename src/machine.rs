@@ -1,7 +1,7 @@
 use std::num::Wrapping;
 
 use crate::{
-    cpu::CPU,
+    cpu::{interrupts::Interrupts, timers::Timers, CPU},
     inputs::Inputs,
     memory::Memory,
     pixel_fetcher::{
@@ -21,12 +21,14 @@ pub struct Machine {
     pub t_cycle_count: u64,
 
     // Subsystems
+    pub background_window_fetcher: BackgroundOrWindowFetcher,
     pub cpu: CPU,
     pub inputs: Inputs,
-    pub ppu: PPU,
-    pub pixel_fetcher: Fetcher,
-    pub background_window_fetcher: BackgroundOrWindowFetcher,
+    pub interrupts: Interrupts,
     pub object_fetcher: ObjectFetcher,
+    pub pixel_fetcher: Fetcher,
+    pub ppu: PPU,
+    pub timers: Timers,
 
     // Special registers
     pub bgp: Wrapping<u8>,
@@ -91,9 +93,11 @@ impl Machine {
             background_window_fetcher: BackgroundOrWindowFetcher::new(),
             cpu: CPU::new(),
             inputs: Inputs::new(),
+            interrupts: Interrupts::new(),
             object_fetcher: ObjectFetcher::new(),
             pixel_fetcher: Fetcher::new(),
             ppu: PPU::new(fix_ly),
+            timers: Timers::new(),
 
             bgp: Wrapping(0),
             external_ram: [0; EXTERNAL_RAM_SIZE],

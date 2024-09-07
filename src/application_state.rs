@@ -100,13 +100,10 @@ impl ApplicationState {
         if t_cycles == 0 {
             (t_cycles, _m_cycles) = CPU::execute_one_instruction(machine)
         }
-        machine
-            .cpu
-            .timers
-            .ticks(&mut machine.cpu.interrupts, t_cycles);
+        machine.timers.ticks(&mut machine.interrupts, t_cycles);
         machine.ppu.ticks(
             &mut machine.background_window_fetcher,
-            &mut machine.cpu.interrupts,
+            &mut machine.interrupts,
             &mut machine.object_fetcher,
             &mut machine.pixel_fetcher,
             t_cycles,

@@ -2,7 +2,6 @@ use std::{collections::VecDeque, num::Wrapping};
 
 use crate::{
     cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
-    machine::Machine,
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher,
         object::{ObjectFetcher, Sprite},
@@ -533,14 +532,5 @@ fn render_tile_map(
                     );
             }
         }
-    }
-}
-
-impl Machine {
-    pub fn lcd_status(&self) -> &Wrapping<u8> {
-        &self.ppu().lcd_status
-    }
-    pub fn lcd_status_mut(&mut self) -> &mut Wrapping<u8> {
-        &mut self.ppu_mut().lcd_status
     }
 }

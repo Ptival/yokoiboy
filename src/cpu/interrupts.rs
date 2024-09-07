@@ -23,24 +23,6 @@ pub struct Interrupts {
     pub interrupt_flag: Wrapping<u8>,
 }
 
-// Returns the bit index of the interrupt to handle (0 = VBlank... 4 = Joypad)
-fn should_handle_interrupt(machine: &mut Machine) -> Option<u8> {
-    if !machine.cpu().interrupts.interrupt_master_enable {
-        return None;
-    }
-    let masked_ie = machine.cpu().interrupts.interrupt_enable.0 & 0x1F;
-    let masked_if = machine.cpu().interrupts.interrupt_flag.0 & 0x1F;
-    let conjoined = masked_ie & masked_if;
-    // 0 has most priority, 4 has least
-    for i in 0..5 {
-        let mask = 1 << i;
-        if (conjoined & mask) == mask {
-            return Some(i);
-        }
-    }
-    None
-}
-
 fn interrupt_handler_offset(interrupt_bit: u8) -> Wrapping<u16> {
     Wrapping(match interrupt_bit {
         VBLANK_INTERRUPT_BIT => VBLANK_INTERRUPT_ADDRESS,
@@ -63,10 +45,10 @@ impl Interrupts {
     }
 
     pub fn handle_interrupts(machine: &mut Machine) -> (u8, u8) {
-        if let Some(interrupt) = should_handle_interrupt(machine) {
-            machine.cpu_mut().interrupts.interrupt_flag =
-                machine.cpu().interrupts.interrupt_flag & Wrapping(!(1 << interrupt));
-            machine.cpu_mut().interrupts.interrupt_master_enable = false;
+        if let Some(interrupt) = machine.interrupts.should_handle_interrupt() {
+            machine.interrupts.interrupt_flag =
+                machine.interrupts.interrupt_flag & Wrapping(!(1 << interrupt));
+            machine.interrupts.interrupt_master_enable = false;
             // Here the CPU:
             // - NOPs twice (2 M-cycles)
             // - PUSHes PC (2 M-cycles)
@@ -82,22 +64,40 @@ impl Interrupts {
         }
     }
 
-    pub fn is_interrupt_pending(machine: &Machine) -> bool {
-        let masked_ie = machine.cpu().interrupts.interrupt_enable.0 & 0x1F;
-        let masked_if = machine.cpu().interrupts.interrupt_flag.0 & 0x1F;
+    pub fn is_interrupt_pending(&self) -> bool {
+        let masked_ie = self.interrupt_enable.0 & 0x1F;
+        let masked_if = self.interrupt_flag.0 & 0x1F;
         (masked_ie & masked_if) != 0
     }
 
     pub fn request(&mut self, interrupt_bit: u8) {
         self.interrupt_flag |= 1 << interrupt_bit;
     }
+
+    // Returns the bit index of the interrupt to handle (0 = VBlank... 4 = Joypad)
+    fn should_handle_interrupt(&self) -> Option<u8> {
+        if !self.interrupt_master_enable {
+            return None;
+        }
+        let masked_ie = self.interrupt_enable.0 & 0x1F;
+        let masked_if = self.interrupt_flag.0 & 0x1F;
+        let conjoined = masked_ie & masked_if;
+        // 0 has most priority, 4 has least
+        for i in 0..5 {
+            let mask = 1 << i;
+            if (conjoined & mask) == mask {
+                return Some(i);
+            }
+        }
+        None
+    }
 }
 
 impl Machine {
     pub fn interrupts(&self) -> &Interrupts {
-        &self.cpu().interrupts
+        &self.interrupts
     }
     pub fn interrupts_mut(&mut self) -> &mut Interrupts {
-        &mut self.cpu_mut().interrupts
+        &mut self.interrupts
     }
 }

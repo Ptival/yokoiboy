@@ -1,7 +1,7 @@
 use std::num::Wrapping;
 
 use crate::{
-    cpu::{interrupts::Interrupts, CPU},
+    cpu::CPU,
     machine::Machine,
     registers::{Flag, R16},
 };
@@ -341,7 +341,7 @@ impl Instruction {
                 if machine.interrupts().interrupt_master_enable {
                     machine.cpu_mut().low_power_mode = true;
                 } else {
-                    if Interrupts::is_interrupt_pending(machine) {
+                    if machine.interrupts().is_interrupt_pending() {
                         // TODO: emulate HALT bug
                         machine.cpu_mut().low_power_mode = true;
                     } else {
