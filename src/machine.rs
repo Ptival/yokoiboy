@@ -55,6 +55,7 @@ pub struct Machine {
     pub register_ff23: Wrapping<u8>,
     pub slice_ff27_ff2f: [Wrapping<u8>; 9],
     pub slice_ff30_ff3f: [Wrapping<u8>; 16],
+    pub register_ff46: Wrapping<u8>,
     pub register_ff0a: Wrapping<u8>,
     pub register_ff0b: Wrapping<u8>,
     pub register_ff0c: Wrapping<u8>,
@@ -115,6 +116,7 @@ impl Machine {
             register_ff23: Wrapping(0),
             slice_ff27_ff2f: [Wrapping(0); 9],
             slice_ff30_ff3f: [Wrapping(0); 16],
+            register_ff46: Wrapping(0),
             register_ff0a: Wrapping(0),
             register_ff0b: Wrapping(0),
             register_ff0c: Wrapping(0),
@@ -202,9 +204,7 @@ impl Machine {
             0xFF43..=0xFF43 => self.ppu.scx,
             0xFF44..=0xFF44 => PPU::read_ly(self),
             0xFF45..=0xFF45 => self.ppu.lcd_y_compare,
-            0xFF46..=0xFF46 => {
-                todo!("OAM DMA read")
-            }
+            0xFF46..=0xFF46 => self.register_ff46,
             0xFF47..=0xFF47 => self.bgp,
             0xFF48..=0xFF48 => self.ppu.object_palette_0,
             0xFF49..=0xFF49 => self.ppu.object_palette_1,
@@ -324,7 +324,7 @@ impl Machine {
                 panic!("Something attempted to write to LY")
             }
             0xFF45..=0xFF45 => self.ppu.lcd_y_compare = value,
-            0xFF46..=0xFF46 => {} // TODO: OAM DMA
+            0xFF46..=0xFF46 => self.register_ff46 = value,
             0xFF47..=0xFF47 => self.bgp = value,
             0xFF48..=0xFF48 => self.ppu.object_palette_0 = value,
             0xFF49..=0xFF49 => self.ppu.object_palette_1 = value,
