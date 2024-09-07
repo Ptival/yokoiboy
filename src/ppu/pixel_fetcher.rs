@@ -78,8 +78,11 @@ impl Fetcher {
         let pixel_data = machine.ppu().vram[address_in_vram_slice as usize + bit_plane as usize];
         // We just finished reading one byte.  Each bit is half of a pixel value, we coalesce them
         // here Note: This assumes that `tile_row_data` is cleared at each loop.
+        let fetcher = machine.fetcher_mut();
+        // Note: it's nice to have the row data be sorted by increasing X, but the lowest bit
+        // position is the highest X pixel, so using (7 - bit_position) to reorder.
         for bit_position in 0..8 {
-            machine.fetcher_mut().tile_row_data[bit_position] |=
+            fetcher.tile_row_data[7 - bit_position] |=
                 ((pixel_data >> bit_position) & 1) << (bit_plane as u8);
         }
     }
@@ -135,7 +138,7 @@ impl Fetcher {
                 // Only supporting background tiles at the moment, and those only get pushed on an
                 // empty FIFO
                 if machine.fetcher().fifo.len() == 0 {
-                    for i in (0..8).rev() {
+                    for i in 0..8 {
                         let color = machine.fetcher().tile_row_data[i];
                         machine.fetcher_mut().fifo.push_back(FIFOItem { color });
                     }
