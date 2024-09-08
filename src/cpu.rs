@@ -4,7 +4,10 @@ pub mod timers;
 use std::num::Wrapping;
 
 use crate::{
-    instructions::{decode::decode_instruction_at_address, type_def::Immediate16},
+    instructions::{
+        decode::{decode_instruction_at_address, DecodedInstruction},
+        type_def::Immediate16,
+    },
     machine::Machine,
     memory::Memory,
     registers::{Registers, R16},
@@ -29,14 +32,16 @@ impl CPU {
         }
     }
 
-    pub fn execute_one_instruction(machine: &mut Machine) -> (u8, u8) {
+    pub fn execute_one_instruction(
+        machine: &mut Machine,
+    ) -> (Option<DecodedInstruction>, (u8, u8)) {
         if machine.cpu_mut().low_power_mode {
             if machine.interrupts.is_interrupt_pending() {
                 machine.cpu_mut().low_power_mode = false;
                 // Fall through on wakeup to execute one instruction
             } else {
                 // Otherwise, force the other components to move forward
-                return (4, 1);
+                return (None, (4, 1));
             }
         }
         let next_instruction = decode_instruction_at_address(machine, machine.cpu().registers.pc);
@@ -44,7 +49,8 @@ impl CPU {
         // This will be the default PC, unless instruction semantics overwrite it
         machine.cpu_mut().registers.pc =
             machine.cpu_mut().registers.pc + Wrapping(next_instruction.instruction_size as u16);
-        next_instruction.instruction.execute(machine)
+        let cycles = next_instruction.instruction.execute(machine);
+        (Some(next_instruction), cycles)
     }
 
     pub fn pop_r16<'a>(machine: &'a mut Machine, r16: &R16) -> &'a mut Machine {

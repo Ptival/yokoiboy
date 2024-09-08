@@ -13,6 +13,7 @@ use iced::{exit, keyboard, Task};
 use crate::{
     command_line_arguments::CommandLineArguments,
     cpu::{interrupts::Interrupts, CPU},
+    instructions::decode::DecodedInstruction,
     machine::Machine,
     message::Message,
 };
@@ -33,6 +34,16 @@ pub struct ApplicationState {
 enum PreserveHistory {
     DontPreserveHistory,
     PreserveHistory,
+}
+
+pub struct MachineStep {
+    t_cycles: u128,
+    instruction_executed: Option<DecodedInstruction>,
+}
+
+pub struct InstructionStep {
+    t_cycles: u128,
+    _instruction_executed: DecodedInstruction,
 }
 
 impl ApplicationState {
@@ -95,10 +106,11 @@ impl ApplicationState {
     }
 
     // TODO: move in machine.rs
-    fn step_machine<'a>(machine: &'a mut Machine) -> u8 {
+    fn step_machine<'a>(machine: &'a mut Machine) -> MachineStep {
+        let mut instruction_executed = None;
         let (mut t_cycles, mut _m_cycles) = Interrupts::handle_interrupts(machine);
         if t_cycles == 0 {
-            (t_cycles, _m_cycles) = CPU::execute_one_instruction(machine)
+            (instruction_executed, (t_cycles, _m_cycles)) = CPU::execute_one_instruction(machine);
         }
         machine.timers.ticks(&mut machine.interrupts, t_cycles);
         machine.ppu.ticks(
@@ -117,10 +129,15 @@ impl ApplicationState {
         //     machine.write_u8(Wrapping(0xFF02), Wrapping(0x01));
         // }
 
-        t_cycles
+        MachineStep {
+            t_cycles: t_cycles as u128,
+            instruction_executed,
+        }
     }
 
-    fn step(&mut self, preserve: PreserveHistory) -> u8 {
+    // Steps cycles forward until an instruction is executed.  May take many tries when the console
+    // is in HALT and awaiting an interrupt to wake up and execute an instruction.
+    fn execute_one_instruction(&mut self, preserve: PreserveHistory) -> InstructionStep {
         if !self.current_machine().is_dmg_boot_rom_on()
             && !self.current_machine().cpu().low_power_mode
         {
@@ -133,13 +150,46 @@ impl ApplicationState {
         match preserve {
             PreserveHistory::DontPreserveHistory => {
                 let machine = current_machine;
-                ApplicationState::step_machine(machine)
+                let mut executed_instruction = None;
+                let mut total_t_cycles: u128 = 0;
+
+                loop {
+                    match executed_instruction {
+                        Some(decoded_instruction) => {
+                            return InstructionStep {
+                                t_cycles: total_t_cycles,
+                                _instruction_executed: decoded_instruction,
+                            }
+                        }
+                        None => {
+                            let step = ApplicationState::step_machine(machine);
+                            executed_instruction = step.instruction_executed;
+                            total_t_cycles += step.t_cycles;
+                        }
+                    }
+                }
             }
             PreserveHistory::PreserveHistory => {
                 let mut next_machine = current_machine.clone();
-                let t_cycles = ApplicationState::step_machine(&mut next_machine);
-                self.snaps.push(next_machine);
-                t_cycles
+                let mut executed_instruction = None;
+                let mut total_t_cycles = 0;
+
+                loop {
+                    match executed_instruction {
+                        Some(decoded_instruction) => {
+                            self.snaps.push(next_machine);
+                            return InstructionStep {
+                                t_cycles: total_t_cycles,
+                                _instruction_executed: decoded_instruction,
+                            };
+                        }
+                        None => {
+                            let step = ApplicationState::step_machine(&mut next_machine);
+                            executed_instruction = step.instruction_executed;
+                            total_t_cycles += step.t_cycles;
+                        }
+                    }
+                }
             }
         }
     }
@@ -173,7 +223,7 @@ impl ApplicationState {
             }
 
             Message::RunNextInstruction => {
-                self.step(PreserveHistory::PreserveHistory);
+                let _step = self.execute_one_instruction(PreserveHistory::PreserveHistory);
                 self.current_machine().ppu_mut().render();
                 Task::none()
             }
@@ -181,7 +231,7 @@ impl ApplicationState {
             Message::BeginRunUntilBreakpoint => {
                 self.paused = false;
                 // step at least once to escape current breakpoint! :D
-                self.step(PreserveHistory::DontPreserveHistory);
+                self.execute_one_instruction(PreserveHistory::DontPreserveHistory);
                 Task::done(Message::ContinueRunUntilBreakpoint)
             }
 
@@ -192,8 +242,8 @@ impl ApplicationState {
 
                 let mut remaining_steps = Saturating(69_905);
                 while remaining_steps.0 > 0 && !self.paused && !self.breakpoints.contains(&pc.0) {
-                    let elapsed_t_cycles = self.step(PreserveHistory::DontPreserveHistory);
-                    remaining_steps -= elapsed_t_cycles as u32;
+                    let step = self.execute_one_instruction(PreserveHistory::DontPreserveHistory);
+                    remaining_steps -= step.t_cycles as u32;
                     // self.current_machine().ppu_mut().render();
                     // let final_frame_time = time::Instant::now() - initial_time;
                     // if final_frame_time > target_frame_time {
