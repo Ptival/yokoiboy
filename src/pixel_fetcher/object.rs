@@ -52,9 +52,16 @@ impl ObjectFetcher {
         }
     }
 
-    pub fn reset(&mut self, vram_tile_column: u8) {
+    pub fn prepare_for_new_row(&mut self) {
         self.state = FetcherState::GetTileDelay;
-        self.vram_tile_column = vram_tile_column;
+        self.fifo.clear();
+        self.vram_tile_column = 0;
+    }
+
+    pub fn prepare_for_new_frame(&mut self) {
+        self.state = FetcherState::GetTileDelay;
+        self.fifo.clear();
+        self.vram_tile_column = 0;
     }
 
     pub fn tick(&mut self, ppu: &mut PPU) {

@@ -4,6 +4,7 @@ use crate::{
     cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher,
+        get_tile_index_in_palette,
         object::{ObjectFetcher, Sprite},
         Fetcher, FetchingFor, TileAddressingMode,
     },
@@ -33,8 +34,9 @@ pub const TILE_PALETTE_VERTICAL_PIXELS: usize =
 pub const TILE_PALETTE_PIXELS_TOTAL: usize =
     TILE_PALETTE_HORIZONTAL_PIXELS * TILE_PALETTE_VERTICAL_PIXELS;
 
-const TILE_MAP_HORIZONTAL_TILE_COUNT: usize = 32;
-const TILE_MAP_VERTICAL_TILE_COUNT: usize = 32;
+pub const TILE_MAP_HORIZONTAL_TILE_COUNT: usize = 32;
+pub const TILE_MAP_VERTICAL_TILE_COUNT: usize = 32;
+const TILE_MAP_TILE_TOTAL: usize = TILE_MAP_HORIZONTAL_TILE_COUNT * TILE_MAP_VERTICAL_TILE_COUNT;
 const TILE_MAP_HORIZONTAL_PIXELS: usize =
     TILE_MAP_HORIZONTAL_TILE_COUNT * HORIZONTAL_PIXELS_PER_TILE;
 const TILE_MAP_VERTICAL_PIXELS: usize = TILE_MAP_VERTICAL_TILE_COUNT * VERTICAL_PIXELS_PER_TILE;
@@ -114,6 +116,9 @@ pub struct PPU {
     frame_scxs_valid: [bool; LCD_VERTICAL_PIXEL_COUNT],
     frame_scys_at_scanline_0: [u8; LCD_HORIZONTAL_PIXEL_COUNT],
     frame_scys_first_scanline_valid: [bool; LCD_HORIZONTAL_PIXEL_COUNT],
+    // TODO: make this private? move it to pixel fetcher?
+    pub tile_map0_last_addressing_modes: [TileAddressingMode; TILE_MAP_TILE_TOTAL],
+    pub tile_map1_last_addressing_modes: [TileAddressingMode; TILE_MAP_TILE_TOTAL],
 }
 
 pub fn pixel_code_to_rgba(pixel_code: u8) -> [u8; PIXEL_DATA_SIZE] {
@@ -172,6 +177,10 @@ impl PPU {
             frame_scxs_valid: [true; LCD_VERTICAL_PIXEL_COUNT],
             frame_scys_at_scanline_0: [0; LCD_HORIZONTAL_PIXEL_COUNT],
             frame_scys_first_scanline_valid: [true; LCD_HORIZONTAL_PIXEL_COUNT],
+            tile_map0_last_addressing_modes: [TileAddressingMode::UnsignedFrom0x8000;
+                TILE_MAP_TILE_TOTAL],
+            tile_map1_last_addressing_modes: [TileAddressingMode::UnsignedFrom0x8000;
+                TILE_MAP_TILE_TOTAL],
         }
     }
 
@@ -240,6 +249,7 @@ impl PPU {
             &self.tile_palette_pixels,
             &mut self.tile_map0_pixels,
             TILE_MAP0_VRAM_OFFSET,
+            &self.tile_map0_last_addressing_modes,
         );
 
         // Render the top and bottom SCY lines, where they haven't been messed with mid-frame
@@ -286,6 +296,7 @@ impl PPU {
             &self.tile_palette_pixels,
             &mut self.tile_map1_pixels,
             TILE_MAP1_VRAM_OFFSET,
+            &self.tile_map1_last_addressing_modes,
         )
     }
 
@@ -293,11 +304,18 @@ impl PPU {
     pub fn render(&mut self) {
         self.render_tile_palette();
         self.render_tile_map0();
-        self.render_tile_map1();
+        // self.render_tile_map1();
     }
 
-    pub fn prepare_for_new_frame(&mut self) {
+    pub fn prepare_for_new_frame(
+        &mut self,
+        bgw_fetcher: &mut BackgroundOrWindowFetcher,
+        obj_fetcher: &mut ObjectFetcher,
+    ) {
         self.lcd_y_coord = Wrapping(0);
+
+        bgw_fetcher.prepare_for_new_frame();
+        obj_fetcher.prepare_for_new_frame();
 
         self.frame_scxs = [0; LCD_VERTICAL_PIXEL_COUNT];
         self.frame_scxs_valid = [true; LCD_VERTICAL_PIXEL_COUNT];
@@ -365,9 +383,8 @@ impl PPU {
                             });
                         }
                     }
-                    bgw_fetcher.reset();
-                    obj_fetcher.reset(0);
                     obj_fetcher.selected_objects = selected_objects;
+                    obj_fetcher.vram_tile_column = 0; // FIXME?
                     self.switch_to_drawing_pixels(pixel_fetcher);
                 }
             }
@@ -400,18 +417,19 @@ impl PPU {
                     let bgw_pixel = bgw_fetcher.fifo.pop_front().unwrap();
                     let obj_pixel = obj_fetcher.fifo.pop_front().unwrap();
                     let pixel_x = self.drawn_pixels_on_current_row;
-                    let pixel_y = self.lcd_y_coord.0;
+                    let pixel_y = self.read_ly().0;
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
                     let rgba = pixel_code_to_rgba(if obj_pixel.color == 0 {
                         bgw_pixel.color
                     } else {
-                        obj_pixel.color
+                        bgw_pixel.color // hide buggy sprites while debugging
+                                        // obj_pixel.color
                     });
                     self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
                     self.drawn_pixels_on_current_row += 1;
 
-                    if self.drawn_pixels_on_current_row == 160 {
+                    if self.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
                         self.switch_to_horizontal_blank()
                     }
                 }
@@ -425,7 +443,7 @@ impl PPU {
                     if self.read_ly().0 as usize == LCD_VERTICAL_PIXEL_COUNT {
                         self.switch_to_vertical_blank(interrupts)
                     } else {
-                        self.switch_to_oam_scan()
+                        self.switch_to_oam_scan(bgw_fetcher, obj_fetcher)
                     }
                 }
             }
@@ -436,8 +454,8 @@ impl PPU {
                     self.scanline_dots = 0;
                     self.increment_ly(interrupts);
                     if self.read_ly().0 == 153 {
-                        self.prepare_for_new_frame();
-                        self.switch_to_oam_scan()
+                        self.prepare_for_new_frame(bgw_fetcher, obj_fetcher);
+                        self.switch_to_oam_scan(bgw_fetcher, obj_fetcher)
                     }
                 }
             }
@@ -483,8 +501,14 @@ impl PPU {
         self.lcd_control = value;
     }
 
-    fn switch_to_oam_scan(&mut self) {
+    fn switch_to_oam_scan(
+        &mut self,
+        bgw_fetcher: &mut BackgroundOrWindowFetcher,
+        obj_fetcher: &mut ObjectFetcher,
+    ) {
         self.drawn_pixels_on_current_row = 0;
+        bgw_fetcher.prepare_for_new_row();
+        obj_fetcher.prepare_for_new_row();
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 2);
         utils::unset_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
@@ -525,11 +549,12 @@ fn render_tile_map(
     tile_palette_pixels: &[u8],
     tile_map_pixels: &mut [u8],
     tile_map_vram_offset: usize,
+    tile_map_last_addressing_modes: &[TileAddressingMode; TILE_MAP_TILE_TOTAL],
 ) {
     for tile_map_y in 0..TILE_MAP_VERTICAL_TILE_COUNT {
         for tile_map_x in 0..TILE_MAP_HORIZONTAL_TILE_COUNT {
             let tile_entry_offset = (tile_map_y << 5) | tile_map_x;
-            let tile_id = vram[tile_map_vram_offset + tile_entry_offset] as usize;
+            let tile_id = vram[tile_map_vram_offset + tile_entry_offset];
             // Because tiles have already been rendered as pixels in the tile palette, here we
             // can just copy slices of lines for the 8 lines of the tile.
             for tile_pixel_y in 0..VERTICAL_PIXELS_PER_TILE {
@@ -539,8 +564,29 @@ fn render_tile_map(
                 let pixels_to_skip = tiles_to_skip * PIXELS_PER_TILE + row_pixels_to_skip;
                 let bytes_to_skip = pixels_to_skip * PIXEL_DATA_SIZE;
 
-                let palette_tile_y = tile_id / TILE_PALETTE_HORIZONTAL_TILE_COUNT;
-                let palette_tile_x = tile_id % TILE_MAP_HORIZONTAL_TILE_COUNT;
+                let tile_index_in_tile_map =
+                    tile_map_y * TILE_MAP_HORIZONTAL_TILE_COUNT + tile_map_x;
+                let addressing_mode = tile_map_last_addressing_modes[tile_index_in_tile_map];
+                let tile_index_in_palette =
+                    get_tile_index_in_palette(tile_id, &addressing_mode) as usize;
+
+                match addressing_mode {
+                    TileAddressingMode::UnsignedFrom0x8000 => {}
+                    TileAddressingMode::SignedFrom0x9000 => {
+                        println!("Using non-standard addressing mode to render tile map");
+                        println!(
+                            "Using tile {} instead of tile {}",
+                            tile_index_in_palette,
+                            get_tile_index_in_palette(
+                                tile_id,
+                                &TileAddressingMode::UnsignedFrom0x8000
+                            )
+                        );
+                    }
+                }
+
+                let palette_tile_y = tile_index_in_palette / TILE_PALETTE_HORIZONTAL_TILE_COUNT;
+                let palette_tile_x = tile_index_in_palette % TILE_MAP_HORIZONTAL_TILE_COUNT;
                 let palette_tiles_to_skip = palette_tile_y * TILE_PALETTE_HORIZONTAL_TILE_COUNT;
                 let palette_row_pixels_to_skip = tile_pixel_y * TILE_PALETTE_HORIZONTAL_PIXELS
                     + palette_tile_x * HORIZONTAL_PIXELS_PER_TILE;

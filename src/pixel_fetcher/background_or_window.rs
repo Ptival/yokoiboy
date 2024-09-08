@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
-    ppu::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU},
+    ppu::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU, TILE_MAP_HORIZONTAL_TILE_COUNT},
     utils,
 };
 
@@ -29,9 +29,20 @@ impl BackgroundOrWindowFetcher {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn prepare_for_new_frame(&mut self) {
         self.state = FetcherState::GetTileDelay;
+        self.fifo.clear();
+        self.row_of_pixel_within_tile = 0;
         self.vram_tile_column = 0;
+        self.tile_row_data = [0; 8];
+    }
+
+    pub fn prepare_for_new_row(&mut self) {
+        self.state = FetcherState::GetTileDelay;
+        self.fifo.clear();
+        self.row_of_pixel_within_tile = 0;
+        self.vram_tile_column = 0;
+        self.tile_row_data = [0; 8];
     }
 
     pub fn tick(&mut self, ppu: &mut PPU) {
@@ -39,18 +50,25 @@ impl BackgroundOrWindowFetcher {
             FetcherState::GetTileDelay => self.state = FetcherState::GetTile,
 
             FetcherState::GetTile => {
-                let vram_tile_row = (ppu.read_ly() + ppu.scy).0 & 255;
-                // machine.ppu_mut().fetcher.row_of_pixel_within_tile = vram_tile_row % 8;
+                let vram_pixel_row = (ppu.read_ly() + ppu.scy).0 & 255;
+
+                let tile_index_in_its_tile_map = (vram_pixel_row as usize / 8)
+                    * TILE_MAP_HORIZONTAL_TILE_COUNT
+                    + self.vram_tile_column as usize;
 
                 // FIXME: more complex rules for the row base address
                 let row_vram_offset =
                     if utils::is_bit_set(&ppu.lcd_control, LCDC_BACKGROUND_TILE_MAP_AREA_BIT) {
+                        ppu.tile_map0_last_addressing_modes[tile_index_in_its_tile_map] =
+                            ppu.get_addressing_mode();
                         0x1C00 // 0x9C00, but VRAM starts at 0x8000
                     } else {
+                        ppu.tile_map1_last_addressing_modes[tile_index_in_its_tile_map] =
+                            ppu.get_addressing_mode();
                         0x1800 // 0x9800, but VRAM starts at 0x8000
                     };
 
-                let row_address = row_vram_offset + ((vram_tile_row as u16 / 8) * 32);
+                let row_address = row_vram_offset + ((vram_pixel_row as u16 / 8) * 32);
 
                 self.tile_id = ppu.vram[(row_address + (self.vram_tile_column as u16)) as usize];
                 self.state = FetcherState::GetTileDataLowDelay;

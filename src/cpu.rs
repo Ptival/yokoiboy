@@ -40,6 +40,7 @@ impl CPU {
             }
         }
         let next_instruction = decode_instruction_at_address(machine, machine.cpu().registers.pc);
+        // println!("About to execute {}", next_instruction);
         // This will be the default PC, unless instruction semantics overwrite it
         machine.cpu_mut().registers.pc =
             machine.cpu_mut().registers.pc + Wrapping(next_instruction.instruction_size as u16);

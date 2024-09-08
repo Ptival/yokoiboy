@@ -35,12 +35,13 @@ pub struct Fetcher {
 
 // Background and Window use one of these based on bit 4 of lcd_control.
 // Sprites always use UnsignedFrom0x8000.
+#[derive(Clone, Copy, Debug)]
 pub enum TileAddressingMode {
     UnsignedFrom0x8000,
     SignedFrom0x9000,
 }
 
-fn tile_index_in_palette(tile_id: u8, addressing_mode: &TileAddressingMode) -> u16 {
+pub fn get_tile_index_in_palette(tile_id: u8, addressing_mode: &TileAddressingMode) -> u16 {
     match addressing_mode {
         TileAddressingMode::UnsignedFrom0x8000 => tile_id as u16,
         TileAddressingMode::SignedFrom0x9000 => (256 + (tile_id as i8) as i16) as u16,
@@ -87,7 +88,7 @@ impl Fetcher {
         // NOTE: rather than going through the MMU again with an absolute address, I'm computing the
         // address relative to VRAM and reading directly from the VRAM slice.  Should be slightly
         // faster as you don't need to perform range checks to realize you're heading into VRAM.
-        let tile_index_in_palette = tile_index_in_palette(tile_id, addressing_mode);
+        let tile_index_in_palette = get_tile_index_in_palette(tile_id, addressing_mode);
         let row_of_pixel_within_tile = (current_line & 255) % 8;
         let address_in_vram_slice =
             tile_index_in_palette * 16 + (row_of_pixel_within_tile as u16) * 2;
