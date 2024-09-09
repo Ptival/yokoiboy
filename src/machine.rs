@@ -1,23 +1,31 @@
 use std::num::Wrapping;
 
 use crate::{
+    application_state::{MapperType, ROMInformation},
     cpu::{interrupts::Interrupts, timers::Timers, CPU},
     inputs::Inputs,
-    memory::Memory,
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher, object::ObjectFetcher, Fetcher,
     },
     ppu::PPU,
 };
 
-pub const EXTERNAL_RAM_SIZE: usize = 0x2000;
+#[derive(Clone, Debug, PartialEq)]
+enum BankingMode {
+    Ram,
+    Rom,
+}
 
 // TODO: separate MMU from Machine?
 
 #[derive(Clone, Debug)]
 pub struct Machine {
     // Machine state
-    pub external_ram: [u8; EXTERNAL_RAM_SIZE], // TODO: where should this live?
+    banking_mode: BankingMode,
+    pub is_ram_enabled: bool,
+    pub loram_bank: u8,
+    pub ram_or_hiram_bank: u8,
+    pub rom_information: ROMInformation,
     pub t_cycle_count: u64,
 
     // Subsystems
@@ -85,13 +93,24 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(fix_ly: bool) -> Self {
+    pub fn new(
+        boot_rom: Vec<u8>,
+        game_rom: Vec<u8>,
+        rom_information: ROMInformation,
+        fix_ly: bool,
+    ) -> Self {
+        let cpu = CPU::new(boot_rom, game_rom, &rom_information);
         Machine {
+            banking_mode: BankingMode::Rom,
+            is_ram_enabled: false,
+            loram_bank: 1,
+            ram_or_hiram_bank: 0,
+            rom_information,
             t_cycle_count: 0,
             dmg_boot_rom: Wrapping(0),
 
             background_window_fetcher: BackgroundOrWindowFetcher::new(),
-            cpu: CPU::new(),
+            cpu,
             inputs: Inputs::new(),
             interrupts: Interrupts::new(),
             object_fetcher: ObjectFetcher::new(),
@@ -100,7 +119,6 @@ impl Machine {
             timers: Timers::new(),
 
             bgp: Wrapping(0),
-            external_ram: [0; EXTERNAL_RAM_SIZE],
 
             nr10: Wrapping(0),
             nr11: Wrapping(0),
@@ -160,11 +178,26 @@ impl Machine {
             return self.memory().read_boot_rom(address);
         }
         match address.0 {
-            0x0000..=0x3FFF => self.memory().read_bank_00(address),
-            0x4000..=0x7FFF => self.memory().read_bank_01(address - Wrapping(0x4000)),
+            0x0000..=0x3FFF => Wrapping(self.memory().game_rom[address.0 as usize]),
+            0x4000..=0x7FFF => match self.rom_information.mapper_type {
+                crate::application_state::MapperType::ROMOnly => {
+                    Wrapping(self.memory().game_rom[address.0 as usize])
+                }
+                crate::application_state::MapperType::MBC1 => {
+                    let mut bank_number = self.loram_bank;
+                    if self.banking_mode == BankingMode::Rom {
+                        bank_number |= self.ram_or_hiram_bank << 5;
+                    }
+                    let base_address = bank_number as usize * 0x4000;
+                    Wrapping(self.memory().game_rom[base_address + address.0 as usize - 0x4000])
+                }
+                crate::application_state::MapperType::Other => todo!(),
+            },
             0x8000..=0x9FFF => self.ppu.read_vram(address - Wrapping(0x8000)),
 
-            0xA000..=0xBFFF => Wrapping(self.external_ram[(address - Wrapping(0xA000)).0 as usize]),
+            0xA000..=0xBFFF => {
+                Wrapping(self.memory().game_ram[(address - Wrapping(0xA000)).0 as usize])
+            }
             0xC000..=0xCFFF => self.ppu.read_wram_0(address - Wrapping(0xC000)),
             0xD000..=0xDFFF => self.ppu.read_wram_1(address - Wrapping(0xD000)),
             0xE000..=0xFDFF => self.read_u8(address - Wrapping(0x2000)),
@@ -244,7 +277,7 @@ impl Machine {
             0xFF74..=0xFF74 => Wrapping(0xFF),
             0xFF75..=0xFF75 => self.register_ff75,
 
-            0xFF80..=0xFFFE => self.memory().read_hram(address - Wrapping(0xFF80)),
+            0xFF80..=0xFFFE => Wrapping(self.memory().hram[address.0 as usize - 0xFF80]),
             0xFFFF..=0xFFFF => self.interrupts().interrupt_enable,
             _ => panic!(
                 "Memory read at address {:04X} needs to be handled (at PC 0x{:04X})",
@@ -272,11 +305,49 @@ impl Machine {
             panic!("Attempted write in boot ROM")
         }
         match address.0 {
-            0x0000..=0x3FFF => Memory::write_bank_00(self, address, value),
-            0x4000..=0x7FFF => Memory::write_bank_01(self, address - Wrapping(0x4000), value),
+            0x0000..=0x1FFF => match self.rom_information.mapper_type {
+                MapperType::ROMOnly => {
+                    print!("WARNING: Ignoring write at 0x{:04X}", address.0)
+                }
+                MapperType::MBC1 => {
+                    self.is_ram_enabled = value.0 & 0x0F == 0x0A;
+                }
+                MapperType::Other => todo!(),
+            },
+            0x2000..=0x3FFF => match self.rom_information.mapper_type {
+                MapperType::ROMOnly => {
+                    println!("WARNING: Ignoring write at 0x{:04X}", address.0)
+                }
+                MapperType::MBC1 => {
+                    self.loram_bank = value.0 & 0x1F;
+                }
+                MapperType::Other => todo!(),
+            },
+            0x4000..=0x5FFF => match self.rom_information.mapper_type {
+                MapperType::ROMOnly => {
+                    print!("WARNING: Ignoring write at 0x{:04X}", address.0)
+                }
+                MapperType::MBC1 => {
+                    self.ram_or_hiram_bank = value.0 & 0b11;
+                }
+                MapperType::Other => todo!(),
+            },
+            0x6000..=0x7FFF => match self.rom_information.mapper_type {
+                MapperType::ROMOnly => {
+                    print!("WARNING: Ignoring write at 0x{:04X}", address.0)
+                }
+                MapperType::MBC1 => {
+                    self.banking_mode = if value.0 & 1 == 0 {
+                        BankingMode::Rom
+                    } else {
+                        BankingMode::Ram
+                    }
+                }
+                MapperType::Other => todo!(),
+            },
             0x8000..=0x9FFF => PPU::write_vram(&mut self.ppu, address - Wrapping(0x8000), value),
 
-            0xA000..=0xBFFF => self.external_ram[(address - Wrapping(0xA000)).0 as usize] = value.0,
+            0xA000..=0xBFFF => self.memory_mut().game_ram[address.0 as usize - 0xA000] = value.0,
             0xC000..=0xCFFF => PPU::write_wram_0(&mut self.ppu, address - Wrapping(0xC000), value),
             0xD000..=0xDFFF => PPU::write_wram_1(&mut self.ppu, address - Wrapping(0xD000), value),
             0xE000..=0xFDFF => {
@@ -367,7 +438,7 @@ impl Machine {
                 // println!("[WARNING] Ignoring write to 0x{:04X}", address.0)
             }
 
-            0xFF80..=0xFFFE => Memory::write_hram(self, address - Wrapping(0xFF80), value),
+            0xFF80..=0xFFFE => self.memory_mut().hram[address.0 as usize - 0xFF80] = value.0,
             0xFFFF..=0xFFFF => self.interrupts_mut().interrupt_enable = value,
             _ => panic!(
                 "Memory write at address {:04X} needs to be handle (at PC 0x{:04X})",

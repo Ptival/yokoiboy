@@ -4,6 +4,7 @@ pub mod timers;
 use std::num::Wrapping;
 
 use crate::{
+    application_state::ROMInformation,
     instructions::{
         decode::{decode_instruction_at_address, DecodedInstruction},
         type_def::Immediate16,
@@ -24,10 +25,10 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new() -> Self {
+    pub fn new(boot_rom: Vec<u8>, game_rom: Vec<u8>, rom_information: &ROMInformation) -> Self {
         CPU {
             low_power_mode: false,
-            memory: Memory::new(),
+            memory: Memory::new(boot_rom, game_rom, rom_information),
             registers: Registers::new(),
         }
     }
@@ -67,7 +68,7 @@ impl CPU {
     }
 
     // Note: pushes the higher byte goes to higher address!!!
-    pub fn push_imm16(machine: &mut Machine, imm16: Immediate16) -> &mut Machine {
+    pub fn push_imm16<'a>(machine: &'a mut Machine, imm16: Immediate16) -> &'a mut Machine {
         machine.cpu_mut().registers.sp -= 1;
         machine.write_u8(machine.cpu().registers.sp, imm16.higher_byte);
         machine.cpu_mut().registers.sp -= 1;

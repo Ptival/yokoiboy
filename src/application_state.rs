@@ -15,12 +15,47 @@ use crate::{
     cpu::{interrupts::Interrupts, CPU},
     instructions::decode::DecodedInstruction,
     machine::Machine,
+    memory::{load_boot_rom, load_game_rom},
     message::Message,
 };
 
 const CPU_SNAPS_CAPACITY: usize = 5;
 const FRAME_TIME_NANOSECONDS: u32 = 16742;
 const LOG_PATH: &str = "log";
+
+#[derive(Clone, Debug)]
+pub enum MapperType {
+    ROMOnly,
+    MBC1,
+    Other, // TODO
+}
+
+#[derive(Clone, Debug)]
+pub enum RAMSize {
+    NoRAM,
+    Ram2kb,
+    Ram8kb,
+    Ram4banks8kb,
+    Ram16banks8kb,
+    Ram8banks8kb,
+}
+
+#[derive(Clone, Debug)]
+pub struct ROMInformation {
+    pub mapper_type: MapperType,
+    pub ram_size: RAMSize,
+    pub rom_banks: u8,
+}
+
+impl ROMInformation {
+    pub fn new() -> Self {
+        ROMInformation {
+            mapper_type: MapperType::ROMOnly,
+            ram_size: RAMSize::NoRAM,
+            rom_banks: 0,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ApplicationState {
@@ -49,13 +84,10 @@ pub struct InstructionStep {
 impl ApplicationState {
     pub fn new(args: &CommandLineArguments, breakpoints: &[u16]) -> Self {
         let mut queue = CircularQueue::with_capacity(CPU_SNAPS_CAPACITY);
-        let mut machine = Machine::new(args.log_for_doctor);
-        machine
-            .memory_mut()
-            .load_boot_rom(&args.boot_rom)
-            .unwrap_or_else(|e| panic!("Failed to load boot ROM: {}", e))
-            .load_rom(&args.game_rom)
-            .unwrap_or_else(|e| panic!("Failed to load game ROM: {}", e));
+        let boot_rom = load_boot_rom(&args.boot_rom).unwrap();
+        let (game_rom, rom_information) = load_game_rom(&args.game_rom).unwrap();
+        println!("{:?}", rom_information);
+        let machine = Machine::new(boot_rom, game_rom, rom_information, args.log_for_doctor);
         queue.push(machine);
         let target_frame_time = Duration::new(0, FRAME_TIME_NANOSECONDS);
         Self {
@@ -106,7 +138,7 @@ impl ApplicationState {
     }
 
     // TODO: move in machine.rs
-    fn step_machine<'a>(machine: &'a mut Machine) -> MachineStep {
+    fn step_machine(machine: &mut Machine) -> MachineStep {
         let mut instruction_executed = None;
         let (mut t_cycles, mut _m_cycles) = Interrupts::handle_interrupts(machine);
         if t_cycles == 0 {

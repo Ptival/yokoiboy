@@ -121,12 +121,21 @@ pub struct PPU {
     pub tile_map1_last_addressing_modes: [TileAddressingMode; TILE_MAP_TILE_TOTAL],
 }
 
+const BLACK: [u8; 4] = [0, 0, 0, 255];
+const DARK_GRAY: [u8; 4] = [0x55, 0x55, 0x55, 255];
+const LIGHT_GRAY: [u8; 4] = [0xAA, 0xAA, 0xAA, 255];
+const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 255];
+
 pub fn pixel_code_to_rgba(pixel_code: u8) -> [u8; PIXEL_DATA_SIZE] {
     match pixel_code {
-        0b00 => [0, 0, 0, 255],
-        0b01 => [0x55, 0x55, 0x55, 255],
-        0b10 => [0xAA, 0xAA, 0xAA, 255],
-        0b11 => [0xFF, 0xFF, 0xFF, 255],
+        // 0b00 => BLACK,
+        // 0b01 => DARK_GRAY,
+        // 0b10 => LIGHT_GRAY,
+        // 0b11 => WHITE,
+        0b00 => DARK_GRAY,
+        0b01 => LIGHT_GRAY,
+        0b10 => WHITE,
+        0b11 => BLACK,
         _ => panic!("pixel_code is: 0x{:08b}", pixel_code),
     }
 }
@@ -569,22 +578,6 @@ fn render_tile_map(
                 let addressing_mode = tile_map_last_addressing_modes[tile_index_in_tile_map];
                 let tile_index_in_palette =
                     get_tile_index_in_palette(tile_id, &addressing_mode) as usize;
-
-                match addressing_mode {
-                    TileAddressingMode::UnsignedFrom0x8000 => {}
-                    TileAddressingMode::SignedFrom0x9000 => {
-                        println!("Using non-standard addressing mode to render tile map");
-                        println!(
-                            "Using tile {} instead of tile {}",
-                            tile_index_in_palette,
-                            get_tile_index_in_palette(
-                                tile_id,
-                                &TileAddressingMode::UnsignedFrom0x8000
-                            )
-                        );
-                    }
-                }
-
                 let palette_tile_y = tile_index_in_palette / TILE_PALETTE_HORIZONTAL_TILE_COUNT;
                 let palette_tile_x = tile_index_in_palette % TILE_MAP_HORIZONTAL_TILE_COUNT;
                 let palette_tiles_to_skip = palette_tile_y * TILE_PALETTE_HORIZONTAL_TILE_COUNT;
