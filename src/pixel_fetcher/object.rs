@@ -30,7 +30,7 @@ pub struct Sprite {
 pub struct ObjectFetcher {
     state: FetcherState,
     pub fifo: VecDeque<FIFOItem>,
-    tile_id: u8,
+    tile_id: Option<u8>,
     pub vram_tile_column: u8,
     tile_row_data: [u8; 8],
     pub selected_objects: VecDeque<Sprite>,
@@ -45,7 +45,7 @@ impl ObjectFetcher {
         ObjectFetcher {
             state: FetcherState::GetTileDelay,
             fifo: VecDeque::new(),
-            tile_id: 0,
+            tile_id: None,
             vram_tile_column: 0,
             tile_row_data: [0; 8],
             selected_objects: VecDeque::new(),
@@ -55,6 +55,7 @@ impl ObjectFetcher {
     pub fn prepare_for_new_row(&mut self) {
         self.state = FetcherState::GetTileDelay;
         self.fifo.clear();
+        self.tile_row_data = [0; 8];
         self.vram_tile_column = 0;
     }
 
@@ -83,9 +84,9 @@ impl ObjectFetcher {
                 }) {
                     Some(sprite) => {
                         println!("We found an object tile!");
-                        sprite.tile_index
+                        Some(sprite.tile_index)
                     }
-                    None => 0,
+                    None => None,
                 };
                 self.tile_id = tile_id;
                 self.state = FetcherState::GetTileDataLowDelay
@@ -95,14 +96,21 @@ impl ObjectFetcher {
 
             FetcherState::GetTileDataLow => {
                 let ly = ppu.read_ly();
-                Fetcher::read_tile_row(
-                    &ppu.vram,
-                    &TileAddressingMode::UnsignedFrom0x8000,
-                    (ly + ppu.scy).0,
-                    self.tile_id,
-                    false,
-                    &mut self.tile_row_data,
-                );
+                match self.tile_id {
+                    Some(tile_id) => {
+                        Fetcher::read_tile_row(
+                            &ppu.vram,
+                            &TileAddressingMode::UnsignedFrom0x8000,
+                            (ly + ppu.scy).0,
+                            tile_id,
+                            false,
+                            &mut self.tile_row_data,
+                        );
+                    }
+                    None => {
+                        self.tile_row_data = [0; 8];
+                    }
+                }
                 self.state = FetcherState::GetTileDataHighDelay
             }
 
@@ -110,14 +118,21 @@ impl ObjectFetcher {
 
             FetcherState::GetTileDataHigh => {
                 let ly = ppu.read_ly();
-                Fetcher::read_tile_row(
-                    &ppu.vram,
-                    &TileAddressingMode::UnsignedFrom0x8000,
-                    (ly + ppu.scy).0,
-                    self.tile_id,
-                    true,
-                    &mut self.tile_row_data,
-                );
+                match self.tile_id {
+                    Some(tile_id) => {
+                        Fetcher::read_tile_row(
+                            &ppu.vram,
+                            &TileAddressingMode::UnsignedFrom0x8000,
+                            (ly + ppu.scy).0,
+                            tile_id,
+                            true,
+                            &mut self.tile_row_data,
+                        );
+                    }
+                    None => {
+                        self.tile_row_data = [0; 8];
+                    }
+                }
                 self.state = FetcherState::PushRow
             }
 

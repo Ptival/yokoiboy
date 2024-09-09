@@ -429,11 +429,11 @@ impl PPU {
                     let pixel_y = self.read_ly().0;
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
+                    // Simulate pixel mixing
                     let rgba = pixel_code_to_rgba(if obj_pixel.color == 0 {
                         bgw_pixel.color
                     } else {
-                        bgw_pixel.color // hide buggy sprites while debugging
-                                        // obj_pixel.color
+                        obj_pixel.color
                     });
                     self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
                     self.drawn_pixels_on_current_row += 1;
