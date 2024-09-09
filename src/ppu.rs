@@ -81,8 +81,9 @@ pub struct PPU {
     state: PPUState,
 
     // Hardware registers
-    pub background_palette_data: Wrapping<u8>,
-    pub background_palette_spec: Wrapping<u8>,
+    pub background_palette_data: u8,
+    pub cgb_background_palette_data: Wrapping<u8>,
+    pub cgb_background_palette_spec: Wrapping<u8>,
     pub lcd_control: Wrapping<u8>,
     pub lcd_status: Wrapping<u8>,
     pub lcd_y_compare: Wrapping<u8>,
@@ -126,17 +127,20 @@ const DARK_GRAY: [u8; 4] = [0x55, 0x55, 0x55, 255];
 const LIGHT_GRAY: [u8; 4] = [0xAA, 0xAA, 0xAA, 255];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 255];
 
-pub fn pixel_code_to_rgba(pixel_code: u8) -> [u8; PIXEL_DATA_SIZE] {
-    match pixel_code {
-        // 0b00 => BLACK,
-        // 0b01 => DARK_GRAY,
-        // 0b10 => LIGHT_GRAY,
-        // 0b11 => WHITE,
-        0b00 => DARK_GRAY,
+pub fn pixel_code_to_rgba(pixel_code: u8, palette: u8) -> [u8; PIXEL_DATA_SIZE] {
+    let pixel_shade = match pixel_code {
+        0b00 => palette & 0b11,
+        0b01 => (palette >> 2) & 0b11,
+        0b10 => (palette >> 4) & 0b11,
+        0b11 => (palette >> 6) & 0b11,
+        _ => panic!("Invalid pixel code: 0x{:08b}", pixel_code),
+    };
+    match pixel_shade {
+        0b00 => WHITE,
         0b01 => LIGHT_GRAY,
-        0b10 => WHITE,
+        0b10 => DARK_GRAY,
         0b11 => BLACK,
-        _ => panic!("pixel_code is: 0x{:08b}", pixel_code),
+        _ => unreachable!(),
     }
 }
 
@@ -154,8 +158,9 @@ impl PPU {
             scanline_dots: 0,
             state: PPUState::OAMScan,
 
-            background_palette_spec: Wrapping(0),
-            background_palette_data: Wrapping(0),
+            background_palette_data: 0,
+            cgb_background_palette_spec: Wrapping(0),
+            cgb_background_palette_data: Wrapping(0),
             lcd_control: Wrapping(0),
             lcd_status: Wrapping(2), // initially set Mode 2
             lcd_y_compare: Wrapping(0),
@@ -238,7 +243,8 @@ impl PPU {
                     for tile_pixel_x in 0..HORIZONTAL_PIXELS_PER_TILE {
                         let pixel_code = (((high_bits >> (7 - tile_pixel_x)) & 1) << 1)
                             | ((low_bits >> (7 - tile_pixel_x)) & 1);
-                        let pixel_rgba = pixel_code_to_rgba(pixel_code);
+                        let pixel_rgba =
+                            pixel_code_to_rgba(pixel_code, self.background_palette_data);
                         let vram_pixel_x = tile_palette_x * 8 + tile_pixel_x;
                         let vram_pixel_y = tile_palette_y * 8 + tile_pixel_y;
                         let vram_pixels_from =
@@ -430,11 +436,13 @@ impl PPU {
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
                     // Simulate pixel mixing
-                    let rgba = pixel_code_to_rgba(if obj_pixel.color == 0 {
-                        bgw_pixel.color
+                    let (selected_pixel, palette) = if obj_pixel.color == 0 {
+                        (bgw_pixel.color, self.background_palette_data)
                     } else {
-                        obj_pixel.color
-                    });
+                        // FIXME: need to choose between OBJ palettes based on attribute
+                        (obj_pixel.color, self.object_palette_0.0)
+                    };
+                    let rgba = pixel_code_to_rgba(selected_pixel, palette);
                     self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
                     self.drawn_pixels_on_current_row += 1;
 

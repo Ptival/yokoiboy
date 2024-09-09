@@ -74,18 +74,14 @@ impl ObjectFetcher {
                 // self.row_of_pixel_within_tile = vram_tile_row % 8;
 
                 let tile_column = self.vram_tile_column as i16;
+                let tile_pixel_range = (tile_column, tile_column + 7);
                 let selected = &self.selected_objects;
+                // Technically we should only tick this when there is going to be a match
                 let tile_id = match selected.iter().find(|item| {
                     let item_x_screen = item.x_screen_plus_8 as u16 as i16 - 8;
-                    inclusive_ranges_overlap(
-                        (tile_column, tile_column + 7),
-                        (item_x_screen, item_x_screen + 7),
-                    )
+                    inclusive_ranges_overlap(tile_pixel_range, (item_x_screen, item_x_screen + 7))
                 }) {
-                    Some(sprite) => {
-                        println!("We found an object tile!");
-                        Some(sprite.tile_index)
-                    }
+                    Some(sprite) => Some(sprite.tile_index),
                     None => None,
                 };
                 self.tile_id = tile_id;
@@ -97,16 +93,14 @@ impl ObjectFetcher {
             FetcherState::GetTileDataLow => {
                 let ly = ppu.read_ly();
                 match self.tile_id {
-                    Some(tile_id) => {
-                        Fetcher::read_tile_row(
-                            &ppu.vram,
-                            &TileAddressingMode::UnsignedFrom0x8000,
-                            (ly + ppu.scy).0,
-                            tile_id,
-                            false,
-                            &mut self.tile_row_data,
-                        );
-                    }
+                    Some(tile_id) => Fetcher::read_tile_row(
+                        &ppu.vram,
+                        &TileAddressingMode::UnsignedFrom0x8000,
+                        (ly + ppu.scy).0,
+                        tile_id,
+                        false,
+                        &mut self.tile_row_data,
+                    ),
                     None => {
                         self.tile_row_data = [0; 8];
                     }
@@ -119,16 +113,14 @@ impl ObjectFetcher {
             FetcherState::GetTileDataHigh => {
                 let ly = ppu.read_ly();
                 match self.tile_id {
-                    Some(tile_id) => {
-                        Fetcher::read_tile_row(
-                            &ppu.vram,
-                            &TileAddressingMode::UnsignedFrom0x8000,
-                            (ly + ppu.scy).0,
-                            tile_id,
-                            true,
-                            &mut self.tile_row_data,
-                        );
-                    }
+                    Some(tile_id) => Fetcher::read_tile_row(
+                        &ppu.vram,
+                        &TileAddressingMode::UnsignedFrom0x8000,
+                        (ly + ppu.scy).0,
+                        tile_id,
+                        true,
+                        &mut self.tile_row_data,
+                    ),
                     None => {
                         self.tile_row_data = [0; 8];
                     }

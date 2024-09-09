@@ -39,7 +39,6 @@ pub struct Machine {
     pub timers: Timers,
 
     // Special registers
-    pub bgp: Wrapping<u8>,
     pub dmg_boot_rom: Wrapping<u8>,
 
     // TODO: These should go in audio or other modules
@@ -116,8 +115,6 @@ impl Machine {
             pixel_fetcher: Fetcher::new(),
             ppu: PPU::new(fix_ly),
             timers: Timers::new(),
-
-            bgp: Wrapping(0),
 
             nr10: Wrapping(0),
             nr11: Wrapping(0),
@@ -257,7 +254,7 @@ impl Machine {
                 print!("WARNING: Faking read attempt of 0xFF46");
                 Wrapping(0xFF)
             }
-            0xFF47..=0xFF47 => self.bgp,
+            0xFF47..=0xFF47 => Wrapping(self.ppu.background_palette_data),
             0xFF48..=0xFF48 => self.ppu.object_palette_0,
             0xFF49..=0xFF49 => self.ppu.object_palette_1,
             0xFF4A..=0xFF4A => self.ppu.window_y,
@@ -267,8 +264,8 @@ impl Machine {
 
             0xFF50..=0xFF50 => self.dmg_boot_rom,
 
-            0xFF68..=0xFF68 => self.ppu.background_palette_spec,
-            0xFF69..=0xFF69 => self.ppu.background_palette_data,
+            0xFF68..=0xFF68 => self.ppu.cgb_background_palette_spec,
+            0xFF69..=0xFF69 => self.ppu.cgb_background_palette_data,
             0xFF6A..=0xFF6A => self.ppu.object_palette_spec,
             0xFF6B..=0xFF6B => self.ppu.object_palette_data,
 
@@ -426,7 +423,7 @@ impl Machine {
                     self.write_u8(Wrapping(0xFE00 + offset), byte)
                 }
             }
-            0xFF47..=0xFF47 => self.bgp = value,
+            0xFF47..=0xFF47 => self.ppu.background_palette_data = value.0,
             0xFF48..=0xFF48 => self.ppu.object_palette_0 = value,
             0xFF49..=0xFF49 => self.ppu.object_palette_1 = value,
             0xFF4A..=0xFF4A => self.ppu.window_y = value,
@@ -436,8 +433,8 @@ impl Machine {
 
             0xFF50..=0xFF50 => self.dmg_boot_rom = value,
 
-            0xFF68..=0xFF68 => self.ppu.background_palette_spec = value,
-            0xFF69..=0xFF69 => self.ppu.background_palette_data = value,
+            0xFF68..=0xFF68 => self.ppu.cgb_background_palette_spec = value,
+            0xFF69..=0xFF69 => self.ppu.cgb_background_palette_data = value,
             0xFF6A..=0xFF6A => self.ppu.object_palette_spec = value,
             0xFF6B..=0xFF6B => self.ppu.object_palette_data = value,
 
