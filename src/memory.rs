@@ -80,6 +80,7 @@ pub fn load_game_rom(path: &String) -> Result<(Vec<u8>, ROMInformation), io::Err
         println!("[WARNING] ROM larger than 0x8000 bytes, errors may occur.");
     }
 
+    println!("MBC: 0x{:02X}", bytes[0x147]);
     // Now compute ROM information
     let mapper_type = match bytes[0x147] {
         0x00 => MapperType::ROMOnly,

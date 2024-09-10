@@ -345,7 +345,15 @@ impl Machine {
             },
             0x8000..=0x9FFF => PPU::write_vram(&mut self.ppu, address - Wrapping(0x8000), value),
 
-            0xA000..=0xBFFF => self.memory_mut().game_ram[address.0 as usize - 0xA000] = value.0,
+            0xA000..=0xBFFF => match self.rom_information.ram_size {
+                crate::application_state::RAMSize::NoRAM => {
+                    println!(
+                        "WARNING: Ignoring write to non-existing RAM at 0x{:04X}",
+                        address
+                    )
+                }
+                _ => self.memory_mut().game_ram[address.0 as usize - 0xA000] = value.0,
+            },
             0xC000..=0xCFFF => PPU::write_wram_0(&mut self.ppu, address - Wrapping(0xC000), value),
             0xD000..=0xDFFF => PPU::write_wram_1(&mut self.ppu, address - Wrapping(0xD000), value),
             0xE000..=0xFDFF => {
