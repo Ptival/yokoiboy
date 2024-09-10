@@ -255,8 +255,8 @@ impl Machine {
                 Wrapping(0xFF)
             }
             0xFF47..=0xFF47 => Wrapping(self.ppu.background_palette_data),
-            0xFF48..=0xFF48 => self.ppu.object_palette_0,
-            0xFF49..=0xFF49 => self.ppu.object_palette_1,
+            0xFF48..=0xFF48 => Wrapping(self.ppu.object_palette_0),
+            0xFF49..=0xFF49 => Wrapping(self.ppu.object_palette_1),
             0xFF4A..=0xFF4A => self.ppu.window_y,
             0xFF4B..=0xFF4B => self.ppu.window_x7,
             0xFF4D..=0xFF4D => self.register_ff4d,
@@ -432,8 +432,8 @@ impl Machine {
                 }
             }
             0xFF47..=0xFF47 => self.ppu.background_palette_data = value.0,
-            0xFF48..=0xFF48 => self.ppu.object_palette_0 = value,
-            0xFF49..=0xFF49 => self.ppu.object_palette_1 = value,
+            0xFF48..=0xFF48 => self.ppu.object_palette_0 = value.0,
+            0xFF49..=0xFF49 => self.ppu.object_palette_1 = value.0,
             0xFF4A..=0xFF4A => self.ppu.window_y = value,
             0xFF4B..=0xFF4B => self.ppu.window_x7 = value,
             0xFF4D..=0xFF4D => self.register_ff4d = value,

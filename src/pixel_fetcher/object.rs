@@ -5,7 +5,7 @@ use std::{
 
 use crate::ppu::PPU;
 
-use super::{FIFOItem, Fetcher, TileAddressingMode};
+use super::{Fetcher, TileAddressingMode};
 
 #[derive(Clone, Debug)]
 enum FetcherState {
@@ -27,10 +27,22 @@ pub struct Sprite {
 }
 
 #[derive(Clone, Debug)]
+pub enum ObjectPalette {
+    ObjectPalette0,
+    ObjectPalette1,
+}
+
+#[derive(Clone, Debug)]
+pub struct ObjectFIFOItem {
+    pub color: u8,
+    pub palette: ObjectPalette,
+}
+
+#[derive(Clone, Debug)]
 pub struct ObjectFetcher {
     state: FetcherState,
-    pub fifo: VecDeque<FIFOItem>,
-    tile_id: Option<u8>,
+    pub fifo: VecDeque<ObjectFIFOItem>,
+    sprite: Option<Sprite>,
     pub vram_tile_column: u8,
     tile_row_data: [u8; 8],
     pub selected_objects: VecDeque<Sprite>,
@@ -45,7 +57,7 @@ impl ObjectFetcher {
         ObjectFetcher {
             state: FetcherState::GetTileDelay,
             fifo: VecDeque::new(),
-            tile_id: None,
+            sprite: None,
             vram_tile_column: 0,
             tile_row_data: [0; 8],
             selected_objects: VecDeque::new(),
@@ -77,14 +89,16 @@ impl ObjectFetcher {
                 let tile_pixel_range = (tile_column, tile_column + 7);
                 let selected = &self.selected_objects;
                 // Technically we should only tick this when there is going to be a match
-                let tile_id = match selected.iter().find(|item| {
-                    let item_x_screen = item.x_screen_plus_8 as u16 as i16 - 8;
-                    inclusive_ranges_overlap(tile_pixel_range, (item_x_screen, item_x_screen + 7))
-                }) {
-                    Some(sprite) => Some(sprite.tile_index),
-                    None => None,
-                };
-                self.tile_id = tile_id;
+                self.sprite = selected
+                    .iter()
+                    .find(|item| {
+                        let item_x_screen = item.x_screen_plus_8 as u16 as i16 - 8;
+                        inclusive_ranges_overlap(
+                            tile_pixel_range,
+                            (item_x_screen, item_x_screen + 7),
+                        )
+                    })
+                    .map(|i| i.clone());
                 self.state = FetcherState::GetTileDataLowDelay
             }
 
@@ -92,12 +106,12 @@ impl ObjectFetcher {
 
             FetcherState::GetTileDataLow => {
                 let ly = ppu.read_ly();
-                match self.tile_id {
-                    Some(tile_id) => Fetcher::read_tile_row(
+                match self.sprite.clone() {
+                    Some(sprite) => Fetcher::read_tile_row(
                         &ppu.vram,
                         &TileAddressingMode::UnsignedFrom0x8000,
                         (ly + ppu.scy).0,
-                        tile_id,
+                        sprite.tile_index,
                         false,
                         &mut self.tile_row_data,
                     ),
@@ -112,12 +126,12 @@ impl ObjectFetcher {
 
             FetcherState::GetTileDataHigh => {
                 let ly = ppu.read_ly();
-                match self.tile_id {
-                    Some(tile_id) => Fetcher::read_tile_row(
+                match self.sprite.clone() {
+                    Some(sprite) => Fetcher::read_tile_row(
                         &ppu.vram,
                         &TileAddressingMode::UnsignedFrom0x8000,
                         (ly + ppu.scy).0,
-                        tile_id,
+                        sprite.tile_index,
                         true,
                         &mut self.tile_row_data,
                     ),
@@ -137,14 +151,18 @@ impl ObjectFetcher {
                         // Pixel merging following OBJ-to-OBJ priority
                         let old_item = self.fifo[i].clone();
                         if old_item.color == 0 {
-                            self.fifo[i] = FIFOItem {
+                            self.fifo[i] = ObjectFIFOItem {
                                 color: self.tile_row_data[i],
+                                palette: palette_for_sprite(self.sprite.as_ref()),
                             };
                         }
                     } else {
                         // No pixel to merge with, just push
                         let color = self.tile_row_data[i];
-                        self.fifo.push_back(FIFOItem { color });
+                        self.fifo.push_back(ObjectFIFOItem {
+                            color,
+                            palette: palette_for_sprite(self.sprite.as_ref()),
+                        });
                     }
                 }
                 // clean up so that GetTileData can assume 0
@@ -152,5 +170,16 @@ impl ObjectFetcher {
                 self.state = FetcherState::GetTileDelay
             }
         }
+    }
+}
+
+fn palette_for_sprite(sprite: Option<&Sprite>) -> ObjectPalette {
+    match sprite {
+        Some(sprite) => match (sprite.attributes >> 4) & 1 {
+            0b0 => ObjectPalette::ObjectPalette0,
+            0b1 => ObjectPalette::ObjectPalette1,
+            _ => unreachable!(),
+        },
+        None => ObjectPalette::ObjectPalette0, // does not matter
     }
 }

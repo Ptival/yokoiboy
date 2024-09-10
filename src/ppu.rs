@@ -5,7 +5,7 @@ use crate::{
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher,
         get_tile_index_in_palette,
-        object::{ObjectFetcher, Sprite},
+        object::{ObjectFetcher, ObjectPalette, Sprite},
         Fetcher, FetchingFor, TileAddressingMode,
     },
     utils::{self},
@@ -92,8 +92,8 @@ pub struct PPU {
     lcd_y_coord: Wrapping<u8>,
     pub object_palette_data: Wrapping<u8>,
     pub object_palette_spec: Wrapping<u8>,
-    pub object_palette_0: Wrapping<u8>,
-    pub object_palette_1: Wrapping<u8>,
+    pub object_palette_0: u8,
+    pub object_palette_1: u8,
     pub scx: Wrapping<u8>,
     pub scy: Wrapping<u8>,
     pub vram_bank: Wrapping<u8>,
@@ -166,8 +166,8 @@ impl PPU {
             lcd_y_compare: Wrapping(0),
             lcd_y_coord: Wrapping(0),
             object_palette_data: Wrapping(0),
-            object_palette_0: Wrapping(0),
-            object_palette_1: Wrapping(0),
+            object_palette_0: 0,
+            object_palette_1: 0,
             object_palette_spec: Wrapping(0),
             scx: Wrapping(0),
             scy: Wrapping(0),
@@ -440,7 +440,13 @@ impl PPU {
                         (bgw_pixel.color, self.background_palette_data)
                     } else {
                         // FIXME: need to choose between OBJ palettes based on attribute
-                        (obj_pixel.color, self.object_palette_0.0)
+                        (
+                            obj_pixel.color,
+                            match obj_pixel.palette {
+                                ObjectPalette::ObjectPalette0 => self.object_palette_0,
+                                ObjectPalette::ObjectPalette1 => self.object_palette_1,
+                            },
+                        )
                     };
                     let rgba = pixel_code_to_rgba(selected_pixel, palette);
                     self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
