@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, num::Wrapping};
 
 use crate::{
     ppu::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU, TILE_MAP_HORIZONTAL_TILE_COUNT},
@@ -50,14 +50,19 @@ impl BackgroundOrWindowFetcher {
             FetcherState::GetTileDelay => self.state = FetcherState::GetTile,
 
             FetcherState::GetTile => {
-                let vram_pixel_row = (ppu.read_ly() + ppu.scy).0 & 255;
+                // NOTE: Because the following operations are done via Wrapping at u8, they
+                // automatically perform the necessary "mod 256"
+                let vram_pixel_row = (ppu.read_ly() + ppu.scy).0;
+                let vram_pixel_col = (Wrapping(self.vram_tile_column) * Wrapping(8) + ppu.scx).0;
 
-                let tile_index_in_its_tile_map = (vram_pixel_row as usize / 8)
-                    * TILE_MAP_HORIZONTAL_TILE_COUNT
-                    + self.vram_tile_column as usize;
+                let tile_row = vram_pixel_row / 8;
+                let tile_col = vram_pixel_col / 8;
+
+                let tile_index_in_its_tile_map =
+                    tile_row as usize * TILE_MAP_HORIZONTAL_TILE_COUNT + tile_col as usize;
 
                 // FIXME: more complex rules for the row base address
-                let row_vram_offset =
+                let vram_base_address =
                     if utils::is_bit_set(&ppu.lcd_control, LCDC_BACKGROUND_TILE_MAP_AREA_BIT) {
                         ppu.tile_map0_last_addressing_modes[tile_index_in_its_tile_map] =
                             ppu.get_addressing_mode();
@@ -68,9 +73,9 @@ impl BackgroundOrWindowFetcher {
                         0x1800 // 0x9800, but VRAM starts at 0x8000
                     };
 
-                let row_address = row_vram_offset + ((vram_pixel_row as u16 / 8) * 32);
+                let row_address = vram_base_address + ((tile_row as u16) << 5) + (tile_col as u16);
 
-                self.tile_id = ppu.vram[(row_address + (self.vram_tile_column as u16)) as usize];
+                self.tile_id = ppu.vram[row_address as usize];
                 self.state = FetcherState::GetTileDataLowDelay;
             }
 
