@@ -64,7 +64,7 @@ const LYC_EQUALS_LY_INTERRUPT_SELECT_BIT: u8 = 6;
 #[derive(Clone, Debug)]
 pub enum PPUState {
     OAMScan,
-    DrawingPixels,
+    DrawingPixels(u8),
     HorizontalBlank,
     VerticalBlank,
 }
@@ -405,7 +405,11 @@ impl PPU {
             }
 
             // mode 3
-            PPUState::DrawingPixels => {
+            PPUState::DrawingPixels(dropped_pixels) => {
+                if self.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
+                    return;
+                }
+
                 let bgw_fifo_len = bgw_fetcher.fifo.len();
                 let obj_fifo_len = obj_fetcher.fifo.len();
 
@@ -422,6 +426,14 @@ impl PPU {
                 pixel_fetcher.tick(bgw_fetcher, obj_fetcher, self);
 
                 if !bgw_fetcher.fifo.is_empty() && !obj_fetcher.fifo.is_empty() {
+                    // To support fine scrolling, the first (scx % 8) pixels are dropped from FIFOs
+                    if dropped_pixels < self.scx.0 % 8 {
+                        bgw_fetcher.fifo.pop_front();
+                        obj_fetcher.fifo.pop_front();
+                        self.state = PPUState::DrawingPixels(dropped_pixels + 1);
+                        return;
+                    }
+
                     // During scanline 0, remember SCY for every pixel pushed
                     let ly = self.read_ly().0 as usize;
                     if ly == 0 {
@@ -544,7 +556,7 @@ impl PPU {
         pixel_fetcher.switch_to_background_or_window_fifo();
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 3);
-        self.state = PPUState::DrawingPixels;
+        self.state = PPUState::DrawingPixels(0);
     }
 
     fn switch_to_horizontal_blank(&mut self) {
