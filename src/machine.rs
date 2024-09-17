@@ -356,9 +356,7 @@ impl Machine {
             },
             0xC000..=0xCFFF => PPU::write_wram_0(&mut self.ppu, address - Wrapping(0xC000), value),
             0xD000..=0xDFFF => PPU::write_wram_1(&mut self.ppu, address - Wrapping(0xD000), value),
-            0xE000..=0xFDFF => {
-                panic!("Echo RAM write")
-            }
+            0xE000..=0xFDFF => self.write_u8(Wrapping(address.0 - 0x2000), value),
 
             0xFE00..=0xFE9F => {
                 self.ppu.object_attribute_memory[address.0 as usize - 0xFE00] = value.0
