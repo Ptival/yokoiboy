@@ -588,15 +588,24 @@ fn render_tile_map(
 ) {
     for tile_map_y in 0..TILE_MAP_VERTICAL_TILE_COUNT {
         for tile_map_x in 0..TILE_MAP_HORIZONTAL_TILE_COUNT {
-            let tile_entry_offset = (tile_map_y << 5) | tile_map_x;
-            let tile_id = vram[tile_map_vram_offset + tile_entry_offset];
+            let tile_map_index = (tile_map_y << 5) | tile_map_x;
+            let tile_id = vram[tile_map_vram_offset + tile_map_index];
             // Because tiles have already been rendered as pixels in the tile palette, here we
             // can just copy slices of lines for the 8 lines of the tile.
             for tile_pixel_y in 0..VERTICAL_PIXELS_PER_TILE {
-                let tiles_to_skip = tile_map_y * TILE_MAP_HORIZONTAL_TILE_COUNT;
-                let row_pixels_to_skip = tile_pixel_y * TILE_MAP_HORIZONTAL_PIXELS
-                    + tile_map_x * HORIZONTAL_PIXELS_PER_TILE;
-                let pixels_to_skip = tiles_to_skip * PIXELS_PER_TILE + row_pixels_to_skip;
+                // Here we compute the address of the first pixel to be written to in the
+                // tile_map_pixels buffer.  We need to skip:
+                // - entire tile rows worth of pixels for each `tile_map_y`,
+                // - entire pixel rows worth of pixels for each `tile_pixel_y`,
+                // - entire tile-pixel-rows of pixels for each `tile_map_x`.
+                let pixels_to_skip_to_reach_tile_map_y =
+                    tile_map_y * PIXELS_PER_TILE * TILE_MAP_HORIZONTAL_TILE_COUNT;
+                let pixels_to_skip_to_reach_tile_pixel_y =
+                    tile_pixel_y * TILE_MAP_HORIZONTAL_PIXELS;
+                let pixels_to_skip_to_reach_tile_map_x = tile_map_x * HORIZONTAL_PIXELS_PER_TILE;
+                let pixels_to_skip = pixels_to_skip_to_reach_tile_map_y
+                    + pixels_to_skip_to_reach_tile_pixel_y
+                    + pixels_to_skip_to_reach_tile_map_x;
                 let bytes_to_skip = pixels_to_skip * PIXEL_DATA_SIZE;
 
                 let tile_index_in_tile_map =
@@ -605,7 +614,7 @@ fn render_tile_map(
                 let tile_index_in_palette =
                     get_tile_index_in_palette(tile_id, &addressing_mode) as usize;
                 let palette_tile_y = tile_index_in_palette / TILE_PALETTE_HORIZONTAL_TILE_COUNT;
-                let palette_tile_x = tile_index_in_palette % TILE_MAP_HORIZONTAL_TILE_COUNT;
+                let palette_tile_x = tile_index_in_palette % TILE_PALETTE_HORIZONTAL_TILE_COUNT;
                 let palette_tiles_to_skip = palette_tile_y * TILE_PALETTE_HORIZONTAL_TILE_COUNT;
                 let palette_row_pixels_to_skip = tile_pixel_y * TILE_PALETTE_HORIZONTAL_PIXELS
                     + palette_tile_x * HORIZONTAL_PIXELS_PER_TILE;
