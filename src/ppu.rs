@@ -399,7 +399,6 @@ impl PPU {
                         }
                     }
                     obj_fetcher.selected_objects = selected_objects;
-                    obj_fetcher.vram_tile_column = 0; // FIXME?
                     self.switch_to_drawing_pixels(pixel_fetcher);
                 }
             }
@@ -409,6 +408,8 @@ impl PPU {
                 if self.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
                     return;
                 }
+
+                obj_fetcher.pixel_index_in_row = self.drawn_pixels_on_current_row;
 
                 let bgw_fifo_len = bgw_fetcher.fifo.len();
                 let obj_fifo_len = obj_fetcher.fifo.len();

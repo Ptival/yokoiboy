@@ -43,7 +43,7 @@ pub struct ObjectFetcher {
     state: FetcherState,
     pub fifo: VecDeque<ObjectFIFOItem>,
     sprite: Option<Sprite>,
-    pub vram_tile_column: u8,
+    pub pixel_index_in_row: u8,
     tile_row_data: [u8; 8],
     pub selected_objects: VecDeque<Sprite>,
 }
@@ -58,7 +58,7 @@ impl ObjectFetcher {
             state: FetcherState::GetTileDelay,
             fifo: VecDeque::new(),
             sprite: None,
-            vram_tile_column: 0,
+            pixel_index_in_row: 0,
             tile_row_data: [0; 8],
             selected_objects: VecDeque::new(),
         }
@@ -68,13 +68,13 @@ impl ObjectFetcher {
         self.state = FetcherState::GetTileDelay;
         self.fifo.clear();
         self.tile_row_data = [0; 8];
-        self.vram_tile_column = 0;
+        self.pixel_index_in_row = 0;
     }
 
     pub fn prepare_for_new_frame(&mut self) {
         self.state = FetcherState::GetTileDelay;
         self.fifo.clear();
-        self.vram_tile_column = 0;
+        self.pixel_index_in_row = 0;
     }
 
     pub fn tick(&mut self, ppu: &mut PPU) {
@@ -82,23 +82,19 @@ impl ObjectFetcher {
             FetcherState::GetTileDelay => self.state = FetcherState::GetTile,
 
             FetcherState::GetTile => {
-                // let vram_tile_row = (PPU::read_ly(machine) + machine.ppu().scy).0 & 255;
-                // self.row_of_pixel_within_tile = vram_tile_row % 8;
-
-                let tile_column = self.vram_tile_column as i16;
-                let tile_pixel_range = (tile_column, tile_column + 7);
+                let current_x = self.pixel_index_in_row as i16;
+                let x_range = (current_x, current_x + 7);
                 let selected = &self.selected_objects;
+
                 // Technically we should only tick this when there is going to be a match
                 self.sprite = selected
                     .iter()
                     .find(|item| {
                         let item_x_screen = item.x_screen_plus_8 as u16 as i16 - 8;
-                        inclusive_ranges_overlap(
-                            tile_pixel_range,
-                            (item_x_screen, item_x_screen + 7),
-                        )
+                        inclusive_ranges_overlap(x_range, (item_x_screen, item_x_screen + 7))
                     })
                     .map(|i| i.clone());
+
                 self.state = FetcherState::GetTileDataLowDelay
             }
 
