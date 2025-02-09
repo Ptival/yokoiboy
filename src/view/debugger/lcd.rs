@@ -1,11 +1,10 @@
-use iced::widget;
-use iced_aw::{grid_row, Grid};
+use iced::widget::{self, row, Column};
 
 use crate::{machine::Machine, message::Message};
 
-pub fn view(machine: &Machine) -> Grid<Message> {
-    let mut lcdc_grid_right = Grid::new();
-    lcdc_grid_right = lcdc_grid_right.push(grid_row![
+pub fn view(machine: &Machine) -> Column<Message> {
+    let mut lcdc_grid_right = Column::new();
+    lcdc_grid_right = lcdc_grid_right.push(row![
         widget::text("7"),
         widget::text("6"),
         widget::text("5"),
@@ -16,7 +15,7 @@ pub fn view(machine: &Machine) -> Grid<Message> {
         widget::text("0"),
     ]);
     let lcdc = machine.ppu().read_lcdc().0;
-    lcdc_grid_right = lcdc_grid_right.push(grid_row![
+    lcdc_grid_right = lcdc_grid_right.push(row![
         widget::text(format!("{}", (lcdc & (1 << 7)) >> 7)),
         widget::text(format!("{}", (lcdc & (1 << 6)) >> 6)),
         widget::text(format!("{}", (lcdc & (1 << 5)) >> 5)),
@@ -27,8 +26,7 @@ pub fn view(machine: &Machine) -> Grid<Message> {
         widget::text(format!("{}", (lcdc & (1 << 0)) >> 0)),
     ]);
 
-    let mut lcdc_grid = Grid::new();
-    lcdc_grid = lcdc_grid.push(grid_row![widget::text("LCDC"), lcdc_grid_right]);
-
+    let mut lcdc_grid = Column::new();
+    lcdc_grid = lcdc_grid.push(row![widget::text("LCDC"), lcdc_grid_right]);
     lcdc_grid
 }

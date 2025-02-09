@@ -1,10 +1,12 @@
-use iced::{widget, Color, Theme};
-use iced_aw::{grid_row, Grid};
+use iced::{
+    widget::{self, row, Column},
+    Color, Theme,
+};
 
 use crate::{application_state::ApplicationState, memory::Memory, message::Message};
 
-pub fn view(app: &ApplicationState) -> Grid<Message> {
-    let mut instructions_grid = Grid::new().column_spacing(5).padding(2);
+pub fn view(app: &ApplicationState) -> Column<Message> {
+    let mut instructions_grid = Column::new();
     let history_size = app.snaps.len() - 1;
     let history_style = |_: &Theme| widget::text::Style {
         color: Some(Color::from_rgb(1.0, 0.0, 0.0)),
@@ -12,7 +14,7 @@ pub fn view(app: &ApplicationState) -> Grid<Message> {
 
     for old in app.snaps.asc_iter().take(history_size) {
         let instr = Memory::decode_instruction_at(old, old.registers().pc);
-        let row = grid_row![
+        let row = row![
             widget::text(app.display_breakpoint(instr.address)).style(history_style),
             widget::text(""),
             widget::text(format!("{:04X}", instr.address)).style(history_style),
@@ -26,7 +28,7 @@ pub fn view(app: &ApplicationState) -> Grid<Message> {
     let pc = machine.registers().pc;
     let instrs = Memory::decode_instructions_at(machine, pc, 10);
 
-    instructions_grid = instructions_grid.push(grid_row![
+    instructions_grid = instructions_grid.push(row![
         widget::text(app.display_breakpoint(instrs[0].address)),
         widget::text("→"),
         widget::text(format!("{:04X}", instrs[0].address)),
@@ -35,7 +37,7 @@ pub fn view(app: &ApplicationState) -> Grid<Message> {
     ]);
 
     for instr in instrs.iter().skip(1) {
-        instructions_grid = instructions_grid.push(grid_row![
+        instructions_grid = instructions_grid.push(row![
             widget::text(app.display_breakpoint(instr.address)),
             widget::text(""),
             widget::text(format!("{:04X}", instr.address)),

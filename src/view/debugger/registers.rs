@@ -1,15 +1,14 @@
-use iced::widget;
-use iced_aw::{grid_row, Grid};
+use iced::widget::{self, row, Column};
 
 use crate::{
     message::Message,
     registers::{Flag, Registers},
 };
 
-pub fn view(registers: &Registers) -> Grid<Message> {
-    let mut registers_grid = Grid::new();
+pub fn view(registers: &Registers) -> Column<Message> {
+    let mut registers_grid = Column::new();
 
-    registers_grid = registers_grid.push(grid_row![
+    registers_grid = registers_grid.push(row![
         widget::text(" A"),
         widget::text(" F"),
         widget::text(""),
@@ -31,7 +30,7 @@ pub fn view(registers: &Registers) -> Grid<Message> {
         widget::text("C")
     ]);
 
-    registers_grid = registers_grid.push(grid_row![
+    registers_grid = registers_grid.push(row![
         widget::text(format!("{:02X}", registers.read_a())),
         widget::text(format!("{:02X}", registers.read_f())),
         widget::text(""),

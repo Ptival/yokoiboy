@@ -3,14 +3,13 @@ use std::{
     num::{Saturating, Wrapping},
 };
 
-use iced::widget;
-use iced_aw::{grid_row, Grid};
+use iced::widget::{self, row, Column};
 
 use crate::{machine::Machine, message::Message};
 
-pub fn view(machine: &Machine) -> Grid<Message> {
-    let mut stack_grid = Grid::new();
-    stack_grid = stack_grid.push(grid_row![widget::text("Stack:")]);
+pub fn view(machine: &Machine) -> Column<Message> {
+    let mut stack_grid = Column::new();
+    stack_grid = stack_grid.push(row![widget::text("Stack:")]);
 
     // Note: the stack stops at 0xFFFE, as 0xFFFF is used for interrupt enable
     let stack_top = machine.registers().sp.0;
@@ -20,7 +19,7 @@ pub fn view(machine: &Machine) -> Grid<Message> {
     );
 
     for stack_addr in stack_top..=stack_until {
-        stack_grid = stack_grid.push(grid_row![
+        stack_grid = stack_grid.push(row![
             widget::text(format!("0x{:04X}:", stack_addr)),
             widget::text(format!("{:02X}", machine.read_u8(Wrapping(stack_addr)))),
         ]);
