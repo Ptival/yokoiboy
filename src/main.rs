@@ -36,14 +36,18 @@ fn main() -> Result<(), iced::Error> {
 
     let mut settings = Settings::default();
     settings.default_font = font::Font::MONOSPACE;
-    iced::application("YokoiBoy", ApplicationState::update, ApplicationState::view)
-        .subscription(ApplicationState::subscription)
-        .settings(settings)
-        .window_size(Size::new(1600.0, 1100.0))
-        .run_with(move || {
-            (
+    iced::application(
+        move || {
+            return (
                 ApplicationState::new(&args, BREAKPOINTS),
                 Task::done(Message::BeginRunUntilBreakpoint),
-            )
-        })
+            );
+        },
+        ApplicationState::update,
+        ApplicationState::view,
+    )
+    .subscription(ApplicationState::subscription)
+    .settings(settings)
+    .window_size(Size::new(1600.0, 1100.0))
+    .run()
 }
