@@ -1,4 +1,5 @@
-use std::{collections::VecDeque, num::Wrapping};
+use std::{collections::VecDeque, num::Wrapping, process::exit};
+use tracing::{event, Level};
 
 use crate::{
     cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
@@ -20,6 +21,8 @@ const WRAM_SIZE: usize = 0x1000;
 
 const LCD_HORIZONTAL_PIXEL_COUNT: usize = 160;
 const LCD_VERTICAL_PIXEL_COUNT: usize = 144;
+
+const DOTS_PER_SCANLINE: u16 = 456;
 
 pub const HORIZONTAL_PIXELS_PER_TILE: usize = 8;
 pub const VERTICAL_PIXELS_PER_TILE: usize = 8;
@@ -364,13 +367,22 @@ impl PPU {
         }
 
         self.scanline_dots += 1;
-        if self.scanline_dots > 456 {
-            panic!("Frame did not finish rendering in time, investigate.");
+        if self.scanline_dots > DOTS_PER_SCANLINE {
+            event!(
+                Level::ERROR,
+                "Frame did not finish rendering in time, investigate."
+            );
+            exit(1);
         }
 
         match self.state {
             // mode 2
             PPUState::OAMScan => {
+                event!(
+                    Level::DEBUG,
+                    "OAM scanning, scanline: {scanline}",
+                    scanline = self.scanline_dots
+                );
                 if self.scanline_dots == 80 {
                     let ly = self.read_ly().0 as usize;
 
@@ -405,14 +417,23 @@ impl PPU {
 
             // mode 3
             PPUState::DrawingPixels(dropped_pixels) => {
+                let bgw_fifo_len = bgw_fetcher.fifo.len();
+                let obj_fifo_len = obj_fetcher.fifo.len();
+
+                event!(
+                    Level::DEBUG,
+                    "Drawing pixels, drawn: {drawn}/{LCD_HORIZONTAL_PIXEL_COUNT}, dropped: {dropped}/{to_be_dropped}, LY: {ly}, BGW FIFO: {bgw_fifo_len} items, OBJ FIFO: {obj_fifo_len} items",
+                    drawn = self.drawn_pixels_on_current_row,
+                    dropped = dropped_pixels,
+                    to_be_dropped = self.scx.0%8,
+                    ly = self.read_ly(),
+                );
+
                 if self.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
                     return;
                 }
 
                 obj_fetcher.pixel_index_in_row = self.drawn_pixels_on_current_row;
-
-                let bgw_fifo_len = bgw_fetcher.fifo.len();
-                let obj_fifo_len = obj_fetcher.fifo.len();
 
                 let fetcher_state = &pixel_fetcher.fetching_for;
                 if obj_fifo_len == 0 && bgw_fifo_len != 0 {
@@ -462,7 +483,15 @@ impl PPU {
                         )
                     };
                     let rgba = pixel_code_to_rgba(selected_pixel, palette);
-                    self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
+
+                    if self.read_ly().0 as usize >= LCD_VERTICAL_PIXEL_COUNT {
+                        event!(
+                            Level::WARN,
+                            "Skipping writing pixels as they are out-of-bounds in LCD"
+                        );
+                    } else {
+                        self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
+                    }
                     self.drawn_pixels_on_current_row += 1;
 
                     if self.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
@@ -473,7 +502,13 @@ impl PPU {
 
             // mode 0
             PPUState::HorizontalBlank => {
-                if self.scanline_dots == 456 {
+                event!(
+                    Level::DEBUG,
+                    "HBlank, scanline: {scanline}, LY: {ly}",
+                    scanline = self.scanline_dots,
+                    ly = self.read_ly()
+                );
+                if self.scanline_dots == DOTS_PER_SCANLINE {
                     self.scanline_dots = 0;
                     self.increment_ly(interrupts);
                     if self.read_ly().0 as usize == LCD_VERTICAL_PIXEL_COUNT {
@@ -486,7 +521,13 @@ impl PPU {
 
             // mode 1
             PPUState::VerticalBlank => {
-                if self.scanline_dots == 456 {
+                event!(
+                    Level::DEBUG,
+                    "VBlank, scanline: {scanline}, LY: {ly}",
+                    scanline = self.scanline_dots,
+                    ly = self.read_ly()
+                );
+                if self.scanline_dots == DOTS_PER_SCANLINE {
                     self.scanline_dots = 0;
                     self.increment_ly(interrupts);
                     if self.read_ly().0 == 153 {

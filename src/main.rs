@@ -32,8 +32,9 @@ const BREAKPOINTS: &[u16] = &[
 ];
 
 fn main() -> Result<(), iced::Error> {
+    // let mut filter = EnvFilter::from_default_env();
+    tracing_subscriber::fmt::init();
     let args = CommandLineArguments::parse();
-
     let mut settings = Settings::default();
     settings.default_font = font::Font::MONOSPACE;
     iced::application(

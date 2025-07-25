@@ -1,5 +1,5 @@
 [package]
-name = "yokoyboi"
+name = "yokoiboy"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,6 +10,8 @@ iced = { git = "https://github.com/iced-rs/iced.git", features = [
   "advanced",
   "image",
 ] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }
 
 [profile.dev]
 opt-level = 3

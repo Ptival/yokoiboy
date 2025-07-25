@@ -3,7 +3,9 @@ use std::{
     collections::VecDeque,
 };
 
-use crate::ppu::PPU;
+use tracing::{event, Level};
+
+use crate::{ppu::PPU};
 
 use super::{Fetcher, TileAddressingMode};
 
@@ -79,9 +81,13 @@ impl ObjectFetcher {
 
     pub fn tick(&mut self, ppu: &mut PPU) {
         match self.state {
-            FetcherState::GetTileDelay => self.state = FetcherState::GetTile,
+            FetcherState::GetTileDelay => {
+                event!(Level::DEBUG, "OBJ fetcher awaiting tile");
+                self.state = FetcherState::GetTile
+            }
 
             FetcherState::GetTile => {
+                event!(Level::DEBUG, "OBJ fetcher getting tile");
                 let current_x = self.pixel_index_in_row as i16;
                 let x_range = (current_x, current_x + 7);
                 let selected = &self.selected_objects;
@@ -98,9 +104,13 @@ impl ObjectFetcher {
                 self.state = FetcherState::GetTileDataLowDelay
             }
 
-            FetcherState::GetTileDataLowDelay => self.state = FetcherState::GetTileDataLow,
+            FetcherState::GetTileDataLowDelay => {
+                event!(Level::DEBUG, "OBJ fetcher awaiting tile low data");
+                self.state = FetcherState::GetTileDataLow
+            }
 
             FetcherState::GetTileDataLow => {
+                event!(Level::DEBUG, "OBJ fetcher getting tile low data");
                 let ly = ppu.read_ly();
                 match self.sprite.clone() {
                     Some(sprite) => Fetcher::read_tile_row(
@@ -118,9 +128,13 @@ impl ObjectFetcher {
                 self.state = FetcherState::GetTileDataHighDelay
             }
 
-            FetcherState::GetTileDataHighDelay => self.state = FetcherState::GetTileDataHigh,
+            FetcherState::GetTileDataHighDelay => {
+                event!(Level::DEBUG, "OBJ fetcher awaiting tile high data");
+                self.state = FetcherState::GetTileDataHigh
+            }
 
             FetcherState::GetTileDataHigh => {
+                event!(Level::DEBUG, "OBJ fetcher getting tile high data");
                 let ly = ppu.read_ly();
                 match self.sprite.clone() {
                     Some(sprite) => Fetcher::read_tile_row(
@@ -140,6 +154,10 @@ impl ObjectFetcher {
 
             FetcherState::PushRow => {
                 let obj_fifo_len = self.fifo.len();
+                event!(
+                    Level::DEBUG,
+                    "OBJ fetcher pushing pixels over {obj_fifo_len} pixels"
+                );
                 // Object FIFO pixels are merged with existing object FIFO pixels:
                 // Those with ID 0 are overwritten by latter ones, otherwise the existing one wins
                 for i in 0..8 {

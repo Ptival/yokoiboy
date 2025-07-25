@@ -2,7 +2,9 @@ pub mod background_or_window;
 pub mod object;
 
 use background_or_window::BackgroundOrWindowFetcher;
+// use iced::advanced::graphics::core::event;
 use object::ObjectFetcher;
+use tracing::{event, Level};
 
 use crate::ppu::PPU;
 
@@ -111,9 +113,11 @@ impl Fetcher {
     ) {
         match self.fetching_for {
             FetchingFor::BackgroundOrWindowFIFO => {
+                event!(Level::DEBUG, "Fetching pixels for BGW FIFO");
                 bgw_fetcher.tick(ppu);
             }
             FetchingFor::ObjectFIFO => {
+                event!(Level::DEBUG, "Fetching pixels for OBJ FIFO");
                 obj_fetcher.tick(ppu);
             }
         }
