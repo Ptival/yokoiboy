@@ -188,7 +188,9 @@ impl Machine {
                 }
                 crate::application_state::MapperType::Other => todo!(),
             },
-            0x8000..=0x9FFF => self.ppu.read_vram(address - Wrapping(0x8000)),
+            0x8000..=0x97FF => self.ppu.read_vram(address - Wrapping(0x8000)),
+            0x9800..=0x9BFF => self.ppu.read_vram_tile_map0(address - Wrapping(0x9800)),
+            0x9C00..=0x9FFF => self.ppu.read_vram_tile_map1(address - Wrapping(0x9C00)),
 
             0xA000..=0xBFFF => {
                 Wrapping(self.memory().game_ram[(address - Wrapping(0xA000)).0 as usize])
@@ -343,7 +345,13 @@ impl Machine {
                 }
                 MapperType::Other => todo!(),
             },
-            0x8000..=0x9FFF => PPU::write_vram(&mut self.ppu, address - Wrapping(0x8000), value),
+            0x8000..=0x97FF => PPU::write_vram(&mut self.ppu, address - Wrapping(0x8000), value),
+            0x9800..=0x9BFF => {
+                PPU::write_vram_tile_map0(&mut self.ppu, address - Wrapping(0x9800), value)
+            }
+            0x9C00..=0x9FFF => {
+                PPU::write_vram_tile_map1(&mut self.ppu, address - Wrapping(0x9C00), value)
+            }
 
             0xA000..=0xBFFF => match self.rom_information.ram_size {
                 crate::application_state::RAMSize::NoRAM => {

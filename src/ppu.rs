@@ -12,11 +12,9 @@ use crate::{
     utils::{self},
 };
 
-const TILE_MAP0_VRAM_OFFSET: usize = 0x1800;
-const TILE_MAP1_VRAM_OFFSET: usize = 0x1C00;
-
 const OAM_SIZE: usize = 0xA0;
-const VRAM_SIZE: usize = 0x2000;
+const VRAM_SIZE: usize = 0x1800; // $8000-$97FF, 384 tiles of 16 bytes
+const VRAM_TILE_MAP_SIZE: usize = 0x400; // $9800-$9BFF, and $9C00-$9FFF, 32×32 each
 const WRAM_SIZE: usize = 0x1000;
 
 const LCD_HORIZONTAL_PIXEL_COUNT: usize = 160;
@@ -106,6 +104,8 @@ pub struct PPU {
     // Hardware banks
     pub object_attribute_memory: [u8; OAM_SIZE], // TODO: make private?
     pub vram: [u8; VRAM_SIZE],
+    pub vram_tile_map0: [u8; VRAM_TILE_MAP_SIZE],
+    pub vram_tile_map1: [u8; VRAM_TILE_MAP_SIZE],
     wram_0: [u8; WRAM_SIZE],
     wram_1: [u8; WRAM_SIZE],
 
@@ -180,6 +180,8 @@ impl PPU {
 
             object_attribute_memory: [0; OAM_SIZE],
             vram: [0; VRAM_SIZE],
+            vram_tile_map0: [0; VRAM_TILE_MAP_SIZE],
+            vram_tile_map1: [0; VRAM_TILE_MAP_SIZE],
             wram_0: [0; WRAM_SIZE],
             wram_1: [0; WRAM_SIZE],
 
@@ -263,10 +265,9 @@ impl PPU {
     // NOTE: Assumes the tile palette has been rendered first
     pub fn render_tile_map0(&mut self) {
         render_tile_map(
-            &self.vram,
+            &self.vram_tile_map0,
             &self.tile_palette_pixels,
             &mut self.tile_map0_pixels,
-            TILE_MAP0_VRAM_OFFSET,
             &self.tile_map0_last_addressing_modes,
         );
 
@@ -310,10 +311,9 @@ impl PPU {
     // NOTE: Assumes the tile palette has been rendered first
     pub fn render_tile_map1(&mut self) {
         render_tile_map(
-            &self.vram,
+            &self.vram_tile_map1,
             &self.tile_palette_pixels,
             &mut self.tile_map1_pixels,
-            TILE_MAP1_VRAM_OFFSET,
             &self.tile_map1_last_addressing_modes,
         )
     }
@@ -550,6 +550,14 @@ impl PPU {
         Wrapping(self.vram[address.0 as usize])
     }
 
+    pub fn read_vram_tile_map0(&self, address: Wrapping<u16>) -> Wrapping<u8> {
+        Wrapping(self.vram_tile_map0[address.0 as usize])
+    }
+
+    pub fn read_vram_tile_map1(&self, address: Wrapping<u16>) -> Wrapping<u8> {
+        Wrapping(self.vram_tile_map1[address.0 as usize])
+    }
+
     pub fn read_wram_0(&self, address: Wrapping<u16>) -> Wrapping<u8> {
         Wrapping(self.wram_0[address.0 as usize])
     }
@@ -564,6 +572,14 @@ impl PPU {
 
     pub fn write_vram(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
         self.vram[address.0 as usize] = value.0;
+    }
+
+    pub fn write_vram_tile_map0(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
+        self.vram_tile_map0[address.0 as usize] = value.0;
+    }
+
+    pub fn write_vram_tile_map1(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
+        self.vram_tile_map1[address.0 as usize] = value.0;
     }
 
     pub fn write_wram_0(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
@@ -622,16 +638,15 @@ impl PPU {
 }
 
 fn render_tile_map(
-    vram: &[u8],
+    tile_map_memory: &[u8],
     tile_palette_pixels: &[u8],
     tile_map_pixels: &mut [u8],
-    tile_map_vram_offset: usize,
     tile_map_last_addressing_modes: &[TileAddressingMode; TILE_MAP_TILE_TOTAL],
 ) {
     for tile_map_y in 0..TILE_MAP_VERTICAL_TILE_COUNT {
         for tile_map_x in 0..TILE_MAP_HORIZONTAL_TILE_COUNT {
             let tile_map_index = (tile_map_y << 5) | tile_map_x;
-            let tile_id = vram[tile_map_vram_offset + tile_map_index];
+            let tile_id = tile_map_memory[tile_map_index];
             // Because tiles have already been rendered as pixels in the tile palette, here we
             // can just copy slices of lines for the 8 lines of the tile.
             for tile_pixel_y in 0..VERTICAL_PIXELS_PER_TILE {

@@ -1,13 +1,13 @@
 use std::{
     cmp::{max, min},
     collections::VecDeque,
+    num::Wrapping,
 };
-
 use tracing::{event, Level};
 
-use crate::{ppu::PPU};
-
 use super::{Fetcher, TileAddressingMode};
+
+use crate::{ppu::PPU, utils::is_bit_set};
 
 #[derive(Clone, Debug)]
 enum FetcherState {
@@ -26,6 +26,18 @@ pub struct Sprite {
     pub tile_index: u8,
     pub x_screen_plus_8: u8,
     pub y_screen_plus_16: u8,
+}
+
+const FLIP_X_BIT: u8 = 5;
+const FLIP_Y_BIT: u8 = 6;
+
+impl Sprite {
+    pub fn flip_x(&self) -> bool {
+        return is_bit_set(&Wrapping(self.attributes), FLIP_X_BIT);
+    }
+    pub fn flip_y(&self) -> bool {
+        return is_bit_set(&Wrapping(self.attributes), FLIP_Y_BIT);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -115,9 +127,12 @@ impl ObjectFetcher {
                 match self.sprite.clone() {
                     Some(sprite) => Fetcher::read_tile_row(
                         &ppu.vram,
+                        // Objects always use $8000 addressing
                         &TileAddressingMode::UnsignedFrom0x8000,
-                        (ly + ppu.scy).0,
+                        ly.0,
+                        ppu.scy.0,
                         sprite.tile_index,
+                        sprite.flip_x(),
                         false,
                         &mut self.tile_row_data,
                     ),
@@ -140,8 +155,10 @@ impl ObjectFetcher {
                     Some(sprite) => Fetcher::read_tile_row(
                         &ppu.vram,
                         &TileAddressingMode::UnsignedFrom0x8000,
-                        (ly + ppu.scy).0,
+                        ly.0,
+                        ppu.scy.0,
                         sprite.tile_index,
+                        sprite.flip_x(),
                         true,
                         &mut self.tile_row_data,
                     ),
@@ -161,18 +178,18 @@ impl ObjectFetcher {
                 // Object FIFO pixels are merged with existing object FIFO pixels:
                 // Those with ID 0 are overwritten by latter ones, otherwise the existing one wins
                 for i in 0..8 {
+                    let color = self.tile_row_data[i];
                     if i < obj_fifo_len {
                         // Pixel merging following OBJ-to-OBJ priority
                         let old_item = self.fifo[i].clone();
                         if old_item.color == 0 {
                             self.fifo[i] = ObjectFIFOItem {
-                                color: self.tile_row_data[i],
+                                color,
                                 palette: palette_for_sprite(self.sprite.as_ref()),
                             };
                         }
                     } else {
                         // No pixel to merge with, just push
-                        let color = self.tile_row_data[i];
                         self.fifo.push_back(ObjectFIFOItem {
                             color,
                             palette: palette_for_sprite(self.sprite.as_ref()),

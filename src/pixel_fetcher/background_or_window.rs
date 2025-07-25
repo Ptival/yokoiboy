@@ -68,20 +68,20 @@ impl BackgroundOrWindowFetcher {
                     tile_row as usize * TILE_MAP_HORIZONTAL_TILE_COUNT + tile_col as usize;
 
                 // FIXME: more complex rules for the row base address
-                let vram_base_address =
+                let tile_map =
                     if utils::is_bit_set(&ppu.lcd_control, LCDC_BACKGROUND_TILE_MAP_AREA_BIT) {
-                        ppu.tile_map0_last_addressing_modes[tile_index_in_its_tile_map] =
-                            ppu.get_addressing_mode();
-                        0x1C00 // 0x9C00, but VRAM starts at 0x8000
-                    } else {
                         ppu.tile_map1_last_addressing_modes[tile_index_in_its_tile_map] =
                             ppu.get_addressing_mode();
-                        0x1800 // 0x9800, but VRAM starts at 0x8000
+                        &ppu.vram_tile_map1
+                    } else {
+                        ppu.tile_map0_last_addressing_modes[tile_index_in_its_tile_map] =
+                            ppu.get_addressing_mode();
+                        &ppu.vram_tile_map0
                     };
 
-                let row_address = vram_base_address + ((tile_row as u16) << 5) + (tile_col as u16);
+                let row_address = ((tile_row as u16) << 5) + (tile_col as u16);
 
-                self.tile_id = ppu.vram[row_address as usize];
+                self.tile_id = tile_map[row_address as usize];
                 self.state = FetcherState::GetTileDataLowDelay;
             }
 
@@ -96,8 +96,10 @@ impl BackgroundOrWindowFetcher {
                 Fetcher::read_tile_row(
                     &ppu.vram,
                     &ppu.get_addressing_mode(),
-                    (ly + ppu.scy).0,
+                    ly.0,
+                    ppu.scy.0,
                     self.tile_id,
+                    false,
                     false,
                     &mut self.tile_row_data,
                 );
@@ -115,8 +117,10 @@ impl BackgroundOrWindowFetcher {
                 Fetcher::read_tile_row(
                     &ppu.vram,
                     &ppu.get_addressing_mode(),
-                    (ly + ppu.scy).0,
+                    ly.0,
+                    ppu.scy.0,
                     self.tile_id,
+                    false,
                     true,
                     &mut self.tile_row_data,
                 );

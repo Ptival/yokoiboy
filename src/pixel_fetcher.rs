@@ -76,22 +76,22 @@ impl Fetcher {
         self.switch_to(FetchingFor::BackgroundOrWindowFIFO)
     }
 
+    /// Reads the requested tile row data from VRAM and stores it in `tile_row_data`.
     pub fn read_tile_row(
         vram: &[u8],
         addressing_mode: &TileAddressingMode,
-        current_line: u8,
+        current_scanline: u8,
+        scy: u8,
         tile_id: u8,
+        flip_x: bool,
         bit_plane: bool,
-        tile_row_data: &mut [u8],
+        tile_row_data: &mut [u8; 8],
     ) {
-        // WARNING: when handling sprites, will need to update this to ignore addressing mode for
-        // their tiles
-
         // NOTE: rather than going through the MMU again with an absolute address, I'm computing the
         // address relative to VRAM and reading directly from the VRAM slice.  Should be slightly
         // faster as you don't need to perform range checks to realize you're heading into VRAM.
         let tile_index_in_palette = get_tile_index_in_palette(tile_id, addressing_mode);
-        let row_of_pixel_within_tile = (current_line & 255) % 8;
+        let row_of_pixel_within_tile = ((current_scanline as u16 + scy as u16) & 255) % 8;
         let address_in_vram_slice =
             tile_index_in_palette * 16 + (row_of_pixel_within_tile as u16) * 2;
         let pixel_data = vram[address_in_vram_slice as usize + bit_plane as usize];
@@ -99,9 +99,14 @@ impl Fetcher {
         // here Note: This assumes that `tile_row_data` is cleared at each loop.
         // Note: it's nice to have the row data be sorted by increasing X, but the lowest bit
         // position is the highest X pixel, so using (7 - bit_position) to reorder.
-        for bit_position in 0..8 {
-            tile_row_data[7 - bit_position] |=
-                ((pixel_data >> bit_position) & 1) << (bit_plane as u8);
+        for target_bit_position in 0..8 {
+            let source_bit_position = if flip_x {
+                7 - target_bit_position
+            } else {
+                target_bit_position
+            };
+            tile_row_data[7 - target_bit_position] |=
+                ((pixel_data >> source_bit_position) & 1) << (bit_plane as u8);
         }
     }
 
