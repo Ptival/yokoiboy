@@ -1,4 +1,4 @@
-# Boor ROM obtained from:
+# Boot ROM obtained from:
 https://gbdev.gg8.se/files/roms/bootroms/
 
 # List of opcodes
