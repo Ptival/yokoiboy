@@ -24,7 +24,24 @@ enum FetcherState {
 pub struct Sprite {
     pub attributes: u8,
     pub tile_index: u8,
+
+    /// This is the position of the object on the screen, plus 8 pixels.  This lets one place
+    /// objects off-screen entering the screen from either side.
+    ///
+    /// Values ≤ 8 essentially tell you how many of the object pixels are on screen, from 0 being
+    /// totally off-screen to the left, and 8 where the object is fully on-screen to the left.
+    /// Likewise, at 160, the object is touching the right side of the screen, then values up to 168
+    /// push the object off-screen to the right.
     pub x_screen_plus_8: u8,
+
+    /// This is the position of the object on screen, plus 16 pixels.  This lets one place objects
+    /// off-screen entering the screen from top or bottom.
+    ///
+    /// Values ≤ 16 essentially tell you how many of a 16 pixels tall object are visible at the top.
+    /// For objects that are 8 pixels tall, they count as being the top part of a 16 pixels tall
+    /// object, so they only start being visible for values ≥ 9.  At 144, a 16 pixels tall object
+    /// touches the bottom of the screen, and starts going off-screen.  At 160, the object is fully
+    /// off-screen at the bottom.
     pub y_screen_plus_16: u8,
 }
 
@@ -59,6 +76,9 @@ pub struct ObjectFetcher {
     sprite: Option<Sprite>,
     pub pixel_index_in_row: u8,
     tile_row_data: [u8; 8],
+    /// During OAM scan, the PPU will populate this with the first 10 (or fewer) objects it finds
+    /// intersecting with the current scanline.  These will get rendered, additional objects on the
+    /// same line do **not** get rendered!
     pub selected_objects: VecDeque<Sprite>,
 }
 
