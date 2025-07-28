@@ -322,7 +322,7 @@ impl PPU {
     pub fn render(&mut self) {
         self.render_tile_palette();
         self.render_tile_map0();
-        // self.render_tile_map1();
+        self.render_tile_map1();
     }
 
     pub fn prepare_for_new_frame(
@@ -393,7 +393,6 @@ impl PPU {
 
                     let mut selected_objects = VecDeque::new();
                     let object_size = 8; // TODO: this is either 8 or 16 depending on something
-                    let ly = ly as i16; // from now on it's convenient as a signed (yet >= 0)
                     for object_offset in (0x00..0x9F).step_by(4) {
                         if selected_objects.len() == 10 {
                             break;
@@ -401,7 +400,7 @@ impl PPU {
                         let y_screen_plus_16 = self.object_attribute_memory[object_offset];
                         let object_min_y_on_screen = (y_screen_plus_16 as u16 as i16) - 16;
                         let object_max_y_on_screen = object_min_y_on_screen + object_size - 1;
-                        if object_min_y_on_screen <= ly && ly <= object_max_y_on_screen {
+                        if object_min_y_on_screen <= ly as i16 && ly as i16 <= object_max_y_on_screen {
                             selected_objects.push_back(Sprite {
                                 x_screen_plus_8: self.object_attribute_memory[object_offset + 1],
                                 y_screen_plus_16,

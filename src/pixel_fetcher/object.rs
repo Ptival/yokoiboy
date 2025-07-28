@@ -122,10 +122,10 @@ impl ObjectFetcher {
                 event!(Level::DEBUG, "OBJ fetcher getting tile");
                 let current_x = self.pixel_index_in_row as i16;
                 let x_range = (current_x, current_x + 7);
-                let selected = &self.selected_objects;
 
                 // Technically we should only tick this when there is going to be a match
-                self.sprite = selected
+                self.sprite = self
+                    .selected_objects
                     .iter()
                     .find(|item| {
                         let item_x_screen = item.x_screen_plus_8 as u16 as i16 - 8;
