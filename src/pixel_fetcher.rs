@@ -8,6 +8,18 @@ use tracing::{event, Level};
 
 use crate::ppu::PPU;
 
+#[derive(PartialEq)]
+pub enum FlipX {
+    Yes,
+    No,
+}
+
+#[derive(PartialEq)]
+pub enum FlipY {
+    Yes,
+    No,
+}
+
 #[derive(Clone, Debug)]
 enum FetcherState {
     GetTileDelay,
@@ -83,7 +95,8 @@ impl Fetcher {
         current_scanline: u8,
         scy: u8,
         tile_id: u8,
-        flip_x: bool,
+        flip_x: FlipX,
+        flip_y: FlipY,
         bit_plane: bool,
         tile_row_data: &mut [u8; 8],
     ) {
@@ -91,7 +104,14 @@ impl Fetcher {
         // address relative to VRAM and reading directly from the VRAM slice.  Should be slightly
         // faster as you don't need to perform range checks to realize you're heading into VRAM.
         let tile_index_in_palette = get_tile_index_in_palette(tile_id, addressing_mode);
-        let row_of_pixel_within_tile = ((current_scanline as u16 + scy as u16) & 255) % 8;
+        let row_of_pixel_within_tile_if_upright =
+            ((current_scanline as u16 + scy as u16) & 255) % 8;
+        let row_of_pixel_within_tile = if flip_y == FlipY::Yes {
+            // TODO: when handling tall sprites, this might need to be 15 for them
+            7 - row_of_pixel_within_tile_if_upright
+        } else {
+            row_of_pixel_within_tile_if_upright
+        };
         let address_in_vram_slice =
             tile_index_in_palette * 16 + (row_of_pixel_within_tile as u16) * 2;
         let pixel_data = vram[address_in_vram_slice as usize + bit_plane as usize];
@@ -100,7 +120,7 @@ impl Fetcher {
         // Note: it's nice to have the row data be sorted by increasing X, but the lowest bit
         // position is the highest X pixel, so using (7 - bit_position) to reorder.
         for target_bit_position in 0..8 {
-            let source_bit_position = if flip_x {
+            let source_bit_position = if flip_x == FlipX::Yes {
                 7 - target_bit_position
             } else {
                 target_bit_position

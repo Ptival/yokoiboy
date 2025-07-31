@@ -7,7 +7,11 @@ use tracing::{event, Level};
 
 use super::{Fetcher, TileAddressingMode};
 
-use crate::{ppu::PPU, utils::is_bit_set};
+use crate::{
+    pixel_fetcher::{FlipX, FlipY},
+    ppu::PPU,
+    utils::is_bit_set,
+};
 
 #[derive(Clone, Debug)]
 enum FetcherState {
@@ -49,11 +53,19 @@ const FLIP_X_BIT: u8 = 5;
 const FLIP_Y_BIT: u8 = 6;
 
 impl Sprite {
-    pub fn flip_x(&self) -> bool {
-        return is_bit_set(&Wrapping(self.attributes), FLIP_X_BIT);
+    pub fn flip_x(&self) -> FlipX {
+        return if is_bit_set(&Wrapping(self.attributes), FLIP_X_BIT) {
+            FlipX::Yes
+        } else {
+            FlipX::No
+        };
     }
-    pub fn flip_y(&self) -> bool {
-        return is_bit_set(&Wrapping(self.attributes), FLIP_Y_BIT);
+    pub fn flip_y(&self) -> FlipY {
+        return if is_bit_set(&Wrapping(self.attributes), FLIP_Y_BIT) {
+            FlipY::Yes
+        } else {
+            FlipY::No
+        };
     }
 }
 
@@ -153,6 +165,7 @@ impl ObjectFetcher {
                         ppu.scy.0,
                         sprite.tile_index,
                         sprite.flip_x(),
+                        sprite.flip_y(),
                         false,
                         &mut self.tile_row_data,
                     ),
@@ -179,6 +192,7 @@ impl ObjectFetcher {
                         ppu.scy.0,
                         sprite.tile_index,
                         sprite.flip_x(),
+                        sprite.flip_y(),
                         true,
                         &mut self.tile_row_data,
                     ),

@@ -3,6 +3,7 @@ use std::{collections::VecDeque, num::Wrapping};
 use tracing::{event, Level};
 
 use crate::{
+    pixel_fetcher::{FlipX, FlipY},
     ppu::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU, TILE_MAP_HORIZONTAL_TILE_COUNT},
     utils,
 };
@@ -99,7 +100,8 @@ impl BackgroundOrWindowFetcher {
                     ly.0,
                     ppu.scy.0,
                     self.tile_id,
-                    false,
+                    FlipX::No,
+                    FlipY::No,
                     false,
                     &mut self.tile_row_data,
                 );
@@ -120,7 +122,8 @@ impl BackgroundOrWindowFetcher {
                     ly.0,
                     ppu.scy.0,
                     self.tile_id,
-                    false,
+                    FlipX::No,
+                    FlipY::No,
                     true,
                     &mut self.tile_row_data,
                 );
