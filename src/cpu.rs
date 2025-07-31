@@ -108,6 +108,18 @@ impl CPU {
             machine.read_u8(pc + Wrapping(2)),
             machine.read_u8(pc + Wrapping(3))
         ));
+        // This is useful for debugging "wrong things on the stack" issues, but is not yet supported
+        // by GameBoy doctor cf. https://github.com/robert/gameboy-doctor/issues/26
+        if false {
+            let sp = cpu.registers.sp;
+            res.push_str(&format!(
+                " STACK:{:02X},{:02X},{:02X},{:02X}",
+                machine.read_u8(sp),
+                machine.read_u8(sp + Wrapping(1)),
+                machine.read_u8(sp + Wrapping(2)),
+                machine.read_u8(sp + Wrapping(3))
+            ));
+        }
         res
     }
 
