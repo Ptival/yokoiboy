@@ -412,7 +412,7 @@ impl Instruction {
                     .write_r8(r8, res)
                     .write_flag(Flag::Z, res.0 == 0)
                     .unset_flag(Flag::N)
-                    .write_flag(Flag::H, add_produces_carry(r8val.0, 1 as u16, false, 4));
+                    .write_flag(Flag::H, add_produces_carry(r8val.0, 1, false, 4));
                 ExecuteOutput::continue_with_cycles(1)
             }
 
@@ -423,8 +423,15 @@ impl Instruction {
             }
 
             Instruction::INC_mHL => {
-                let res = machine.read_u8(machine.registers().hl) + Wrapping(1);
-                machine.write_u8(machine.registers().hl, res);
+                let address_in_hl = machine.registers().hl;
+                let initial_value = machine.read_u8(address_in_hl);
+                let res = initial_value + Wrapping(1);
+                machine.write_u8(address_in_hl, res);
+                machine
+                    .registers_mut()
+                    .write_flag(Flag::Z, res.0 == 0)
+                    .unset_flag(Flag::N)
+                    .write_flag(Flag::H, add_produces_carry(initial_value.0, 1, false, 4));
                 ExecuteOutput::continue_with_cycles(3)
             }
 
