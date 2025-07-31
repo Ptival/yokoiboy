@@ -29,6 +29,10 @@ const BREAKPOINTS: &[u16] = &[
     // 0xC738,
     // 0xC662,
     // 0xDEF8,
+
+    // Debugging dmg-acid2
+    // 0x02D4, // scx ← 0
+    // 0x02B5, // scx ← 243
 ];
 
 fn main() -> Result<(), iced::Error> {

@@ -16,9 +16,9 @@ pub fn view(app: &ApplicationState) -> Column<Message> {
         let instr = Memory::decode_instruction_at(old, old.registers().pc);
         let row = row![
             widget::text(app.display_breakpoint(instr.address)).style(history_style),
-            widget::text(""),
+            widget::text("  "),
             widget::text(format!("{:04X}", instr.address)).style(history_style),
-            widget::text(format!("{}", instr.display_raw())).style(history_style),
+            widget::text(" "),
             widget::text(format!("{}", instr)).style(history_style)
         ];
         instructions_grid = instructions_grid.push(row);
@@ -30,18 +30,18 @@ pub fn view(app: &ApplicationState) -> Column<Message> {
 
     instructions_grid = instructions_grid.push(row![
         widget::text(app.display_breakpoint(instrs[0].address)),
-        widget::text("→"),
+        widget::text("→ "),
         widget::text(format!("{:04X}", instrs[0].address)),
-        widget::text(format!("{}", instrs[0].display_raw())),
+        widget::text(" "),
         widget::text(format!("{}", instrs[0]))
     ]);
 
     for instr in instrs.iter().skip(1) {
         instructions_grid = instructions_grid.push(row![
             widget::text(app.display_breakpoint(instr.address)),
-            widget::text(""),
+            widget::text("  "),
             widget::text(format!("{:04X}", instr.address)),
-            widget::text(format!("{}", instr.display_raw())),
+            widget::text(" "),
             widget::text(format!("{}", instr))
         ]);
     }

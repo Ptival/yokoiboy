@@ -1,5 +1,7 @@
 use std::num::Wrapping;
 
+use tracing::{event, Level};
+
 use crate::{instructions::type_def::Immediate16, machine::Machine};
 
 use super::CPU;
@@ -46,6 +48,7 @@ impl Interrupts {
 
     pub fn handle_interrupts(machine: &mut Machine) -> (u8, u8) {
         if let Some(interrupt) = machine.interrupts.should_handle_interrupt() {
+            event!(Level::DEBUG, "Handling interrupt {:02X}", interrupt);
             machine.interrupts.interrupt_flag =
                 machine.interrupts.interrupt_flag & Wrapping(!(1 << interrupt));
             machine.interrupts.interrupt_master_enable = false;

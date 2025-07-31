@@ -131,9 +131,9 @@ impl ApplicationState {
     // TODO: move this elsewhere
     pub fn display_breakpoint(self: &Self, address: Wrapping<u16>) -> String {
         String::from(if self.breakpoints.contains(&address.0) {
-            "@"
+            "@ "
         } else {
-            ""
+            "  "
         })
     }
 

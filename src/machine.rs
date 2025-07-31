@@ -1,5 +1,7 @@
 use std::num::Wrapping;
 
+use tracing::{event, Level};
+
 use crate::{
     application_state::{MapperType, ROMInformation},
     cpu::{interrupts::Interrupts, timers::Timers, CPU},
@@ -420,7 +422,10 @@ impl Machine {
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
             0xFF41..=0xFF41 => self.ppu.lcd_status = value,
             0xFF42..=0xFF42 => self.ppu.scy = value,
-            0xFF43..=0xFF43 => self.ppu.scx = value,
+            0xFF43..=0xFF43 => {
+                event!(Level::DEBUG, "scx←{value} at PC=${:04X}", self.registers().pc);
+                self.ppu.scx = value;
+            }
             0xFF44..=0xFF44 => {
                 panic!("Something attempted to write to LY")
             }
