@@ -3,10 +3,13 @@ pub mod timers;
 
 use std::num::Wrapping;
 
+use tracing::{event, Level};
+
 use crate::{
     application_state::ROMInformation,
     instructions::{
         decode::{decode_instruction_at_address, DecodedInstruction},
+        semantics::ElapsedCycles,
         type_def::Immediate16,
     },
     machine::Machine,
@@ -35,22 +38,31 @@ impl CPU {
 
     pub fn execute_one_instruction(
         machine: &mut Machine,
-    ) -> (Option<DecodedInstruction>, (u8, u8)) {
+    ) -> (Option<DecodedInstruction>, ElapsedCycles) {
         if machine.cpu_mut().low_power_mode {
             if machine.interrupts.is_interrupt_pending() {
                 machine.cpu_mut().low_power_mode = false;
                 // Fall through on wakeup to execute one instruction
             } else {
                 // Otherwise, force the other components to move forward
-                return (None, (4, 1));
+                return (None, ElapsedCycles { m_cycles: 1 });
             }
         }
-        let next_instruction = decode_instruction_at_address(machine, machine.cpu().registers.pc);
+        let pc = machine.cpu().registers.pc;
+        let instruction = decode_instruction_at_address(machine, pc);
+        event!(Level::DEBUG, "About to execute {:04X}: {instruction}", pc);
         // This will be the default PC, unless instruction semantics overwrite it
-        machine.cpu_mut().registers.pc =
-            machine.cpu_mut().registers.pc + Wrapping(next_instruction.instruction_size as u16);
-        let cycles = next_instruction.instruction.execute(machine);
-        (Some(next_instruction), cycles)
+        let execute_output = instruction.instruction.execute(&instruction, machine);
+        match execute_output.next_pc {
+            Some(next_pc) => {
+                machine.cpu_mut().registers.pc = next_pc;
+            }
+            None => {
+                machine.cpu_mut().registers.pc =
+                    machine.cpu_mut().registers.pc + Wrapping(instruction.instruction_size as u16);
+            }
+        }
+        (Some(instruction), execute_output.elapsed_cycles)
     }
 
     pub fn pop_r16<'a>(machine: &'a mut Machine, r16: &R16) -> &'a mut Machine {

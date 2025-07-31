@@ -140,19 +140,21 @@ impl ApplicationState {
     // TODO: move in machine.rs
     fn step_machine(machine: &mut Machine) -> MachineStep {
         let mut instruction_executed = None;
-        let (mut t_cycles, mut _m_cycles) = Interrupts::handle_interrupts(machine);
-        if t_cycles == 0 {
-            (instruction_executed, (t_cycles, _m_cycles)) = CPU::execute_one_instruction(machine);
+        let mut elapsed = Interrupts::handle_interrupts(machine);
+        if elapsed.t_cycles() == 0 {
+            (instruction_executed, elapsed) = CPU::execute_one_instruction(machine);
         }
-        machine.timers.ticks(&mut machine.interrupts, t_cycles);
+        machine
+            .timers
+            .ticks(&mut machine.interrupts, elapsed.t_cycles());
         machine.ppu.ticks(
             &mut machine.background_window_fetcher,
             &mut machine.interrupts,
             &mut machine.object_fetcher,
             &mut machine.pixel_fetcher,
-            t_cycles,
+            elapsed.t_cycles(),
         );
-        machine.t_cycle_count += t_cycles as u64;
+        machine.t_cycle_count += elapsed.t_cycles() as u64;
 
         // // Print characters written to the Link cable on the terminal (useful for blargg w/o LCD)
         // if machine.read_u8(Wrapping(0xFF02)).0 == 0x81 {
@@ -162,7 +164,7 @@ impl ApplicationState {
         // }
 
         MachineStep {
-            t_cycles: t_cycles as u128,
+            t_cycles: elapsed.t_cycles() as u128,
             instruction_executed,
         }
     }
@@ -170,6 +172,8 @@ impl ApplicationState {
     // Steps cycles forward until an instruction is executed.  May take many tries when the console
     // is in HALT and awaiting an interrupt to wake up and execute an instruction.
     fn execute_one_instruction(&mut self, preserve: PreserveHistory) -> InstructionStep {
+        // GB doctor suggests setting the machine to the state immediately after running the boot
+        // ROM.  Instead, I'm running the boot ROM and not outputting states until we leave it.
         if !self.current_machine().is_dmg_boot_rom_on()
             && !self.current_machine().cpu().low_power_mode
         {
