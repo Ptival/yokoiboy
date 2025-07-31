@@ -318,37 +318,37 @@ impl Instruction {
                 ExecuteOutput::continue_with_cycles(1)
             }
 
+            // Reminder: the DAA instruction re-normalizes a BCD number in register A after an
+            // operation that could have made it no longer in BCD form.  E.g. naive hexadecimal
+            // addition of $36 and $55 is $8B, which is BCD-equal to $91.
             Instruction::DAA => {
-                let mut data = Wrapping(machine.registers().read_a().0 as u16);
+                let mut data = machine.registers().read_a();
                 let subtraction_flag = machine.registers().read_flag(Flag::N);
-                let mut half_carry = machine.registers().read_flag(Flag::H);
-                let mut carry = machine.registers().read_flag(Flag::C);
+                let half_carry = machine.registers().read_flag(Flag::H);
+                let carry = machine.registers().read_flag(Flag::C);
+
+                let mut offset = 0;
+                let mut set_carry = false;
+                if (!subtraction_flag && ((data.0 & 0x0F) > 0x09)) || half_carry {
+                    offset |= 0x06
+                }
+                if (!subtraction_flag && (data.0 > 0x99)) || carry {
+                    offset |= 0x60;
+                    set_carry = true
+                }
+
                 if subtraction_flag {
-                    // post-subtraction
-                    if half_carry {
-                        data -= Wrapping(0x06);
-                    }
-                    if carry {
-                        data -= Wrapping(0x60);
-                    }
+                    data -= Wrapping(offset);
                 } else {
-                    // post-addition
-                    if half_carry || ((data.0 & 0x0F) > 0x09) {
-                        data += Wrapping(0x06);
-                        half_carry = true; // set in case we entered because of the right condition
-                    }
-                    if carry || ((data.0 & 0x1FF) > 0x9F) {
-                        data += Wrapping(0x60);
-                        carry = true; // set in case we entered because of the right condition
-                    }
+                    data += Wrapping(offset);
                 }
 
                 machine
                     .registers_mut()
-                    .write_a(Wrapping(data.0 as u8))
+                    .write_a(data)
                     .write_flag(Flag::Z, data.0 == 0)
-                    .write_flag(Flag::H, half_carry)
-                    .write_flag(Flag::C, carry);
+                    .unset_flag(Flag::H)
+                    .write_flag(Flag::C, set_carry);
 
                 ExecuteOutput::continue_with_cycles(1)
             }
