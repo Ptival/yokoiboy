@@ -418,6 +418,10 @@ impl PPU {
 
             // mode 3
             PPUState::DrawingPixels(dropped_pixels) => {
+                if self.read_lcdc().0 == 0 {
+                    panic!("TODO: cancel object fetching")
+                }
+
                 let bgw_fifo_len = bgw_fetcher.fifo.len();
                 let obj_fifo_len = obj_fetcher.fifo.len();
 
