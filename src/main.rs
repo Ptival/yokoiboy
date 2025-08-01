@@ -16,7 +16,12 @@ pub mod view;
 use application_state::ApplicationState;
 use clap::Parser;
 use command_line_arguments::CommandLineArguments;
-use iced::{self, advanced::graphics::core::font, Settings, Size, Task};
+use iced::{
+    self,
+    advanced::graphics::core::font,
+    window::{self, settings::PlatformSpecific},
+    Point, Settings, Size, Task,
+};
 use message::Message;
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -56,6 +61,24 @@ fn main() -> Result<(), iced::Error> {
     )
     .subscription(ApplicationState::subscription)
     .settings(settings)
-    .window_size(Size::new(1100.0, 1000.0))
+    .window(window::Settings {
+        size: Size::new(1100.0, 1000.0),
+        maximized: false,
+        fullscreen: false,
+        position: window::Position::SpecificWith(|window_size, monitor_size| Point {
+            x: monitor_size.width - window_size.width,
+            y: 0.0,
+        }),
+        min_size: None,
+        max_size: None,
+        visible: true,
+        resizable: true,
+        decorations: false,
+        transparent: false,
+        level: window::Level::Normal,
+        icon: None,
+        platform_specific: PlatformSpecific::default(),
+        exit_on_close_request: true,
+    })
     .run()
 }
