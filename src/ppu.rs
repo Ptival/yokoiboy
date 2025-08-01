@@ -400,7 +400,9 @@ impl PPU {
                         let y_screen_plus_16 = self.object_attribute_memory[object_offset];
                         let object_min_y_on_screen = (y_screen_plus_16 as u16 as i16) - 16;
                         let object_max_y_on_screen = object_min_y_on_screen + object_size - 1;
-                        if object_min_y_on_screen <= ly as i16 && ly as i16 <= object_max_y_on_screen {
+                        if object_min_y_on_screen <= ly as i16
+                            && ly as i16 <= object_max_y_on_screen
+                        {
                             selected_objects.push_back(Sprite {
                                 x_screen_plus_8: self.object_attribute_memory[object_offset + 1],
                                 y_screen_plus_16,
@@ -469,7 +471,12 @@ impl PPU {
 
                     let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
                     // Simulate pixel mixing
-                    let (selected_pixel, palette) = if obj_pixel.color == 0 {
+                    let choose_bgw = // We choose the background pixel if either:
+                        // the object pixel is transparent
+                        obj_pixel.color == 0
+                        // or the object should be behind a non-transparent background
+                        || (obj_pixel.bg_over_obj && bgw_pixel.color != 0);
+                    let (selected_pixel, palette) = if choose_bgw {
                         (bgw_pixel.color, self.background_palette_data)
                     } else {
                         // FIXME: need to choose between OBJ palettes based on attribute

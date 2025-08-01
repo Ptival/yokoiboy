@@ -51,8 +51,13 @@ pub struct Sprite {
 
 const FLIP_X_BIT: u8 = 5;
 const FLIP_Y_BIT: u8 = 6;
+const BG_OVER_OBJ_BIT: u8 = 7;
 
 impl Sprite {
+    pub fn bg_over_obj(&self) -> bool {
+        return is_bit_set(&Wrapping(self.attributes), BG_OVER_OBJ_BIT);
+    }
+
     pub fn flip_x(&self) -> FlipX {
         return if is_bit_set(&Wrapping(self.attributes), FLIP_X_BIT) {
             FlipX::Yes
@@ -60,6 +65,7 @@ impl Sprite {
             FlipX::No
         };
     }
+
     pub fn flip_y(&self) -> FlipY {
         return if is_bit_set(&Wrapping(self.attributes), FLIP_Y_BIT) {
             FlipY::Yes
@@ -77,6 +83,7 @@ pub enum ObjectPalette {
 
 #[derive(Clone, Debug)]
 pub struct ObjectFIFOItem {
+    pub bg_over_obj: bool,
     pub color: u8,
     pub palette: ObjectPalette,
 }
@@ -218,6 +225,7 @@ impl ObjectFetcher {
                         let old_item = self.fifo[i].clone();
                         if old_item.color == 0 {
                             self.fifo[i] = ObjectFIFOItem {
+                                bg_over_obj: self.sprite.as_ref().map_or(false, |s| s.bg_over_obj()),
                                 color,
                                 palette: palette_for_sprite(self.sprite.as_ref()),
                             };
@@ -225,6 +233,7 @@ impl ObjectFetcher {
                     } else {
                         // No pixel to merge with, just push
                         self.fifo.push_back(ObjectFIFOItem {
+                            bg_over_obj: self.sprite.as_ref().map_or(false, |s| s.bg_over_obj()),
                             color,
                             palette: palette_for_sprite(self.sprite.as_ref()),
                         });
