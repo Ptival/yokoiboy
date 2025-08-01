@@ -12,8 +12,8 @@ use iced::{exit, keyboard, Task};
 
 use crate::{
     command_line_arguments::CommandLineArguments,
-    cpu::{interrupts::Interrupts, CPU},
-    instructions::{decode::DecodedInstruction, semantics::ElapsedCycles},
+    cpu::CPU,
+    instructions::decode::DecodedInstruction,
     machine::Machine,
     memory::{load_boot_rom, load_game_rom},
     message::Message,
@@ -69,11 +69,6 @@ pub struct ApplicationState {
 enum PreserveHistory {
     DontPreserveHistory,
     PreserveHistory,
-}
-
-pub struct MachineStep {
-    t_cycles: u128,
-    instruction_executed: Option<DecodedInstruction>,
 }
 
 pub struct InstructionStep {
@@ -137,36 +132,6 @@ impl ApplicationState {
         })
     }
 
-    // TODO: move in machine.rs
-    fn step_machine(machine: &mut Machine) -> MachineStep {
-        let mut instruction_executed: Option<DecodedInstruction>;
-        let mut elapsed: ElapsedCycles;
-
-        (instruction_executed, elapsed) = Interrupts::handle_interrupts(machine);
-        // Note: don't test for instruction being None, as low power mode returns None
-        if elapsed.m_cycles == 0 {
-            (instruction_executed, elapsed) = CPU::execute_one_instruction(machine);
-        }
-        let elapsed_t_cycles = elapsed.t_cycles();
-
-        machine
-            .timers
-            .ticks(&mut machine.interrupts, elapsed_t_cycles);
-        machine.ppu.ticks(
-            &mut machine.background_window_fetcher,
-            &mut machine.interrupts,
-            &mut machine.object_fetcher,
-            &mut machine.pixel_fetcher,
-            elapsed_t_cycles,
-        );
-        machine.t_cycle_count += elapsed_t_cycles as u64;
-
-        MachineStep {
-            t_cycles: elapsed_t_cycles as u128,
-            instruction_executed,
-        }
-    }
-
     // Steps cycles forward until an instruction is executed.  May take many tries when the console
     // is in HALT and awaiting an interrupt to wake up and execute an instruction.
     fn execute_one_instruction(&mut self, preserve: PreserveHistory) -> InstructionStep {
@@ -196,7 +161,7 @@ impl ApplicationState {
                             }
                         }
                         None => {
-                            let step = ApplicationState::step_machine(machine);
+                            let step = machine.step();
                             executed_instruction = step.instruction_executed;
                             total_t_cycles += step.t_cycles;
                         }
@@ -218,7 +183,7 @@ impl ApplicationState {
                             };
                         }
                         None => {
-                            let step = ApplicationState::step_machine(&mut next_machine);
+                            let step = next_machine.step();
                             executed_instruction = step.instruction_executed;
                             total_t_cycles += step.t_cycles;
                         }

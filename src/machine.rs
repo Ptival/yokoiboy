@@ -6,6 +6,7 @@ use crate::{
     application_state::{MapperType, ROMInformation},
     cpu::{interrupts::Interrupts, timers::Timers, CPU},
     inputs::Inputs,
+    instructions::{decode::DecodedInstruction, semantics::ElapsedCycles},
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher, object::ObjectFetcher, Fetcher,
     },
@@ -16,6 +17,11 @@ use crate::{
 enum BankingMode {
     Ram,
     Rom,
+}
+
+pub struct MachineStep {
+    pub t_cycles: u128,
+    pub instruction_executed: Option<DecodedInstruction>,
 }
 
 // TODO: separate MMU from Machine?
@@ -423,7 +429,11 @@ impl Machine {
             0xFF41..=0xFF41 => self.ppu.lcd_status = value,
             0xFF42..=0xFF42 => self.ppu.scy = value,
             0xFF43..=0xFF43 => {
-                event!(Level::DEBUG, "scx←{value} at PC=${:04X}", self.registers().pc);
+                event!(
+                    Level::DEBUG,
+                    "scx←{value} at PC=${:04X}",
+                    self.registers().pc
+                );
                 self.ppu.scx = value;
             }
             0xFF44..=0xFF44 => {
@@ -506,5 +516,32 @@ impl Machine {
 
     pub fn ppu_mut(&mut self) -> &mut PPU {
         &mut self.ppu
+    }
+
+    pub fn step(&mut self) -> MachineStep {
+        let mut instruction_executed: Option<DecodedInstruction>;
+        let mut elapsed: ElapsedCycles;
+
+        (instruction_executed, elapsed) = Interrupts::handle_interrupts(self);
+        // Note: don't test for instruction being None, as low power mode returns None
+        if elapsed.m_cycles == 0 {
+            (instruction_executed, elapsed) = CPU::execute_one_instruction(self);
+        }
+        let elapsed_t_cycles = elapsed.t_cycles();
+
+        self.timers.ticks(&mut self.interrupts, elapsed_t_cycles);
+        self.ppu.ticks(
+            &mut self.background_window_fetcher,
+            &mut self.interrupts,
+            &mut self.object_fetcher,
+            &mut self.pixel_fetcher,
+            elapsed_t_cycles,
+        );
+        self.t_cycle_count += elapsed_t_cycles as u64;
+
+        MachineStep {
+            t_cycles: elapsed_t_cycles as u128,
+            instruction_executed,
+        }
     }
 }
