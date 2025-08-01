@@ -427,7 +427,14 @@ impl Machine {
 
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
             0xFF41..=0xFF41 => self.ppu.lcd_status = value,
-            0xFF42..=0xFF42 => self.ppu.scy = value,
+            0xFF42..=0xFF42 => {
+                event!(
+                    Level::DEBUG,
+                    "scy←{value} at PC=${:04X}",
+                    self.registers().pc
+                );
+                self.ppu.scy = value
+            }
             0xFF43..=0xFF43 => {
                 event!(
                     Level::DEBUG,
