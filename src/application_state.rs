@@ -138,7 +138,6 @@ impl ApplicationState {
         // GB doctor suggests setting the machine to the state immediately after running the boot
         // ROM.  Instead, I'm running the boot ROM and not outputting states until we leave it.
         if !self.current_machine().is_dmg_boot_rom_on()
-            && !self.current_machine().cpu().low_power_mode
         {
             let string = CPU::gbdoctor_string(self.current_machine());
             if let Some(output_file) = self.output_file.as_mut() {
