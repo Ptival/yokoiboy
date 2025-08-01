@@ -24,7 +24,7 @@ pub fn view(app: &ApplicationState) -> Column<Message> {
         instructions_grid = instructions_grid.push(row);
     }
 
-    let machine = app.current_machine_immut();
+    let machine = app.current_machine();
     let pc = machine.registers().pc;
     let instrs = Memory::decode_instructions_at(machine, pc, 10 - history_size as u8);
 

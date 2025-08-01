@@ -2,10 +2,11 @@ use tracing::{event, Level};
 
 use crate::{
     cpu::interrupts::Interrupts,
-    pixel_fetcher::{
-        background_or_window::BackgroundOrWindowFetcher, object::ObjectFetcher,
+    pixel_fetcher::{background_or_window::BackgroundOrWindowFetcher, object::ObjectFetcher},
+    ppu::{
+        DOTS_PER_SCANLINE, LCD_HORIZONTAL_PIXEL_COUNT, LCD_VERTICAL_PIXEL_COUNT, PIXEL_DATA_SIZE,
+        PPU,
     },
-    ppu::{DOTS_PER_SCANLINE, LCD_VERTICAL_PIXEL_COUNT, PPU},
 };
 
 pub fn hblank(

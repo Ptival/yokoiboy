@@ -12,7 +12,7 @@ use crate::ppu::{TILE_PALETTE_HORIZONTAL_PIXELS, TILE_PALETTE_VERTICAL_PIXELS};
 
 impl ApplicationState {
     pub fn view(app: &ApplicationState) -> Column<Message> {
-        let machine = app.current_machine_immut();
+        let machine = app.current_machine();
         let debugger_view = debugger::view(app);
 
         // let cycle_row =

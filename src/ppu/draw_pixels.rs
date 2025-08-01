@@ -62,8 +62,9 @@ pub fn draw_pixels(
             return;
         }
 
-        // During scanline 0, remember SCY for every pixel pushed
-        let ly = ppu.read_ly().0 as usize;
+        // During scanline 0, remember SCY for every pixel pushed.  This is only for printing out
+        // the nice VRAM frame, not something the console cares about.
+        let ly = ppu.read_ly().0;
         if ly == 0 {
             ppu.frame_scys_at_scanline_0[ppu.drawn_pixels_on_current_row as usize] = ppu.scy.0;
         }
@@ -71,9 +72,8 @@ pub fn draw_pixels(
         let bgw_pixel = bgw_fetcher.fifo.pop_front().unwrap();
         let obj_pixel = obj_fetcher.fifo.pop_front().unwrap();
         let pixel_x = ppu.drawn_pixels_on_current_row;
-        let pixel_y = ppu.read_ly().0;
+        let pixel_y = ly;
 
-        let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
         // Simulate pixel mixing
         let choose_bgw = // We choose the background pixel if either:
                         // the object pixel is transparent
@@ -87,7 +87,6 @@ pub fn draw_pixels(
                 (0, 0)
             }
         } else {
-            // FIXME: need to choose between OBJ palettes based on attribute
             (
                 obj_pixel.color,
                 match obj_pixel.palette {
@@ -104,6 +103,7 @@ pub fn draw_pixels(
                 "Skipping writing pixels as they are out-of-bounds in LCD"
             );
         } else {
+            let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
             ppu.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
         }
         ppu.drawn_pixels_on_current_row += 1;

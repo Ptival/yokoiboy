@@ -87,7 +87,7 @@ impl ApplicationState {
             game_rom,
             rom_information,
             FixLY::from(args.log_for_doctor),
-            SkipBoot::from(args.log_for_doctor || args.skip_boot)
+            SkipBoot::from(args.log_for_doctor || args.skip_boot),
         );
         queue.push(machine);
         let target_frame_time = Duration::new(0, FRAME_TIME_NANOSECONDS);
@@ -115,14 +115,14 @@ impl ApplicationState {
         }
     }
 
-    pub fn current_machine(self: &mut Self) -> &mut Machine {
+    pub fn current_machine_mut(self: &mut Self) -> &mut Machine {
         self.snaps
             .iter_mut()
             .next()
             .expect("current_machine: no machine")
     }
 
-    pub fn current_machine_immut(self: &Self) -> &Machine {
+    pub fn current_machine(self: &Self) -> &Machine {
         self.snaps
             .iter()
             .next()
@@ -149,7 +149,7 @@ impl ApplicationState {
                 write!(output_file, "{}\n", string).expect("write to log failed");
             }
         }
-        let current_machine = self.current_machine();
+        let current_machine = self.current_machine_mut();
         match preserve {
             PreserveHistory::DontPreserveHistory => {
                 let machine = current_machine;
@@ -227,7 +227,7 @@ impl ApplicationState {
 
             Message::RunNextInstruction => {
                 let _step = self.execute_one_instruction(PreserveHistory::PreserveHistory);
-                self.current_machine().ppu_mut().render();
+                self.current_machine_mut().ppu_mut().render();
                 Task::none()
             }
 
@@ -259,7 +259,7 @@ impl ApplicationState {
 
                 if remaining_steps.0 == 0 {
                     // If we're stopping for a frame, try to get accurate frame time
-                    self.current_machine().ppu_mut().render();
+                    self.current_machine_mut().ppu_mut().render();
                     let final_time = time::Instant::now();
                     let frame_time = final_time - initial_time;
                     if frame_time.as_nanos() < FRAME_TIME_NANOSECONDS as u128 {

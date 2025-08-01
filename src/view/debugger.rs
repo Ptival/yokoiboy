@@ -8,7 +8,7 @@ use iced::widget::{self, Column};
 use crate::{application_state::ApplicationState, message::Message};
 
 pub fn view(app: &ApplicationState) -> Column<Message> {
-    let machine = app.current_machine_immut();
+    let machine = app.current_machine();
     let instructions = instructions::view(app);
     let registers = registers::view(&machine.registers());
     let stack = stack::view(machine);

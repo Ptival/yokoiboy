@@ -152,7 +152,9 @@ pub fn pixel_code_to_rgba(pixel_code: u8, palette: u8) -> [u8; PIXEL_DATA_SIZE] 
     }
 }
 
-// Each pixel takes 4 bytes (R, G, B, A).  Each y results in 160 pixels.
+/// Computes the index of a pixel's data in the RGBA slice for the LCD.  Each pixel takes
+/// PIXEL_DATA_SIZE (= 4) bytes for (R, G, B, A).  Each y results in LCD_HORIZONTAL_PIXEL_COUNT (=
+/// 160) pixels.
 pub fn pixel_coordinates_in_rgba_slice(x: u8, y: u8) -> usize {
     (y as usize * LCD_HORIZONTAL_PIXEL_COUNT + x as usize) * PIXEL_DATA_SIZE
 }
