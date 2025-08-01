@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, num::Wrapping, process::exit};
+mod draw_pixels;
+mod hblank;
+mod oam_scan;
+mod vblank;
+
+use std::{num::Wrapping, process::exit};
 use tracing::{event, Level};
 
 use crate::{
@@ -6,10 +11,11 @@ use crate::{
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher,
         get_tile_index_in_palette,
-        object::{ObjectFetcher, ObjectPalette, Sprite},
+        object::{ObjectFetcher, ObjectPalette},
         Fetcher, FetchingFor, TileAddressingMode,
     },
-    utils::{self},
+    ppu::{draw_pixels::draw_pixels, hblank::hblank, oam_scan::oam_scan, vblank::vblank},
+    utils::{self, is_bit_set},
 };
 
 const OAM_SIZE: usize = 0xA0;
@@ -46,7 +52,7 @@ const TILE_MAP_PIXELS_TOTAL: usize = TILE_MAP_HORIZONTAL_PIXELS * TILE_MAP_VERTI
 const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
 
 // LCD control single bits of interest
-const _LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT: u8 = 0;
+const LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT: u8 = 0;
 const _LCDC_OBJECT_ENABLE_BIT: u8 = 1;
 const _LCDC_OBJECT_SIZE_BIT: u8 = 2;
 pub const LCDC_BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
@@ -376,175 +382,26 @@ impl PPU {
         }
 
         match self.state {
-            // mode 2
             PPUState::OAMScan => {
-                event!(
-                    Level::DEBUG,
-                    "OAM scanning, scanline: {scanline}",
-                    scanline = self.scanline_dots
-                );
-                if self.scanline_dots == 80 {
-                    let ly = self.read_ly().0 as usize;
-
-                    // At the start of each scanline, remember SCX
-                    if ly < LCD_VERTICAL_PIXEL_COUNT {
-                        self.frame_scxs[ly] = self.scx.0;
-                    }
-
-                    let mut selected_objects = VecDeque::new();
-                    let object_size = 8; // TODO: this is either 8 or 16 depending on something
-                    for object_offset in (0x00..0x9F).step_by(4) {
-                        if selected_objects.len() == 10 {
-                            break;
-                        }
-                        let y_screen_plus_16 = self.object_attribute_memory[object_offset];
-                        let object_min_y_on_screen = (y_screen_plus_16 as u16 as i16) - 16;
-                        let object_max_y_on_screen = object_min_y_on_screen + object_size - 1;
-                        if object_min_y_on_screen <= ly as i16
-                            && ly as i16 <= object_max_y_on_screen
-                        {
-                            selected_objects.push_back(Sprite {
-                                x_screen_plus_8: self.object_attribute_memory[object_offset + 1],
-                                y_screen_plus_16,
-                                tile_index: self.object_attribute_memory[object_offset + 2],
-                                attributes: self.object_attribute_memory[object_offset + 3],
-                            });
-                        }
-                    }
-                    obj_fetcher.selected_objects = selected_objects;
-                    self.switch_to_drawing_pixels(pixel_fetcher);
-                }
+                oam_scan(self, obj_fetcher, pixel_fetcher);
             }
 
-            // mode 3
             PPUState::DrawingPixels(dropped_pixels) => {
-                if self.read_lcdc().0 == 0 {
-                    panic!("TODO: cancel object fetching")
-                }
-
-                let bgw_fifo_len = bgw_fetcher.fifo.len();
-                let obj_fifo_len = obj_fetcher.fifo.len();
-
-                event!(
-                    Level::DEBUG,
-                    "Drawing pixels, drawn: {drawn}/{LCD_HORIZONTAL_PIXEL_COUNT}, dropped: {dropped}/{to_be_dropped}, LY: {ly}, BGW FIFO: {bgw_fifo_len} items, OBJ FIFO: {obj_fifo_len} items",
-                    drawn = self.drawn_pixels_on_current_row,
-                    dropped = dropped_pixels,
-                    to_be_dropped = self.scx.0%8,
-                    ly = self.read_ly(),
+                draw_pixels(
+                    self,
+                    bgw_fetcher,
+                    obj_fetcher,
+                    pixel_fetcher,
+                    dropped_pixels,
                 );
-
-                if self.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
-                    return;
-                }
-
-                obj_fetcher.pixel_index_in_row = self.drawn_pixels_on_current_row;
-
-                let fetcher_state = &pixel_fetcher.fetching_for;
-                if obj_fifo_len == 0 && bgw_fifo_len != 0 {
-                    if *fetcher_state == FetchingFor::BackgroundOrWindowFIFO {
-                        pixel_fetcher.switch_to_object_fifo();
-                    }
-                } else {
-                    if *fetcher_state == FetchingFor::ObjectFIFO {
-                        pixel_fetcher.switch_to_background_or_window_fifo();
-                    }
-                }
-                pixel_fetcher.tick(bgw_fetcher, obj_fetcher, self);
-
-                if !bgw_fetcher.fifo.is_empty() && !obj_fetcher.fifo.is_empty() {
-                    // To support fine scrolling, the first (scx % 8) pixels are dropped from FIFOs
-                    if dropped_pixels < self.scx.0 % 8 {
-                        bgw_fetcher.fifo.pop_front();
-                        obj_fetcher.fifo.pop_front();
-                        self.state = PPUState::DrawingPixels(dropped_pixels + 1);
-                        return;
-                    }
-
-                    // During scanline 0, remember SCY for every pixel pushed
-                    let ly = self.read_ly().0 as usize;
-                    if ly == 0 {
-                        self.frame_scys_at_scanline_0[self.drawn_pixels_on_current_row as usize] =
-                            self.scy.0;
-                    }
-
-                    let bgw_pixel = bgw_fetcher.fifo.pop_front().unwrap();
-                    let obj_pixel = obj_fetcher.fifo.pop_front().unwrap();
-                    let pixel_x = self.drawn_pixels_on_current_row;
-                    let pixel_y = self.read_ly().0;
-
-                    let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
-                    // Simulate pixel mixing
-                    let choose_bgw = // We choose the background pixel if either:
-                        // the object pixel is transparent
-                        obj_pixel.color == 0
-                        // or the object should be behind a non-transparent background
-                        || (obj_pixel.bg_over_obj && bgw_pixel.color != 0);
-                    let (selected_pixel, palette) = if choose_bgw {
-                        (bgw_pixel.color, self.background_palette_data)
-                    } else {
-                        // FIXME: need to choose between OBJ palettes based on attribute
-                        (
-                            obj_pixel.color,
-                            match obj_pixel.palette {
-                                ObjectPalette::ObjectPalette0 => self.object_palette_0,
-                                ObjectPalette::ObjectPalette1 => self.object_palette_1,
-                            },
-                        )
-                    };
-                    let rgba = pixel_code_to_rgba(selected_pixel, palette);
-
-                    if self.read_ly().0 as usize >= LCD_VERTICAL_PIXEL_COUNT {
-                        event!(
-                            Level::WARN,
-                            "Skipping writing pixels as they are out-of-bounds in LCD"
-                        );
-                    } else {
-                        self.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
-                    }
-                    self.drawn_pixels_on_current_row += 1;
-
-                    if self.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
-                        self.switch_to_horizontal_blank()
-                    }
-                }
             }
 
-            // mode 0
             PPUState::HorizontalBlank => {
-                event!(
-                    Level::DEBUG,
-                    "HBlank, scanline: {scanline}, LY: {ly}",
-                    scanline = self.scanline_dots,
-                    ly = self.read_ly()
-                );
-                if self.scanline_dots == DOTS_PER_SCANLINE {
-                    self.scanline_dots = 0;
-                    self.increment_ly(interrupts);
-                    if self.read_ly().0 as usize == LCD_VERTICAL_PIXEL_COUNT {
-                        self.switch_to_vertical_blank(interrupts)
-                    } else {
-                        self.switch_to_oam_scan(bgw_fetcher, obj_fetcher)
-                    }
-                }
+                hblank(self, bgw_fetcher, obj_fetcher, interrupts);
             }
 
-            // mode 1
             PPUState::VerticalBlank => {
-                event!(
-                    Level::DEBUG,
-                    "VBlank, scanline: {scanline}, LY: {ly}",
-                    scanline = self.scanline_dots,
-                    ly = self.read_ly()
-                );
-                if self.scanline_dots == DOTS_PER_SCANLINE {
-                    self.scanline_dots = 0;
-                    self.increment_ly(interrupts);
-                    if self.read_ly().0 == 153 {
-                        self.prepare_for_new_frame(bgw_fetcher, obj_fetcher);
-                        self.switch_to_oam_scan(bgw_fetcher, obj_fetcher)
-                    }
-                }
+                vblank(self, bgw_fetcher, obj_fetcher, interrupts);
             }
         }
 
@@ -601,7 +458,18 @@ impl PPU {
     }
 
     pub fn write_lcdc(&mut self, value: Wrapping<u8>) {
+        let previous_lcdc = self.lcd_control;
         self.lcd_control = value;
+        if is_bit_set(&previous_lcdc, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
+            && !is_bit_set(&value, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
+        {
+            event!(Level::DEBUG, "LCDC BGW disabled")
+        }
+        if !is_bit_set(&previous_lcdc, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
+            && is_bit_set(&value, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
+        {
+            event!(Level::DEBUG, "LCDC BGW enabled")
+        }
     }
 
     fn switch_to_oam_scan(
@@ -644,6 +512,10 @@ impl PPU {
         utils::unset_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
         interrupts.request(VBLANK_INTERRUPT_BIT);
         self.state = PPUState::VerticalBlank
+    }
+
+    fn is_background_and_window_enabled(&self) -> bool {
+        is_bit_set(&self.read_lcdc(), LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
     }
 }
 
