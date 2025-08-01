@@ -13,7 +13,7 @@ use iced::{exit, keyboard, Task};
 use crate::{
     command_line_arguments::CommandLineArguments,
     cpu::{interrupts::Interrupts, CPU},
-    instructions::decode::DecodedInstruction,
+    instructions::{decode::DecodedInstruction, semantics::ElapsedCycles},
     machine::Machine,
     memory::{load_boot_rom, load_game_rom},
     message::Message,
@@ -139,32 +139,30 @@ impl ApplicationState {
 
     // TODO: move in machine.rs
     fn step_machine(machine: &mut Machine) -> MachineStep {
-        let mut instruction_executed = None;
-        let mut elapsed = Interrupts::handle_interrupts(machine);
-        if elapsed.t_cycles() == 0 {
+        let mut instruction_executed: Option<DecodedInstruction>;
+        let mut elapsed: ElapsedCycles;
+
+        (instruction_executed, elapsed) = Interrupts::handle_interrupts(machine);
+        // Note: don't test for instruction being None, as low power mode returns None
+        if elapsed.m_cycles == 0 {
             (instruction_executed, elapsed) = CPU::execute_one_instruction(machine);
         }
+        let elapsed_t_cycles = elapsed.t_cycles();
+
         machine
             .timers
-            .ticks(&mut machine.interrupts, elapsed.t_cycles());
+            .ticks(&mut machine.interrupts, elapsed_t_cycles);
         machine.ppu.ticks(
             &mut machine.background_window_fetcher,
             &mut machine.interrupts,
             &mut machine.object_fetcher,
             &mut machine.pixel_fetcher,
-            elapsed.t_cycles(),
+            elapsed_t_cycles,
         );
-        machine.t_cycle_count += elapsed.t_cycles() as u64;
-
-        // // Print characters written to the Link cable on the terminal (useful for blargg w/o LCD)
-        // if machine.read_u8(Wrapping(0xFF02)).0 == 0x81 {
-        //     let char = machine.read_u8(Wrapping(0xFF01));
-        //     print!("{}", char.0 as char);
-        //     machine.write_u8(Wrapping(0xFF02), Wrapping(0x01));
-        // }
+        machine.t_cycle_count += elapsed_t_cycles as u64;
 
         MachineStep {
-            t_cycles: elapsed.t_cycles() as u128,
+            t_cycles: elapsed_t_cycles as u128,
             instruction_executed,
         }
     }

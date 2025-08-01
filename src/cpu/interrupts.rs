@@ -3,7 +3,7 @@ use std::num::Wrapping;
 use tracing::{event, Level};
 
 use crate::{
-    instructions::{semantics::ElapsedCycles, type_def::Immediate16},
+    instructions::{decode::DecodedInstruction, semantics::ElapsedCycles, type_def::Immediate16},
     machine::Machine,
 };
 
@@ -49,7 +49,7 @@ impl Interrupts {
         }
     }
 
-    pub fn handle_interrupts(machine: &mut Machine) -> ElapsedCycles {
+    pub fn handle_interrupts(machine: &mut Machine) -> (Option<DecodedInstruction>, ElapsedCycles) {
         if let Some(interrupt) = machine.interrupts.should_handle_interrupt() {
             event!(Level::DEBUG, "Handling interrupt {:02X}", interrupt);
             machine.interrupts.interrupt_flag =
@@ -63,12 +63,15 @@ impl Interrupts {
             CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu().registers.pc));
             machine.cpu_mut().registers.pc = interrupt_handler_offset(interrupt);
             // Execute the first instruction of the interrupt handler to match GB doctor
-            let (_, elapsed) = CPU::execute_one_instruction(machine);
-            ElapsedCycles {
-                m_cycles: 5 + elapsed.m_cycles,
-            }
+            let (instr, elapsed) = CPU::execute_one_instruction(machine);
+            (
+                instr,
+                ElapsedCycles {
+                    m_cycles: 5 + elapsed.m_cycles,
+                },
+            )
         } else {
-            ElapsedCycles { m_cycles: 0 }
+            (Option::None, ElapsedCycles { m_cycles: 0 })
         }
     }
 
