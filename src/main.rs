@@ -18,6 +18,7 @@ use clap::Parser;
 use command_line_arguments::CommandLineArguments;
 use iced::{self, advanced::graphics::core::font, Settings, Size, Task};
 use message::Message;
+use tracing_subscriber::{fmt, EnvFilter};
 
 const BREAKPOINTS: &[u16] = &[
     // 0x00F1, // passed logo check
@@ -36,8 +37,10 @@ const BREAKPOINTS: &[u16] = &[
 ];
 
 fn main() -> Result<(), iced::Error> {
-    // let mut filter = EnvFilter::from_default_env();
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .event_format(fmt::format().without_time().compact())
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
     let args = CommandLineArguments::parse();
     let mut settings = Settings::default();
     settings.default_font = font::Font::MONOSPACE;
