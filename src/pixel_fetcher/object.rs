@@ -225,18 +225,23 @@ impl ObjectFetcher {
                         let old_item = self.fifo[i].clone();
                         if old_item.color == 0 {
                             self.fifo[i] = ObjectFIFOItem {
-                                bg_over_obj: self.sprite.as_ref().map_or(false, |s| s.bg_over_obj()),
+                                bg_over_obj: self
+                                    .sprite
+                                    .as_ref()
+                                    .map_or(false, |s| s.bg_over_obj()),
                                 color,
                                 palette: palette_for_sprite(self.sprite.as_ref()),
                             };
                         }
                     } else {
-                        // No pixel to merge with, just push
-                        self.fifo.push_back(ObjectFIFOItem {
+                        let item = ObjectFIFOItem {
                             bg_over_obj: self.sprite.as_ref().map_or(false, |s| s.bg_over_obj()),
                             color,
                             palette: palette_for_sprite(self.sprite.as_ref()),
-                        });
+                        };
+                        event!(Level::TRACE, "Pushing OBJ {:#?}", item);
+                        // No pixel to merge with, just push
+                        self.fifo.push_back(item);
                     }
                 }
                 // clean up so that GetTileData can assume 0
