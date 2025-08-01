@@ -14,7 +14,7 @@ use crate::{
     command_line_arguments::CommandLineArguments,
     cpu::CPU,
     instructions::decode::DecodedInstruction,
-    machine::Machine,
+    machine::{FixLY, Machine, SkipBoot},
     memory::{load_boot_rom, load_game_rom},
     message::Message,
 };
@@ -82,7 +82,13 @@ impl ApplicationState {
         let boot_rom = load_boot_rom(&args.boot_rom).unwrap();
         let (game_rom, rom_information) = load_game_rom(&args.game_rom).unwrap();
         println!("{:?}", rom_information);
-        let machine = Machine::new(boot_rom, game_rom, rom_information, args.log_for_doctor);
+        let machine = Machine::new(
+            boot_rom,
+            game_rom,
+            rom_information,
+            FixLY::from(args.log_for_doctor),
+            SkipBoot::from(args.log_for_doctor || args.skip_boot)
+        );
         queue.push(machine);
         let target_frame_time = Duration::new(0, FRAME_TIME_NANOSECONDS);
         Self {
@@ -137,8 +143,7 @@ impl ApplicationState {
     fn execute_one_instruction(&mut self, preserve: PreserveHistory) -> InstructionStep {
         // GB doctor suggests setting the machine to the state immediately after running the boot
         // ROM.  Instead, I'm running the boot ROM and not outputting states until we leave it.
-        if !self.current_machine().is_dmg_boot_rom_on()
-        {
+        if !self.current_machine().is_dmg_boot_rom_on() {
             let string = CPU::gbdoctor_string(self.current_machine());
             if let Some(output_file) = self.output_file.as_mut() {
                 write!(output_file, "{}\n", string).expect("write to log failed");

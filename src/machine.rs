@@ -1,5 +1,6 @@
 use std::num::Wrapping;
 
+use boolenum::BoolEnum;
 use tracing::{event, Level};
 
 use crate::{
@@ -98,14 +99,27 @@ pub struct Machine {
     pub wram_bank: Wrapping<u8>,
 }
 
+#[derive(BoolEnum, Clone, Copy, Debug)]
+pub enum FixLY {
+    Yes,
+    No,
+}
+
+#[derive(BoolEnum, Clone, Copy, Debug)]
+pub enum SkipBoot {
+    Yes,
+    No,
+}
+
 impl Machine {
     pub fn new(
         boot_rom: Vec<u8>,
         game_rom: Vec<u8>,
         rom_information: ROMInformation,
-        fix_ly: bool,
+        fix_ly: FixLY,
+        skip_boot: SkipBoot,
     ) -> Self {
-        let cpu = CPU::new(boot_rom, game_rom, &rom_information);
+        let cpu = CPU::new(boot_rom, game_rom, &rom_information, skip_boot);
         Machine {
             banking_mode: BankingMode::Rom,
             is_ram_enabled: false,
@@ -113,7 +127,11 @@ impl Machine {
             ram_or_hiram_bank: 0,
             rom_information,
             t_cycle_count: 0,
-            dmg_boot_rom: Wrapping(0),
+            dmg_boot_rom: if skip_boot.into() {
+                Wrapping(1)
+            } else {
+                Wrapping(0)
+            },
 
             background_window_fetcher: BackgroundOrWindowFetcher::new(),
             cpu,

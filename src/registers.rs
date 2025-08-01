@@ -1,7 +1,7 @@
 use core::fmt;
 use std::num::Wrapping;
 
-use crate::machine::Machine;
+use crate::machine::{Machine, SkipBoot};
 
 #[derive(Clone, Debug, Hash)]
 pub enum R8 {
@@ -79,14 +79,25 @@ pub fn lower_u8(from: u16) -> u8 {
 }
 
 impl Registers {
-    pub fn new() -> Self {
-        Registers {
-            af: Wrapping(0),
-            bc: Wrapping(0),
-            de: Wrapping(0),
-            hl: Wrapping(0),
-            sp: Wrapping(0),
-            pc: Wrapping(0),
+    pub fn new(skip_boot: SkipBoot) -> Self {
+        if skip_boot.into() {
+            Registers {
+                af: Wrapping(0x01B0),
+                bc: Wrapping(0x0013),
+                de: Wrapping(0x00D8),
+                hl: Wrapping(0x014D),
+                sp: Wrapping(0xFFFE),
+                pc: Wrapping(0x0100),
+            }
+        } else {
+            Registers {
+                af: Wrapping(0),
+                bc: Wrapping(0),
+                de: Wrapping(0),
+                hl: Wrapping(0),
+                sp: Wrapping(0),
+                pc: Wrapping(0),
+            }
         }
     }
 

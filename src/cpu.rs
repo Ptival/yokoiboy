@@ -12,7 +12,7 @@ use crate::{
         semantics::ElapsedCycles,
         type_def::Immediate16,
     },
-    machine::Machine,
+    machine::{Machine, SkipBoot},
     memory::Memory,
     registers::{Registers, R16},
 };
@@ -28,11 +28,16 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new(boot_rom: Vec<u8>, game_rom: Vec<u8>, rom_information: &ROMInformation) -> Self {
+    pub fn new(
+        boot_rom: Vec<u8>,
+        game_rom: Vec<u8>,
+        rom_information: &ROMInformation,
+        skip_boot: SkipBoot,
+    ) -> Self {
         CPU {
             low_power_mode: false,
             memory: Memory::new(boot_rom, game_rom, rom_information),
-            registers: Registers::new(),
+            registers: Registers::new(skip_boot),
         }
     }
 

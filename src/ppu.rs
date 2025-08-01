@@ -8,11 +8,10 @@ use tracing::{event, Level};
 
 use crate::{
     cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
+    machine::FixLY,
     pixel_fetcher::{
-        background_or_window::BackgroundOrWindowFetcher,
-        get_tile_index_in_palette,
-        object::{ObjectFetcher, ObjectPalette},
-        Fetcher, FetchingFor, TileAddressingMode,
+        background_or_window::BackgroundOrWindowFetcher, get_tile_index_in_palette,
+        object::ObjectFetcher, Fetcher, TileAddressingMode,
     },
     ppu::{draw_pixels::draw_pixels, hblank::hblank, oam_scan::oam_scan, vblank::vblank},
     utils::{self, is_bit_set},
@@ -54,7 +53,7 @@ const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
 // LCD control single bits of interest
 const LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT: u8 = 0;
 const _LCDC_OBJECT_ENABLE_BIT: u8 = 1;
-const _LCDC_OBJECT_SIZE_BIT: u8 = 2;
+const LCDC_OBJECT_SIZE_BIT: u8 = 2;
 pub const LCDC_BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
 const LCDC_BACKGROUND_AND_WINDOW_TILE_AREA_BIT: u8 = 4;
 const _LCDC_WINDOW_ENABLE_BIT: u8 = 5;
@@ -80,7 +79,7 @@ pub enum PPUState {
 pub struct PPU {
     /** PPU state **/
     drawn_pixels_on_current_row: u8,
-    fix_ly_for_gb_doctor: bool,
+    fix_ly_for_gb_doctor: FixLY,
     /// Because the STAT interrupt is triggered on a rising edge of the STAT line, we need to
     /// remember its previous value.
     last_stat_line: u8,
@@ -159,7 +158,7 @@ pub fn pixel_coordinates_in_rgba_slice(x: u8, y: u8) -> usize {
 }
 
 impl PPU {
-    pub fn new(fix_ly: bool) -> Self {
+    pub fn new(fix_ly: FixLY) -> Self {
         PPU {
             drawn_pixels_on_current_row: 0,
             fix_ly_for_gb_doctor: fix_ly,
@@ -234,7 +233,7 @@ impl PPU {
     }
 
     pub fn read_ly(&self) -> Wrapping<u8> {
-        if self.fix_ly_for_gb_doctor {
+        if self.fix_ly_for_gb_doctor.into() {
             Wrapping(144)
         } else {
             self.lcd_y_coord
@@ -467,6 +466,17 @@ impl PPU {
         }
         if !is_bit_set(&previous_lcdc, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
             && is_bit_set(&value, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
+        {
+            event!(Level::DEBUG, "LCDC BGW enabled")
+        }
+
+        if is_bit_set(&previous_lcdc, LCDC_OBJECT_SIZE_BIT)
+            && !is_bit_set(&value, LCDC_OBJECT_SIZE_BIT)
+        {
+            event!(Level::DEBUG, "LCDC BGW disabled")
+        }
+        if !is_bit_set(&previous_lcdc, LCDC_OBJECT_SIZE_BIT)
+            && is_bit_set(&value, LCDC_OBJECT_SIZE_BIT)
         {
             event!(Level::DEBUG, "LCDC BGW enabled")
         }

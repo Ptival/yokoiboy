@@ -9,4 +9,6 @@ pub struct CommandLineArguments {
     pub game_rom: String,
     #[arg(short, long, default_value_t = false)]
     pub log_for_doctor: bool,
+    #[arg(short, long, default_value_t = false)]
+    pub skip_boot: bool,
 }

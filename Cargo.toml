@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+boolenum = "0.1.0"
 circular-queue = "0.2.7"
 clap = { version = "4.5.41", features = ["derive"] }
 iced = { git = "https://github.com/iced-rs/iced.git", features = [
