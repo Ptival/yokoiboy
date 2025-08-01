@@ -19,8 +19,8 @@ impl ApplicationState {
         //     widget::Row::new().push(widget::text(format!("Cycles: {}", machine.t_cycle_count)));
 
         let debugger = widget::Container::new(debugger_view)
-            .width(450)
-            .height(520)
+            .width(300)
+            .height(432)
             .style(|_theme| {
                 container::Style::default().border(Border {
                     color: Color::BLACK,

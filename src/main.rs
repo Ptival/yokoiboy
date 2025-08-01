@@ -56,6 +56,6 @@ fn main() -> Result<(), iced::Error> {
     )
     .subscription(ApplicationState::subscription)
     .settings(settings)
-    .window_size(Size::new(1600.0, 1100.0))
+    .window_size(Size::new(1100.0, 1000.0))
     .run()
 }
