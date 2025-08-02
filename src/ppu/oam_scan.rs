@@ -7,14 +7,16 @@ use crate::{
         object::{ObjectFetcher, Sprite},
         Fetcher,
     },
-    ppu::{LCD_VERTICAL_PIXEL_COUNT, PPU},
+    ppu::{LCDC_OBJECT_SIZE_BIT, LCD_VERTICAL_PIXEL_COUNT, PPU},
+    utils::is_bit_set,
 };
 
 pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &mut Fetcher) {
     event!(
         Level::TRACE,
-        "OAM scanning, scanline: {scanline}",
-        scanline = ppu.scanline_dots
+        "OAM scanning, LY={ly}, dot {dots}/80",
+        ly = ppu.read_ly(),
+        dots = ppu.scanline_dots
     );
     if ppu.scanline_dots == 80 {
         let ly = ppu.read_ly().0 as usize;
