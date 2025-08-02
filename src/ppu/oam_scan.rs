@@ -25,7 +25,11 @@ pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &
         }
 
         let mut selected_objects = VecDeque::new();
-        let object_size = 8; // TODO: this is either 8 or 16 depending on something
+        let object_size = if is_bit_set(&ppu.read_lcdc(), LCDC_OBJECT_SIZE_BIT) {
+            16
+        } else {
+            8
+        };
         for object_offset in (0x00..0x9F).step_by(4) {
             if selected_objects.len() == 10 {
                 break;
