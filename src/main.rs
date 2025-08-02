@@ -28,7 +28,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 use crate::message::StepBeforeCheckingBreakpoint;
 
 const BREAKPOINTS: &[u16] = &[
-    0x0000,
+    // 0x0000,
     // 0x00F1, // passed logo check
     // 0x00FC, // passed header checksum check
     // 0x0100, // made it out of the boot ROM
@@ -40,8 +40,8 @@ const BREAKPOINTS: &[u16] = &[
     // 0xDEF8,
 
     // Debugging dmg-acid2
-    0x02D2, // scx ← 0
-    0x02B3, // scx ← 243
+    // 0x02D2, // scx ← 0
+    // 0x02B3, // scx ← 243
 ];
 
 fn main() -> Result<(), iced::Error> {

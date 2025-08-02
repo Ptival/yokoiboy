@@ -27,13 +27,13 @@ pub fn draw_pixels(
     let obj_fifo_len = obj_fetcher.fifo.len();
 
     event!(
-                    Level::TRACE,
-                    "Drawing pixels, drawn: {drawn}/{LCD_HORIZONTAL_PIXEL_COUNT}, dropped: {dropped}/{to_be_dropped}, LY: {ly}, BGW FIFO: {bgw_fifo_len} items, OBJ FIFO: {obj_fifo_len} items",
-                    drawn = ppu.drawn_pixels_on_current_row,
-                    dropped = dropped_pixels,
-                    to_be_dropped = ppu.scx.0%8,
-                    ly = ppu.read_ly(),
-                );
+        Level::TRACE,
+        "Drawing pixels, drawn: {drawn}/{LCD_HORIZONTAL_PIXEL_COUNT}, dropped: {dropped}/{to_be_dropped}, LY: {ly}, BGW FIFO: {bgw_fifo_len} items, OBJ FIFO: {obj_fifo_len} items",
+        drawn = ppu.drawn_pixels_on_current_row,
+        dropped = dropped_pixels,
+        to_be_dropped = ppu.scx.0 % 8,
+        ly = ppu.read_ly(),
+    );
 
     if ppu.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
         return;
