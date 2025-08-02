@@ -44,7 +44,7 @@ impl Memory {
             RAMSize::NoRAM => Vec::new(),
             RAMSize::Ram2kb => Vec::from([0; 0x800]),
             RAMSize::Ram8kb => Vec::from([0; 0x2000]),
-            RAMSize::Ram4banks8kb => todo!(),
+            RAMSize::Ram4banks8kb => Vec::from([0; 0x8000]),
             RAMSize::Ram16banks8kb => todo!(),
             RAMSize::Ram8banks8kb => todo!(),
         };
