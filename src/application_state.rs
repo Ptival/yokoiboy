@@ -240,15 +240,14 @@ impl ApplicationState {
             }
 
             Message::ContinueRunUntilBreakpoint => {
-                let mut pc = self.current_machine().registers().pc;
-
                 let initial_time = time::Instant::now();
 
-                //
                 let mut t_cycles_left_this_frame = Saturating(69_905);
                 while t_cycles_left_this_frame.0 > 0
                     && !self.paused
-                    && !self.breakpoints.contains(&pc.0)
+                    && !self
+                        .breakpoints
+                        .contains(&self.current_machine().registers().pc.0)
                 {
                     let step = self.execute_one_instruction(PreserveHistory::DontPreserveHistory);
                     t_cycles_left_this_frame -= step.t_cycles as u32;
@@ -259,7 +258,6 @@ impl ApplicationState {
                     // } else {
                     //     println!("Did not oversleep");
                     // }
-                    pc = self.current_machine().registers().pc;
                 }
 
                 if t_cycles_left_this_frame.0 == 0 {
