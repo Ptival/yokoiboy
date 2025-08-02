@@ -16,7 +16,7 @@ use crate::{
     instructions::decode::DecodedInstruction,
     machine::{FixLY, Machine, SkipBoot},
     memory::{load_boot_rom, load_game_rom},
-    message::Message,
+    message::{Message, StepBeforeCheckingBreakpoint},
 };
 
 const CPU_SNAPS_CAPACITY: usize = 5;
@@ -199,9 +199,9 @@ impl ApplicationState {
 
     pub fn subscription(&self) -> iced::Subscription<Message> {
         keyboard::on_key_press(|k, _m| match k {
-            keyboard::Key::Named(keyboard::key::Named::ArrowDown) => {
-                Some(Message::BeginRunUntilBreakpoint)
-            }
+            keyboard::Key::Named(keyboard::key::Named::ArrowDown) => Some(
+                Message::BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint::Yes),
+            ),
             keyboard::Key::Named(keyboard::key::Named::ArrowRight) => {
                 Some(Message::RunNextInstruction)
             }
@@ -231,10 +231,11 @@ impl ApplicationState {
                 Task::none()
             }
 
-            Message::BeginRunUntilBreakpoint => {
+            Message::BeginRunUntilBreakpoint(step_before_check) => {
                 self.paused = false;
-                // step at least once to escape current breakpoint! :D
-                self.execute_one_instruction(PreserveHistory::DontPreserveHistory);
+                if step_before_check.into() {
+                    self.execute_one_instruction(PreserveHistory::DontPreserveHistory);
+                }
                 Task::done(Message::ContinueRunUntilBreakpoint)
             }
 
@@ -243,10 +244,14 @@ impl ApplicationState {
 
                 let initial_time = time::Instant::now();
 
-                let mut remaining_steps = Saturating(69_905);
-                while remaining_steps.0 > 0 && !self.paused && !self.breakpoints.contains(&pc.0) {
+                //
+                let mut t_cycles_left_this_frame = Saturating(69_905);
+                while t_cycles_left_this_frame.0 > 0
+                    && !self.paused
+                    && !self.breakpoints.contains(&pc.0)
+                {
                     let step = self.execute_one_instruction(PreserveHistory::DontPreserveHistory);
-                    remaining_steps -= step.t_cycles as u32;
+                    t_cycles_left_this_frame -= step.t_cycles as u32;
                     // self.current_machine().ppu_mut().render();
                     // let final_frame_time = time::Instant::now() - initial_time;
                     // if final_frame_time > target_frame_time {
@@ -257,7 +262,7 @@ impl ApplicationState {
                     pc = self.current_machine().registers().pc;
                 }
 
-                if remaining_steps.0 == 0 {
+                if t_cycles_left_this_frame.0 == 0 {
                     // If we're stopping for a frame, try to get accurate frame time
                     self.current_machine_mut().ppu_mut().render();
                     let final_time = time::Instant::now();

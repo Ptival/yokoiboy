@@ -25,7 +25,10 @@ use iced::{
 use message::Message;
 use tracing_subscriber::{fmt, EnvFilter};
 
+use crate::message::StepBeforeCheckingBreakpoint;
+
 const BREAKPOINTS: &[u16] = &[
+    0x0000,
     // 0x00F1, // passed logo check
     // 0x00FC, // passed header checksum check
     // 0x0100, // made it out of the boot ROM
@@ -53,7 +56,9 @@ fn main() -> Result<(), iced::Error> {
         move || {
             return (
                 ApplicationState::new(&args, BREAKPOINTS),
-                Task::done(Message::BeginRunUntilBreakpoint),
+                Task::done(Message::BeginRunUntilBreakpoint(
+                    StepBeforeCheckingBreakpoint::No,
+                )),
             );
         },
         ApplicationState::update,
