@@ -8,7 +8,7 @@ use tracing::{event, Level};
 
 use crate::{
     cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
-    machine::FixLY,
+    machine::{FixLY, SkipBoot},
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher, get_tile_index_in_palette,
         object::ObjectFetcher, Fetcher, TileAddressingMode,
@@ -160,7 +160,7 @@ pub fn pixel_coordinates_in_rgba_slice(x: u8, y: u8) -> usize {
 }
 
 impl PPU {
-    pub fn new(fix_ly: FixLY) -> Self {
+    pub fn new(fix_ly: FixLY, skip_boot: SkipBoot) -> Self {
         PPU {
             drawn_pixels_on_current_row: 0,
             fix_ly_for_gb_doctor: fix_ly,
@@ -171,7 +171,7 @@ impl PPU {
             background_palette_data: 0,
             cgb_background_palette_spec: Wrapping(0),
             cgb_background_palette_data: Wrapping(0),
-            lcd_control: Wrapping(0),
+            lcd_control: Wrapping(if skip_boot.into() { 0x91 } else { 0 }),
             lcd_status: Wrapping(2), // initially set Mode 2
             lcd_y_compare: Wrapping(0),
             lcd_y_coord: Wrapping(0),

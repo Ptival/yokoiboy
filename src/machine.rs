@@ -139,7 +139,7 @@ impl Machine {
             interrupts: Interrupts::new(),
             object_fetcher: ObjectFetcher::new(),
             pixel_fetcher: Fetcher::new(),
-            ppu: PPU::new(fix_ly),
+            ppu: PPU::new(fix_ly, skip_boot),
             timers: Timers::new(),
 
             nr10: Wrapping(0),
