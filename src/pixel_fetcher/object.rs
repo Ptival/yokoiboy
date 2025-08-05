@@ -107,6 +107,7 @@ impl Default for ObjectFIFOItem {
 #[derive(Clone, Debug)]
 pub struct ObjectFetcher {
     state: FetcherState,
+    count_pixels_queued_this_row: u8,
     pub fifo: VecDeque<ObjectFIFOItem>,
     sprite: Option<Sprite>,
     tile_row_data: [u8; 8],
@@ -123,6 +124,7 @@ pub fn inclusive_ranges_overlap((s1, e1): (i16, i16), (s2, e2): (i16, i16)) -> b
 impl ObjectFetcher {
     pub fn new() -> Self {
         ObjectFetcher {
+            count_pixels_queued_this_row: 0,
             state: FetcherState::GetTileDelay,
             fifo: VecDeque::new(),
             sprite: None,
@@ -133,6 +135,7 @@ impl ObjectFetcher {
 
     pub fn prepare_for_new_row(&mut self) {
         self.state = FetcherState::GetTileDelay;
+        self.count_pixels_queued_this_row = 0;
         self.fifo.clear();
         self.tile_row_data = [0; 8];
     }
@@ -151,7 +154,7 @@ impl ObjectFetcher {
 
             FetcherState::GetTile => {
                 event!(Level::DEBUG, "OBJ fetcher getting tile");
-                let current_x = ppu.drawn_pixels_on_current_row as i16;
+                let current_x = self.count_pixels_queued_this_row as i16;
                 let x_range = (current_x, current_x + 7);
 
                 // Technically we should only tick this when there is going to be a match
@@ -230,31 +233,75 @@ impl ObjectFetcher {
                 );
                 // Object FIFO pixels are merged with existing object FIFO pixels:
                 // Those with ID 0 are overwritten by latter ones, otherwise the existing one wins
-                for i in 0..8 {
-                    let color = self.tile_row_data[i];
-                    if i < obj_fifo_len {
-                        // Pixel merging following OBJ-to-OBJ priority
-                        let old_item = self.fifo[i].clone();
-                        if old_item.color == 0 {
-                            self.fifo[i] = ObjectFIFOItem {
-                                bg_over_obj: self
-                                    .sprite
-                                    .as_ref()
-                                    .map_or(false, |s| s.bg_over_obj()),
-                                color,
-                                palette: palette_for_sprite(self.sprite.as_ref()),
-                            };
+                if let Some(sprite) = self.sprite.clone() {
+                    for i in 0..8 {
+                        // Here, the color to use depends on the X displacement of the sprite.  For
+                        // X coordinates to the left of the sprite, we want to push transparent
+                        // pixels.  Then we want to push pixels from the sprite.
+                        let x_of_pixel_to_draw = self.count_pixels_queued_this_row as i16;
+                        let sprite_leftmost_x = sprite.x_screen_plus_8 as i16 - 8;
+                        let sprite_rightmost_x = sprite.x_screen_plus_8 as i16 - 1;
+
+                        // Three cases here:
+                        //
+                        // 1. The current X to draw is before the sprite start.  We should push a
+                        // transparent pixel.
+                        //
+                        // 2. The current X to draw is beyond the sprint end.  We should **not**
+                        // push anything.  Some other object might need to be drawn here.
+                        //
+                        // 3. Otherwise, the current X to draw overlaps the sprite, we should push
+                        // the appropriate pixel from the sprite.
+
+                        if x_of_pixel_to_draw < sprite_leftmost_x {
+                            self.fifo.push_back(ObjectFIFOItem::default());
+                            self.count_pixels_queued_this_row += 1;
+                        } else if x_of_pixel_to_draw > sprite_rightmost_x {
+                            // do nothing, do **not** push a transparent pixel!!!
+                        } else {
+                            // if X is 123 and spriteX is 123, we want to grab pixel 0
+                            // if X is 123 and spriteX is 120, we want to grab pixel 3
+                            let color = self.tile_row_data
+                                [(x_of_pixel_to_draw - sprite_leftmost_x) as usize];
+
+                            if i < obj_fifo_len {
+                                // Pixel merging following OBJ-to-OBJ priority
+                                let old_item = self.fifo[i].clone();
+                                if old_item.color == 0 {
+                                    self.fifo[i] = ObjectFIFOItem {
+                                        bg_over_obj: self
+                                            .sprite
+                                            .as_ref()
+                                            .map_or(false, |s| s.bg_over_obj()),
+                                        color,
+                                        palette: palette_for_sprite(self.sprite.as_ref()),
+                                    };
+                                }
+                            } else {
+                                let item = ObjectFIFOItem {
+                                    bg_over_obj: self
+                                        .sprite
+                                        .as_ref()
+                                        .map_or(false, |s| s.bg_over_obj()),
+                                    color,
+                                    palette: palette_for_sprite(self.sprite.as_ref()),
+                                };
+                                event!(Level::TRACE, "Pushing OBJ {:#?}", item);
+                                // No pixel to merge with, just push
+                                self.fifo.push_back(item);
+                                self.count_pixels_queued_this_row += 1;
+                            }
                         }
-                    } else {
-                        let item = ObjectFIFOItem {
-                            bg_over_obj: self.sprite.as_ref().map_or(false, |s| s.bg_over_obj()),
-                            color,
-                            palette: palette_for_sprite(self.sprite.as_ref()),
-                        };
-                        event!(Level::TRACE, "Pushing OBJ {:#?}", item);
-                        // No pixel to merge with, just push
-                        self.fifo.push_back(item);
                     }
+                } else {
+                    for _ in 0..8 {
+                        self.fifo.push_back(ObjectFIFOItem {
+                            bg_over_obj: false,
+                            color: 0,
+                            palette: ObjectPalette::ObjectPalette0,
+                        });
+                    }
+                    self.count_pixels_queued_this_row += 8;
                 }
                 // clean up so that GetTileData can assume 0
                 self.tile_row_data = [0; 8];

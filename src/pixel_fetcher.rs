@@ -8,13 +8,13 @@ use tracing::{event, Level};
 
 use crate::ppu::PPU;
 
-#[derive(PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FlipX {
     Yes,
     No,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FlipY {
     Yes,
     No,

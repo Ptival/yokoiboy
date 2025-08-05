@@ -62,10 +62,15 @@ impl ApplicationState {
 
         row![
             column![
-                row![debugger, lcd::LCD::new(&machine.ppu.lcd_pixels),],
+                row![
+                    column![
+                        debugger,
+                        pixel_debugger::view(app.lcd_pixel_under_mouse),
+                        tile_debugger::view(app.tile_id_under_mouse)
+                    ],
+                    lcd::LCD::new(&machine.ppu.lcd_pixels),
+                ],
                 row![tile_map0, tile_map1],
-                row![pixel_debugger::view(app.lcd_pixel_under_mouse),],
-                row![tile_debugger::view(app.tile_id_under_mouse),]
             ],
             column![tile_palette::TilePalette::new(
                 &machine.ppu.tile_palette_pixels

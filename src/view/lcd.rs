@@ -12,7 +12,7 @@ pub struct LCD<'a> {
     pub lcd_widget: Element<'a, Message>,
 }
 
-const LCD_ZOOM_FACTOR: usize = 3;
+const LCD_ZOOM_FACTOR: usize = 5;
 
 const ZOOMED_LCD_HORIZONTAL_PIXEL_COUNT: usize = LCD_HORIZONTAL_PIXEL_COUNT * LCD_ZOOM_FACTOR;
 const ZOOMED_LCD_VERTICAL_PIXEL_COUNT: usize = LCD_VERTICAL_PIXEL_COUNT * LCD_ZOOM_FACTOR;
