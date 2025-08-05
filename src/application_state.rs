@@ -8,7 +8,7 @@ use std::{
 };
 
 use circular_queue::CircularQueue;
-use iced::{exit, keyboard, Task};
+use iced::{exit, keyboard, Subscription, Task};
 
 use crate::{
     command_line_arguments::CommandLineArguments,
@@ -60,9 +60,11 @@ impl ROMInformation {
 #[derive(Debug)]
 pub struct ApplicationState {
     pub breakpoints: Vec<u16>,
+    pub lcd_pixel_under_mouse: (u8, u8),
     pub output_file: Option<File>,
     pub paused: bool,
     pub snaps: CircularQueue<Machine>,
+    pub tile_id_under_mouse: u8,
     target_frame_time: Duration,
 }
 
@@ -93,6 +95,7 @@ impl ApplicationState {
         let target_frame_time = Duration::new(0, FRAME_TIME_NANOSECONDS);
         Self {
             breakpoints: breakpoints.into(),
+            lcd_pixel_under_mouse: (0, 0),
             output_file: if args.log_for_doctor {
                 Some(
                     OpenOptions::new()
@@ -112,6 +115,7 @@ impl ApplicationState {
             paused: false,
             snaps: queue,
             target_frame_time,
+            tile_id_under_mouse: 0,
         }
     }
 
@@ -198,39 +202,24 @@ impl ApplicationState {
     }
 
     pub fn subscription(&self) -> iced::Subscription<Message> {
-        keyboard::on_key_press(|k, _m| match k {
-            keyboard::Key::Named(keyboard::key::Named::ArrowDown) => Some(
-                Message::BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint::Yes),
-            ),
-            keyboard::Key::Named(keyboard::key::Named::ArrowRight) => {
-                Some(Message::RunNextInstruction)
-            }
-            keyboard::Key::Named(keyboard::key::Named::Space) => Some(Message::Pause),
-            keyboard::Key::Named(keyboard::key::Named::Escape) => Some(Message::Quit),
-            _ => None,
-        })
+        Subscription::batch(vec![
+            keyboard::on_key_press(|k, _m| match k {
+                keyboard::Key::Named(keyboard::key::Named::ArrowDown) => Some(
+                    Message::BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint::Yes),
+                ),
+                keyboard::Key::Named(keyboard::key::Named::ArrowRight) => {
+                    Some(Message::RunNextInstruction)
+                }
+                keyboard::Key::Named(keyboard::key::Named::Space) => Some(Message::Pause),
+                keyboard::Key::Named(keyboard::key::Named::Escape) => Some(Message::Quit),
+                _ => None,
+            }),
+            // other subscriptions possible here
+        ])
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Pause => {
-                self.paused = true;
-                Task::none()
-            }
-
-            Message::Quit => {
-                if let Some(output_file) = self.output_file.as_mut() {
-                    output_file.flush().expect("flush failed");
-                }
-                exit()
-            }
-
-            Message::RunNextInstruction => {
-                let _step = self.execute_one_instruction(PreserveHistory::PreserveHistory);
-                self.current_machine_mut().ppu_mut().render();
-                Task::none()
-            }
-
             Message::BeginRunUntilBreakpoint(step_before_check) => {
                 self.paused = false;
                 if step_before_check.into() {
@@ -276,6 +265,34 @@ impl ApplicationState {
                     // If we're stopping for a breakpoint, no need for frame accuracy
                     Task::none()
                 }
+            }
+
+            Message::MouseOnLCDPixel(x, y) => {
+                self.lcd_pixel_under_mouse = (x, y);
+                Task::none()
+            }
+
+            Message::MouseOnTilePalette(tile_id) => {
+                self.tile_id_under_mouse = tile_id;
+                Task::none()
+            }
+
+            Message::Pause => {
+                self.paused = true;
+                Task::none()
+            }
+
+            Message::Quit => {
+                if let Some(output_file) = self.output_file.as_mut() {
+                    output_file.flush().expect("flush failed");
+                }
+                exit()
+            }
+
+            Message::RunNextInstruction => {
+                let _step = self.execute_one_instruction(PreserveHistory::PreserveHistory);
+                self.current_machine_mut().ppu_mut().render();
+                Task::none()
             }
         }
     }

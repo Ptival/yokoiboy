@@ -22,8 +22,8 @@ const VRAM_SIZE: usize = 0x1800; // $8000-$97FF, 384 tiles of 16 bytes
 const VRAM_TILE_MAP_SIZE: usize = 0x400; // $9800-$9BFF, and $9C00-$9FFF, 32×32 each
 const WRAM_SIZE: usize = 0x1000;
 
-const LCD_HORIZONTAL_PIXEL_COUNT: usize = 160;
-const LCD_VERTICAL_PIXEL_COUNT: usize = 144;
+pub const LCD_HORIZONTAL_PIXEL_COUNT: usize = 160;
+pub const LCD_VERTICAL_PIXEL_COUNT: usize = 144;
 
 const DOTS_PER_SCANLINE: u16 = 456;
 
@@ -48,7 +48,7 @@ const TILE_MAP_HORIZONTAL_PIXELS: usize =
 const TILE_MAP_VERTICAL_PIXELS: usize = TILE_MAP_VERTICAL_TILE_COUNT * VERTICAL_PIXELS_PER_TILE;
 const TILE_MAP_PIXELS_TOTAL: usize = TILE_MAP_HORIZONTAL_PIXELS * TILE_MAP_VERTICAL_PIXELS;
 
-const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
+pub const PIXEL_DATA_SIZE: usize = 4; // 4-bytes for R, G, B, A
 
 // LCD control single bits of interest
 const LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT: u8 = 0;
@@ -74,6 +74,9 @@ pub enum PPUState {
     HorizontalBlank,
     VerticalBlank,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct LCDPixelMetadata {}
 
 #[derive(Clone, Debug)]
 pub struct PPU {
@@ -119,6 +122,9 @@ pub struct PPU {
     pub tile_map0_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
     pub tile_map1_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
     pub tile_palette_pixels: [u8; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+
+    pub lcd_pixels_meta:
+        [LCDPixelMetadata; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
 
     // Transient state saved for debug view purposes
     frame_scxs: [u8; LCD_VERTICAL_PIXEL_COUNT],
@@ -198,6 +204,9 @@ impl PPU {
             tile_map0_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
             tile_map1_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
             tile_palette_pixels: [0; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+
+            lcd_pixels_meta: [LCDPixelMetadata {};
+                LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
 
             frame_scxs: [0; LCD_VERTICAL_PIXEL_COUNT],
             frame_scxs_valid: [true; LCD_VERTICAL_PIXEL_COUNT],

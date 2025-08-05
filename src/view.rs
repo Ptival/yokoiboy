@@ -1,17 +1,20 @@
 mod debugger;
+mod lcd;
+mod pixel_debugger;
+mod tile_debugger;
+mod tile_palette;
 
 use iced::advanced::image;
 use iced::border::Radius;
 use iced::widget::image::FilterMethod;
-use iced::widget::{column, container, row, Column};
-use iced::{widget, Border, Color, Length};
+use iced::widget::{column, container, row};
+use iced::{widget, Border, Color, Element};
 
 use crate::application_state::ApplicationState;
 use crate::message::Message;
-use crate::ppu::{TILE_PALETTE_HORIZONTAL_PIXELS, TILE_PALETTE_VERTICAL_PIXELS};
 
 impl ApplicationState {
-    pub fn view(app: &ApplicationState) -> Column<Message> {
+    pub fn view(app: &ApplicationState) -> Element<Message> {
         let machine = app.current_machine();
         let debugger_view = debugger::view(app);
 
@@ -28,37 +31,6 @@ impl ApplicationState {
                     radius: Radius::default(),
                 })
             });
-
-        let lcd: widget::Container<'_, Message> = widget::Container::new(
-            widget::Image::new(image::Handle::from_rgba(
-                160,
-                144,
-                image::Bytes::copy_from_slice(&machine.ppu().lcd_pixels),
-            ))
-            .content_fit(iced::ContentFit::Fill)
-            .filter_method(FilterMethod::Nearest)
-            .width(480)
-            .height(432),
-        )
-        .width(480)
-        .height(432);
-
-        let tile_palette_zoom_factor = 2;
-        let wanted_width = (TILE_PALETTE_HORIZONTAL_PIXELS * tile_palette_zoom_factor) as f32;
-        let wanted_height = (TILE_PALETTE_VERTICAL_PIXELS * tile_palette_zoom_factor) as f32;
-        let tile_palette: widget::Container<'_, Message> = widget::Container::new(
-            widget::Image::new(image::Handle::from_rgba(
-                TILE_PALETTE_HORIZONTAL_PIXELS as u32,
-                TILE_PALETTE_VERTICAL_PIXELS as u32,
-                image::Bytes::copy_from_slice(&machine.ppu().tile_palette_pixels),
-            ))
-            .content_fit(iced::ContentFit::Fill)
-            .filter_method(FilterMethod::Nearest)
-            .width(Length::Fixed(wanted_width))
-            .height(Length::Fixed(wanted_height)),
-        )
-        .width(wanted_width)
-        .height(wanted_height);
 
         let tile_map0: widget::Container<'_, Message> = widget::Container::new(
             widget::Image::new(image::Handle::from_rgba(
@@ -88,9 +60,17 @@ impl ApplicationState {
         .width(512)
         .height(512);
 
-        column![
-            row![debugger, lcd, tile_palette],
-            row![tile_map0, tile_map1]
+        row![
+            column![
+                row![debugger, lcd::LCD::new(&machine.ppu.lcd_pixels),],
+                row![tile_map0, tile_map1],
+                row![pixel_debugger::view(app.lcd_pixel_under_mouse),],
+                row![tile_debugger::view(app.tile_id_under_mouse),]
+            ],
+            column![tile_palette::TilePalette::new(
+                &machine.ppu.tile_palette_pixels
+            ),]
         ]
+        .into()
     }
 }

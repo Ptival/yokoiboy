@@ -67,7 +67,7 @@ fn main() -> Result<(), iced::Error> {
     .subscription(ApplicationState::subscription)
     .settings(settings)
     .window(window::Settings {
-        size: Size::new(1100.0, 1000.0),
+        size: Size::new(1600.0, 1200.0),
         maximized: false,
         fullscreen: false,
         position: window::Position::SpecificWith(|window_size, monitor_size| Point {

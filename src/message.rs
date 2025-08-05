@@ -6,11 +6,13 @@ pub enum StepBeforeCheckingBreakpoint {
     No,
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub enum Message {
+    BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint),
+    ContinueRunUntilBreakpoint,
+    MouseOnLCDPixel(u8, u8),
+    MouseOnTilePalette(u8),
     Pause,
     Quit,
     RunNextInstruction,
-    BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint),
-    ContinueRunUntilBreakpoint,
 }

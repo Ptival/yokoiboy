@@ -116,7 +116,10 @@ impl Fetcher {
             tile_index_in_palette * 16 + (row_of_pixel_within_tile as u16) * 2;
         let pixel_data = vram[address_in_vram_slice as usize + bit_plane as usize];
         // We just finished reading one byte.  Each bit is half of a pixel value, we coalesce them
-        // here Note: This assumes that `tile_row_data` is cleared at each loop.
+        // here.
+        //
+        // Note: This assumes that `tile_row_data` is cleared at each loop.
+        //
         // Note: it's nice to have the row data be sorted by increasing X, but the lowest bit
         // position is the highest X pixel, so using (7 - bit_position) to reorder.
         for target_bit_position in 0..8 {
