@@ -93,7 +93,6 @@ pub struct ObjectFetcher {
     state: FetcherState,
     pub fifo: VecDeque<ObjectFIFOItem>,
     sprite: Option<Sprite>,
-    pub pixel_index_in_row: u8,
     tile_row_data: [u8; 8],
     /// During OAM scan, the PPU will populate this with the first 10 (or fewer) objects it finds
     /// intersecting with the current scanline.  These will get rendered, additional objects on the
@@ -111,7 +110,6 @@ impl ObjectFetcher {
             state: FetcherState::GetTileDelay,
             fifo: VecDeque::new(),
             sprite: None,
-            pixel_index_in_row: 0,
             tile_row_data: [0; 8],
             selected_objects: VecDeque::new(),
         }
@@ -121,13 +119,11 @@ impl ObjectFetcher {
         self.state = FetcherState::GetTileDelay;
         self.fifo.clear();
         self.tile_row_data = [0; 8];
-        self.pixel_index_in_row = 0;
     }
 
     pub fn prepare_for_new_frame(&mut self) {
         self.state = FetcherState::GetTileDelay;
         self.fifo.clear();
-        self.pixel_index_in_row = 0;
     }
 
     pub fn tick(&mut self, ppu: &mut PPU) {
@@ -139,7 +135,7 @@ impl ObjectFetcher {
 
             FetcherState::GetTile => {
                 event!(Level::DEBUG, "OBJ fetcher getting tile");
-                let current_x = self.pixel_index_in_row as i16;
+                let current_x = ppu.drawn_pixels_on_current_row as i16;
                 let x_range = (current_x, current_x + 7);
 
                 // Technically we should only tick this when there is going to be a match

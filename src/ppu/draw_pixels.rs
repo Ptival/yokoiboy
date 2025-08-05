@@ -39,8 +39,6 @@ pub fn draw_pixels(
         return;
     }
 
-    obj_fetcher.pixel_index_in_row = ppu.drawn_pixels_on_current_row;
-
     let fetcher_state = &pixel_fetcher.fetching_for;
     if obj_fifo_len == 0 && bgw_fifo_len != 0 {
         if *fetcher_state == FetchingFor::BackgroundOrWindowFIFO {

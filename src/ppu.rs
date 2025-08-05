@@ -81,7 +81,7 @@ pub struct LCDPixelMetadata {}
 #[derive(Clone, Debug)]
 pub struct PPU {
     /** PPU state **/
-    drawn_pixels_on_current_row: u8,
+    pub drawn_pixels_on_current_row: u8,
     fix_ly_for_gb_doctor: FixLY,
     /// Because the STAT interrupt is triggered on a rising edge of the STAT line, we need to
     /// remember its previous value.

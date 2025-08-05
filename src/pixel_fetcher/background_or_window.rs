@@ -12,10 +12,13 @@ use super::{FIFOItem, Fetcher, FetcherState};
 
 #[derive(Clone, Debug)]
 pub struct BackgroundOrWindowFetcher {
+    /// BGW fetcher automaton state
     state: FetcherState,
+    /// Output FIFO, onto which BGW items are pushed by the fetcher
     pub fifo: VecDeque<FIFOItem>,
-    pub row_of_pixel_within_tile: u8,
     tile_id: u8,
+    /// Keeping track of which VRAM tile slot we are pushing to.  Initially it's 0 for the leftmost
+    /// 8 pixels on the current row, then 1 for the next 8 pixels after we pushed one row.
     pub vram_tile_column: u8,
     tile_row_data: [u8; 8],
 }
@@ -25,7 +28,6 @@ impl BackgroundOrWindowFetcher {
         BackgroundOrWindowFetcher {
             state: FetcherState::GetTileDelay,
             fifo: VecDeque::new(),
-            row_of_pixel_within_tile: 0,
             tile_id: 0,
             vram_tile_column: 0,
             tile_row_data: [0; 8],
@@ -35,7 +37,6 @@ impl BackgroundOrWindowFetcher {
     pub fn prepare_for_new_frame(&mut self) {
         self.state = FetcherState::GetTileDelay;
         self.fifo.clear();
-        self.row_of_pixel_within_tile = 0;
         self.vram_tile_column = 0;
         self.tile_row_data = [0; 8];
     }
@@ -43,7 +44,6 @@ impl BackgroundOrWindowFetcher {
     pub fn prepare_for_new_row(&mut self) {
         self.state = FetcherState::GetTileDelay;
         self.fifo.clear();
-        self.row_of_pixel_within_tile = 0;
         self.vram_tile_column = 0;
         self.tile_row_data = [0; 8];
     }
