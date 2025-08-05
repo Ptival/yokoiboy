@@ -6,8 +6,8 @@ use iced::{
 use crate::{
     message::Message::{self},
     ppu::{
-        HORIZONTAL_PIXELS_PER_TILE, TILE_MAP_HORIZONTAL_TILE_COUNT, TILE_PALETTE_HORIZONTAL_PIXELS,
-        TILE_PALETTE_VERTICAL_PIXELS,
+        HORIZONTAL_PIXELS_PER_TILE, TILE_PALETTE_HORIZONTAL_PIXELS,
+        TILE_PALETTE_HORIZONTAL_TILE_COUNT, TILE_PALETTE_VERTICAL_PIXELS, VERTICAL_PIXELS_PER_TILE,
     },
 };
 
@@ -119,9 +119,9 @@ impl<'a> Widget<Message, iced::Theme, iced::Renderer> for TilePalette<'a> {
                 let tile_x = (position.x - widget_bounds.x) as usize
                     / (HORIZONTAL_PIXELS_PER_TILE * TILE_PALETTE_ZOOM_FACTOR);
                 let tile_y = (position.y - widget_bounds.y) as usize
-                    / (HORIZONTAL_PIXELS_PER_TILE * TILE_PALETTE_ZOOM_FACTOR);
-                let tile_id = tile_y * TILE_MAP_HORIZONTAL_TILE_COUNT + tile_x;
-                shell.publish(Message::MouseOnTilePalette(tile_id as u8));
+                    / (VERTICAL_PIXELS_PER_TILE * TILE_PALETTE_ZOOM_FACTOR);
+                let tile_id = tile_y * TILE_PALETTE_HORIZONTAL_TILE_COUNT + tile_x;
+                shell.publish(Message::MouseOnTilePalette(tile_id as u16));
             }
         }
     }

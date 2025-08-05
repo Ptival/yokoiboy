@@ -64,7 +64,7 @@ pub struct ApplicationState {
     pub output_file: Option<File>,
     pub paused: bool,
     pub snaps: CircularQueue<Machine>,
-    pub tile_id_under_mouse: u8,
+    pub tile_id_under_mouse: u16,
     target_frame_time: Duration,
 }
 

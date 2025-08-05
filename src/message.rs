@@ -11,7 +11,7 @@ pub enum Message {
     BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint),
     ContinueRunUntilBreakpoint,
     MouseOnLCDPixel(u8, u8),
-    MouseOnTilePalette(u8),
+    MouseOnTilePalette(u16),
     Pause,
     Quit,
     RunNextInstruction,
