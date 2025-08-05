@@ -75,17 +75,33 @@ impl Sprite {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum ObjectPalette {
     ObjectPalette0,
     ObjectPalette1,
 }
 
-#[derive(Clone, Debug)]
+impl Default for ObjectPalette {
+    fn default() -> Self {
+        ObjectPalette::ObjectPalette0
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct ObjectFIFOItem {
     pub bg_over_obj: bool,
     pub color: u8,
     pub palette: ObjectPalette,
+}
+
+impl Default for ObjectFIFOItem {
+    fn default() -> Self {
+        Self {
+            bg_over_obj: Default::default(),
+            color: Default::default(),
+            palette: Default::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

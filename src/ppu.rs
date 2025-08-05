@@ -10,8 +10,10 @@ use crate::{
     cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
     machine::{FixLY, SkipBoot},
     pixel_fetcher::{
-        background_or_window::BackgroundOrWindowFetcher, get_tile_index_in_palette,
-        object::ObjectFetcher, Fetcher, TileAddressingMode,
+        background_or_window::BackgroundOrWindowFetcher,
+        get_tile_index_in_palette,
+        object::{ObjectFIFOItem, ObjectFetcher},
+        FIFOItem, Fetcher, TileAddressingMode,
     },
     ppu::{draw_pixels::draw_pixels, hblank::hblank, oam_scan::oam_scan, vblank::vblank},
     utils::{self, is_bit_set},
@@ -76,7 +78,21 @@ pub enum PPUState {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct LCDPixelMetadata {}
+pub struct LCDPixelMetadata {
+    pub bgw_pixel: FIFOItem,
+    pub obj_pixel: ObjectFIFOItem,
+    pub choose_bgw: bool,
+}
+
+impl Default for LCDPixelMetadata {
+    fn default() -> Self {
+        Self {
+            bgw_pixel: Default::default(),
+            obj_pixel: Default::default(),
+            choose_bgw: false,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct PPU {
@@ -205,7 +221,7 @@ impl PPU {
             tile_map1_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
             tile_palette_pixels: [0; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
 
-            lcd_pixels_meta: [LCDPixelMetadata {};
+            lcd_pixels_meta: [LCDPixelMetadata::default();
                 LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
 
             frame_scxs: [0; LCD_VERTICAL_PIXEL_COUNT],

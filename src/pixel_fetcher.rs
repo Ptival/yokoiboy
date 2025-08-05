@@ -31,9 +31,22 @@ enum FetcherState {
     PushRow,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct FIFOItem {
+    // These fields are needed for emulation
     pub color: u8,
+
+    // These fields are for debugging purposes
+    pub tile_id: u8,
+}
+
+impl Default for FIFOItem {
+    fn default() -> Self {
+        Self {
+            color: 0,
+            tile_id: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

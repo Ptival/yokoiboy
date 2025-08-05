@@ -7,8 +7,8 @@ use crate::{
         Fetcher, FetchingFor,
     },
     ppu::{
-        pixel_code_to_rgba, pixel_coordinates_in_rgba_slice, PPUState, LCD_HORIZONTAL_PIXEL_COUNT,
-        LCD_VERTICAL_PIXEL_COUNT, PPU,
+        pixel_code_to_rgba, pixel_coordinates_in_rgba_slice, LCDPixelMetadata, PPUState,
+        LCD_HORIZONTAL_PIXEL_COUNT, LCD_VERTICAL_PIXEL_COUNT, PPU,
     },
 };
 
@@ -51,6 +51,7 @@ pub fn draw_pixels(
     }
     pixel_fetcher.tick(bgw_fetcher, obj_fetcher, ppu);
 
+    // Pixel mixing only happens when both FIFO are non-empty
     if !bgw_fetcher.fifo.is_empty() && !obj_fetcher.fifo.is_empty() {
         // To support fine scrolling, the first (scx % 8) pixels are dropped from FIFOs
         if dropped_pixels < ppu.scx.0 % 8 {
@@ -103,6 +104,13 @@ pub fn draw_pixels(
         } else {
             let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
             ppu.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
+            for i in from..from + 4 {
+                ppu.lcd_pixels_meta[i] = LCDPixelMetadata {
+                    bgw_pixel,
+                    obj_pixel,
+                    choose_bgw,
+                };
+            }
         }
         ppu.drawn_pixels_on_current_row += 1;
 

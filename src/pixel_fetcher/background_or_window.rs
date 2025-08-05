@@ -136,7 +136,10 @@ impl BackgroundOrWindowFetcher {
                     event!(Level::DEBUG, "BGW fetcher pushing row of pixels");
                     for i in 0..8 {
                         let color = self.tile_row_data[i];
-                        self.fifo.push_back(FIFOItem { color });
+                        self.fifo.push_back(FIFOItem {
+                            color,
+                            tile_id: self.tile_id,
+                        });
                     }
                     self.vram_tile_column += 1;
                     // clean up so that GetTileData can assume 0
