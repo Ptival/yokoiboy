@@ -1,6 +1,8 @@
 use std::num::Wrapping;
 
-#[derive(Clone, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Inputs {
     pub inputs_register: Wrapping<u8>,
 }

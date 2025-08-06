@@ -1,5 +1,7 @@
 use std::num::Wrapping;
 
+use serde::{Deserialize, Serialize};
+
 use crate::machine::Machine;
 
 use super::interrupts::{Interrupts, TIMER_INTERRUPT_BIT};
@@ -9,7 +11,7 @@ const TIMER_COUNTER_ADDRESS: u16 = 0xFF05;
 const TIMER_MODULO_ADDRESS: u16 = 0xFF06;
 const TIMER_CONTROL_ADDRESS: u16 = 0xFF07;
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Deserialize, Hash, Serialize)]
 pub struct Timers {
     pub divide_register: Wrapping<u8>,
     divide_register_dots: u16,

@@ -1,6 +1,8 @@
 use core::fmt;
 use std::num::Wrapping;
 
+use serde::{Deserialize, Serialize};
+
 use crate::machine::{Machine, SkipBoot};
 
 #[derive(Clone, Debug, Hash)]
@@ -56,7 +58,7 @@ impl Flag {
     }
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Deserialize, Hash, Serialize)]
 pub struct Registers {
     pub af: Wrapping<u16>,
     pub bc: Wrapping<u16>,

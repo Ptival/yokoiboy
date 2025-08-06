@@ -1,5 +1,6 @@
 use std::num::Wrapping;
 
+use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use crate::{
@@ -20,7 +21,7 @@ const SERIAL_INTERRUPT_ADDRESS: u16 = 0x58;
 pub const JOYPAD_INTERRUPT_BIT: u8 = 4;
 const JOYPAD_INTERRUPT_ADDRESS: u16 = 0x60;
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Deserialize, Hash, Serialize)]
 pub struct Interrupts {
     pub interrupt_master_enable: bool,
     pub interrupt_master_enable_delayed: bool,

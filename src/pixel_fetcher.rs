@@ -4,6 +4,7 @@ pub mod object;
 use background_or_window::BackgroundOrWindowFetcher;
 // use iced::advanced::graphics::core::event;
 use object::ObjectFetcher;
+use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use crate::ppu::PPU;
@@ -20,7 +21,7 @@ pub enum FlipY {
     No,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 enum FetcherState {
     GetTileDelay,
     GetTile,
@@ -31,7 +32,7 @@ enum FetcherState {
     PushRow,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct FIFOItem {
     // These fields are needed for emulation
     pub color: u8,
@@ -49,20 +50,20 @@ impl Default for FIFOItem {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum FetchingFor {
     BackgroundOrWindowFIFO,
     ObjectFIFO,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Fetcher {
     pub fetching_for: FetchingFor,
 }
 
 // Background and Window use one of these based on bit 4 of lcd_control.
 // Sprites always use UnsignedFrom0x8000.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum TileAddressingMode {
     UnsignedFrom0x8000,
     SignedFrom0x9000,

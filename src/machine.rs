@@ -1,6 +1,7 @@
 use std::num::Wrapping;
 
 use boolenum::BoolEnum;
+use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
     ppu::PPU,
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 enum BankingMode {
     Ram,
     Rom,
@@ -27,7 +28,7 @@ pub struct MachineStep {
 
 // TODO: separate MMU from Machine?
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Machine {
     // Machine state
     banking_mode: BankingMode,
@@ -99,13 +100,13 @@ pub struct Machine {
     pub wram_bank: Wrapping<u8>,
 }
 
-#[derive(BoolEnum, Clone, Copy, Debug)]
+#[derive(BoolEnum, Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum FixLY {
     Yes,
     No,
 }
 
-#[derive(BoolEnum, Clone, Copy, Debug)]
+#[derive(BoolEnum, Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum SkipBoot {
     Yes,
     No,

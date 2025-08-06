@@ -7,8 +7,11 @@ use std::{
     time::{self, Duration},
 };
 
+use anyhow::Result;
+use ciborium;
 use circular_queue::CircularQueue;
 use iced::{exit, keyboard, Subscription, Task};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     command_line_arguments::CommandLineArguments,
@@ -23,14 +26,16 @@ const CPU_SNAPS_CAPACITY: usize = 5;
 const FRAME_TIME_NANOSECONDS: u32 = 16742;
 const LOG_PATH: &str = "log";
 
-#[derive(Clone, Debug)]
+const SAVE_STATE_PATH: &str = "save_state.cbor";
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MapperType {
     ROMOnly,
     MBC1,
     Other, // TODO
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum RAMSize {
     NoRAM,
     Ram2kb,
@@ -40,7 +45,7 @@ pub enum RAMSize {
     Ram8banks8kb,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ROMInformation {
     pub mapper_type: MapperType,
     pub ram_size: RAMSize,
@@ -212,6 +217,8 @@ impl ApplicationState {
                 }
                 keyboard::Key::Named(keyboard::key::Named::Space) => Some(Message::Pause),
                 keyboard::Key::Named(keyboard::key::Named::Escape) => Some(Message::Quit),
+                keyboard::Key::Named(keyboard::key::Named::F5) => Some(Message::QuickSave),
+                keyboard::Key::Named(keyboard::key::Named::F9) => Some(Message::QuickLoad),
                 _ => None,
             }),
             // other subscriptions possible here
@@ -227,7 +234,6 @@ impl ApplicationState {
                 }
                 Task::done(Message::ContinueRunUntilBreakpoint)
             }
-
             Message::ContinueRunUntilBreakpoint => {
                 let initial_time = time::Instant::now();
 
@@ -266,34 +272,63 @@ impl ApplicationState {
                     Task::none()
                 }
             }
-
             Message::MouseOnLCDPixel(x, y) => {
                 self.lcd_pixel_under_mouse = (x, y);
                 Task::none()
             }
-
             Message::MouseOnTilePalette(tile_id) => {
                 self.tile_id_under_mouse = tile_id;
                 Task::none()
             }
-
             Message::Pause => {
                 self.paused = true;
                 Task::none()
             }
-
             Message::Quit => {
                 if let Some(output_file) = self.output_file.as_mut() {
                     output_file.flush().expect("flush failed");
                 }
                 exit()
             }
-
             Message::RunNextInstruction => {
                 let _step = self.execute_one_instruction(PreserveHistory::PreserveHistory);
                 self.current_machine_mut().ppu_mut().render();
                 Task::none()
             }
+            Message::QuickLoad => {
+                let machine_or_error = read_machine();
+                match machine_or_error {
+                    Ok(machine) => {
+                        self.snaps.clear();
+                        self.snaps.push(machine);
+                        println!("Quick loaded!");
+                    }
+                    Err(e) => {
+                        println!("Could not read save state: {}", e)
+                    }
+                };
+                Task::none()
+            }
+            Message::QuickSave => {
+                if let Err(e) = write_machine(self.current_machine()) {
+                    println!("Could not write save state: {}", e);
+                } else {
+                    println!("Quick saved!");
+                }
+                Task::none()
+            }
         }
     }
+}
+
+fn read_machine() -> Result<Machine> {
+    let file = File::open(SAVE_STATE_PATH)?;
+    let result = ciborium::from_reader::<Machine, _>(file)?;
+    Ok(result)
+}
+
+fn write_machine(machine: &Machine) -> Result<()> {
+    let file = File::create(SAVE_STATE_PATH)?;
+    ciborium::into_writer::<Machine, _>(machine, file)?;
+    Ok(())
 }

@@ -3,6 +3,9 @@ use std::{
     num::Wrapping,
 };
 
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
 use crate::{
     application_state::{MapperType, RAMSize, ROMInformation},
     instructions::decode::{decode_instruction_at_address, DecodedInstruction},
@@ -11,11 +14,12 @@ use crate::{
 
 const HRAM_SIZE: usize = 0x7F;
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Deserialize, Hash, Serialize)]
 pub struct Memory {
     boot_rom: Vec<u8>,
     pub game_rom: Vec<u8>,
     pub game_ram: Vec<u8>,
+    #[serde(with = "BigArray")]
     pub hram: [u8; HRAM_SIZE],
 }
 

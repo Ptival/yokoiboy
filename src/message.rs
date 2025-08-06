@@ -13,6 +13,8 @@ pub enum Message {
     MouseOnLCDPixel(u8, u8),
     MouseOnTilePalette(u16),
     Pause,
+    QuickLoad,
+    QuickSave,
     Quit,
     RunNextInstruction,
 }

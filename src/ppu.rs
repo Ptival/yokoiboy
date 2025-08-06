@@ -3,6 +3,8 @@ mod hblank;
 mod oam_scan;
 mod vblank;
 
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 use std::{num::Wrapping, process::exit};
 use tracing::{event, Level};
 
@@ -69,7 +71,7 @@ const MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
 const MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
 const LYC_EQUALS_LY_INTERRUPT_SELECT_BIT: u8 = 6;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum PPUState {
     OAMScan,
     DrawingPixels(u8),
@@ -77,7 +79,7 @@ pub enum PPUState {
     VerticalBlank,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct LCDPixelMetadata {
     pub bgw_pixel: FIFOItem,
     pub obj_pixel: ObjectFIFOItem,
@@ -94,7 +96,7 @@ impl Default for LCDPixelMetadata {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PPU {
     /** PPU state **/
     pub drawn_pixels_on_current_row: u8,
@@ -126,22 +128,90 @@ pub struct PPU {
     pub window_y: Wrapping<u8>,
 
     // Hardware banks
+    #[serde(with = "BigArray")]
     pub object_attribute_memory: [u8; OAM_SIZE], // TODO: make private?
+    #[serde(with = "BigArray")]
     pub vram: [u8; VRAM_SIZE],
+    #[serde(with = "BigArray")]
     pub vram_tile_map0: [u8; VRAM_TILE_MAP_SIZE],
+    #[serde(with = "BigArray")]
     pub vram_tile_map1: [u8; VRAM_TILE_MAP_SIZE],
-    wram_0: [u8; WRAM_SIZE],
-    wram_1: [u8; WRAM_SIZE],
+    wram_0: Box<WRAM>,
+    wram_1: Box<WRAM>,
 
     // Rendered pixel surfaces
-    pub lcd_pixels: [u8; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
-    pub tile_map0_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-    pub tile_map1_pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-    pub tile_palette_pixels: [u8; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+    #[serde(skip)]
+    pub lcd: Box<LCDPixels>,
+    #[serde(skip)]
+    pub tile_map0: Box<TileMapPixels>,
+    #[serde(skip)]
+    pub tile_map1: Box<TileMapPixels>,
+    #[serde(skip)]
+    pub tile_palette: Box<TilePalettePixels>,
 
+    #[serde(with = "BigArray")]
     pub lcd_pixels_meta:
         [LCDPixelMetadata; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
 
+    #[serde(skip)]
+    pub debug: PPUDebug,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct WRAM {
+    #[serde(with = "BigArray")]
+    pub data: [u8; WRAM_SIZE],
+}
+
+impl Default for WRAM {
+    fn default() -> Self {
+        Self {
+            data: [0; WRAM_SIZE],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LCDPixels {
+    pub pixels: [u8; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
+}
+
+impl Default for LCDPixels {
+    fn default() -> Self {
+        Self {
+            pixels: [0; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TileMapPixels {
+    pub pixels: [u8; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+}
+
+impl Default for TileMapPixels {
+    fn default() -> Self {
+        Self {
+            pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TilePalettePixels {
+    pub pixels: [u8; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+}
+
+impl Default for TilePalettePixels {
+    fn default() -> Self {
+        Self {
+            pixels: [0; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PPUDebug {
     // Transient state saved for debug view purposes
     frame_scxs: [u8; LCD_VERTICAL_PIXEL_COUNT],
     frame_scxs_valid: [bool; LCD_VERTICAL_PIXEL_COUNT],
@@ -150,6 +220,21 @@ pub struct PPU {
     // TODO: make this private? move it to pixel fetcher?
     pub tile_map0_last_addressing_modes: [TileAddressingMode; TILE_MAP_TILE_TOTAL],
     pub tile_map1_last_addressing_modes: [TileAddressingMode; TILE_MAP_TILE_TOTAL],
+}
+
+impl Default for PPUDebug {
+    fn default() -> Self {
+        Self {
+            frame_scxs: [0; LCD_VERTICAL_PIXEL_COUNT],
+            frame_scxs_valid: [true; LCD_VERTICAL_PIXEL_COUNT],
+            frame_scys_at_scanline_0: [0; LCD_HORIZONTAL_PIXEL_COUNT],
+            frame_scys_first_scanline_valid: [true; LCD_HORIZONTAL_PIXEL_COUNT],
+            tile_map0_last_addressing_modes: [TileAddressingMode::UnsignedFrom0x8000;
+                TILE_MAP_TILE_TOTAL],
+            tile_map1_last_addressing_modes: [TileAddressingMode::UnsignedFrom0x8000;
+                TILE_MAP_TILE_TOTAL],
+        }
+    }
 }
 
 const BLACK: [u8; 4] = [0, 0, 0, 255];
@@ -211,27 +296,26 @@ impl PPU {
             vram: [0; VRAM_SIZE],
             vram_tile_map0: [0; VRAM_TILE_MAP_SIZE],
             vram_tile_map1: [0; VRAM_TILE_MAP_SIZE],
-            wram_0: [0; WRAM_SIZE],
-            wram_1: [0; WRAM_SIZE],
+            wram_0: Box::new(WRAM::default()),
+            wram_1: Box::new(WRAM::default()),
 
-            lcd_pixels: [0; LCD_HORIZONTAL_PIXEL_COUNT
-                * LCD_VERTICAL_PIXEL_COUNT
-                * PIXEL_DATA_SIZE],
-            tile_map0_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-            tile_map1_pixels: [0; TILE_MAP_PIXELS_TOTAL * PIXEL_DATA_SIZE],
-            tile_palette_pixels: [0; TILE_PALETTE_PIXELS_TOTAL * PIXEL_DATA_SIZE],
+            // Note: the following first stack allocates the arrays, then memcpy them to heap.
+            // There is a way to instead do heap directly, with an unsafe cast at the end to force
+            // the
+            // size.
+            // 1. Vec::with_capacity(SIZE)
+            // 2. Insert SIZE elements
+            // 3. into_boxed_slice()
+            // 4. Box::from_raw(Box::into_raw(b) as *mut [T; n])
+            lcd: Box::new(LCDPixels::default()),
+            tile_map0: Box::new(TileMapPixels::default()),
+            tile_map1: Box::new(TileMapPixels::default()),
+            tile_palette: Box::new(TilePalettePixels::default()),
 
             lcd_pixels_meta: [LCDPixelMetadata::default();
                 LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
 
-            frame_scxs: [0; LCD_VERTICAL_PIXEL_COUNT],
-            frame_scxs_valid: [true; LCD_VERTICAL_PIXEL_COUNT],
-            frame_scys_at_scanline_0: [0; LCD_HORIZONTAL_PIXEL_COUNT],
-            frame_scys_first_scanline_valid: [true; LCD_HORIZONTAL_PIXEL_COUNT],
-            tile_map0_last_addressing_modes: [TileAddressingMode::UnsignedFrom0x8000;
-                TILE_MAP_TILE_TOTAL],
-            tile_map1_last_addressing_modes: [TileAddressingMode::UnsignedFrom0x8000;
-                TILE_MAP_TILE_TOTAL],
+            debug: PPUDebug::default(),
         }
     }
 
@@ -286,7 +370,7 @@ impl PPU {
                         let vram_pixel_y = tile_palette_y * 8 + tile_pixel_y;
                         let vram_pixels_from =
                             (vram_pixel_y * TILE_PALETTE_HORIZONTAL_PIXELS + vram_pixel_x) * 4;
-                        self.tile_palette_pixels[vram_pixels_from..vram_pixels_from + 4]
+                        self.tile_palette.pixels[vram_pixels_from..vram_pixels_from + 4]
                             .copy_from_slice(&pixel_rgba);
                     }
                 }
@@ -298,43 +382,44 @@ impl PPU {
     pub fn render_tile_map0(&mut self) {
         render_tile_map(
             &self.vram_tile_map0,
-            &self.tile_palette_pixels,
-            &mut self.tile_map0_pixels,
-            &self.tile_map0_last_addressing_modes,
+            &self.tile_palette,
+            &mut self.tile_map0,
+            &self.debug.tile_map0_last_addressing_modes,
         );
 
         // Render the top and bottom SCY lines, where they haven't been messed with mid-frame
-        let scx_top = self.frame_scxs[0] as usize;
-        let scx_bot = self.frame_scxs[LCD_VERTICAL_PIXEL_COUNT - 1] as usize;
+        let scx_top = self.debug.frame_scxs[0] as usize;
+        let scx_bot = self.debug.frame_scxs[LCD_VERTICAL_PIXEL_COUNT - 1] as usize;
         for y in 0..LCD_HORIZONTAL_PIXEL_COUNT {
-            if self.frame_scys_first_scanline_valid[y] {
-                let scy = self.frame_scys_at_scanline_0[y] as usize;
+            if self.debug.frame_scys_first_scanline_valid[y] {
+                let scy = self.debug.frame_scys_at_scanline_0[y] as usize;
                 let pixel_index =
                     scy * TILE_MAP_HORIZONTAL_PIXELS + ((y + scx_top) % TILE_MAP_HORIZONTAL_PIXELS);
-                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                self.tile_map0.pixels[pixel_index * 4..(pixel_index + 1) * 4]
                     .copy_from_slice(&[255, 0, 0, 255]);
                 let pixel_index = ((scy + LCD_VERTICAL_PIXEL_COUNT) % TILE_MAP_VERTICAL_PIXELS)
                     * TILE_MAP_HORIZONTAL_PIXELS
                     + ((y + scx_bot) % TILE_MAP_HORIZONTAL_PIXELS);
-                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                self.tile_map0.pixels[pixel_index * 4..(pixel_index + 1) * 4]
                     .copy_from_slice(&[255, 255, 0, 255]);
             }
         }
 
         // Render the left and right SCY lines, where they haven't been messed with mid-frame
-        let scy_left = self.frame_scys_at_scanline_0[0] as usize;
-        let scy_right = self.frame_scys_at_scanline_0[LCD_HORIZONTAL_PIXEL_COUNT - 1] as usize;
+        let scy_left = self.debug.frame_scys_at_scanline_0[0] as usize;
+        let scy_right =
+            self.debug.frame_scys_at_scanline_0[LCD_HORIZONTAL_PIXEL_COUNT - 1] as usize;
         for x in 0..LCD_VERTICAL_PIXEL_COUNT {
-            if self.frame_scxs_valid[x] {
-                let scx = self.frame_scxs[x] as usize;
+            if self.debug.frame_scxs_valid[x] {
+                let scx = self.debug.frame_scxs[x] as usize;
                 let pixel_index =
                     ((x + scy_left) % TILE_MAP_VERTICAL_PIXELS) * TILE_MAP_HORIZONTAL_PIXELS + scx;
-                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                self.tile_map0.pixels[pixel_index * 4..(pixel_index + 1) * 4]
                     .copy_from_slice(&[0, 255, 0, 255]);
                 let pixel_index = ((x + scy_right) % TILE_MAP_VERTICAL_PIXELS)
                     * TILE_MAP_HORIZONTAL_PIXELS
                     + ((scx + LCD_HORIZONTAL_PIXEL_COUNT) % TILE_MAP_HORIZONTAL_PIXELS);
-                self.tile_map0_pixels[pixel_index * 4..(pixel_index + 1) * 4]
+                self.tile_map0.pixels[pixel_index * 4..(pixel_index + 1) * 4]
                     .copy_from_slice(&[0, 255, 255, 255]);
             }
         }
@@ -344,9 +429,9 @@ impl PPU {
     pub fn render_tile_map1(&mut self) {
         render_tile_map(
             &self.vram_tile_map1,
-            &self.tile_palette_pixels,
-            &mut self.tile_map1_pixels,
-            &self.tile_map1_last_addressing_modes,
+            &self.tile_palette,
+            &mut self.tile_map1,
+            &self.debug.tile_map1_last_addressing_modes,
         )
     }
 
@@ -367,11 +452,11 @@ impl PPU {
         bgw_fetcher.prepare_for_new_frame();
         obj_fetcher.prepare_for_new_frame();
 
-        self.frame_scxs = [0; LCD_VERTICAL_PIXEL_COUNT];
-        self.frame_scxs_valid = [true; LCD_VERTICAL_PIXEL_COUNT];
+        self.debug.frame_scxs = [0; LCD_VERTICAL_PIXEL_COUNT];
+        self.debug.frame_scxs_valid = [true; LCD_VERTICAL_PIXEL_COUNT];
 
-        self.frame_scys_at_scanline_0 = [0; LCD_HORIZONTAL_PIXEL_COUNT];
-        self.frame_scys_first_scanline_valid = [true; LCD_HORIZONTAL_PIXEL_COUNT];
+        self.debug.frame_scys_at_scanline_0 = [0; LCD_HORIZONTAL_PIXEL_COUNT];
+        self.debug.frame_scys_first_scanline_valid = [true; LCD_HORIZONTAL_PIXEL_COUNT];
     }
 
     pub fn ticks(
@@ -452,11 +537,11 @@ impl PPU {
     }
 
     pub fn read_wram_0(&self, address: Wrapping<u16>) -> Wrapping<u8> {
-        Wrapping(self.wram_0[address.0 as usize])
+        Wrapping(self.wram_0.data[address.0 as usize])
     }
 
     pub fn read_wram_1(&self, address: Wrapping<u16>) -> Wrapping<u8> {
-        Wrapping(self.wram_1[address.0 as usize])
+        Wrapping(self.wram_1.data[address.0 as usize])
     }
 
     pub fn read_lcdc(&self) -> Wrapping<u8> {
@@ -476,11 +561,11 @@ impl PPU {
     }
 
     pub fn write_wram_0(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
-        self.wram_0[address.0 as usize] = value.0;
+        self.wram_0.data[address.0 as usize] = value.0;
     }
 
     pub fn write_wram_1(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
-        self.wram_1[address.0 as usize] = value.0;
+        self.wram_1.data[address.0 as usize] = value.0;
     }
 
     pub fn write_lcdc(&mut self, value: Wrapping<u8>) {
@@ -558,8 +643,8 @@ impl PPU {
 
 fn render_tile_map(
     tile_map_memory: &[u8],
-    tile_palette_pixels: &[u8],
-    tile_map_pixels: &mut [u8],
+    tile_palette_pixels: &TilePalettePixels,
+    tile_map_pixels: &mut TileMapPixels,
     tile_map_last_addressing_modes: &[TileAddressingMode; TILE_MAP_TILE_TOTAL],
 ) {
     for tile_map_y in 0..TILE_MAP_VERTICAL_TILE_COUNT {
@@ -598,10 +683,10 @@ fn render_tile_map(
                     palette_tiles_to_skip * PIXELS_PER_TILE + palette_row_pixels_to_skip;
                 let palette_bytes_to_skip = palette_pixels_to_skip * PIXEL_DATA_SIZE;
 
-                tile_map_pixels
+                tile_map_pixels.pixels
                     [bytes_to_skip..bytes_to_skip + HORIZONTAL_PIXELS_PER_TILE * PIXEL_DATA_SIZE]
                     .copy_from_slice(
-                        &tile_palette_pixels[palette_bytes_to_skip
+                        &tile_palette_pixels.pixels[palette_bytes_to_skip
                             ..palette_bytes_to_skip + HORIZONTAL_PIXELS_PER_TILE * PIXEL_DATA_SIZE],
                     );
             }

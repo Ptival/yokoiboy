@@ -6,7 +6,7 @@ use iced::{
 use crate::{
     message::Message::{self},
     ppu::{
-        HORIZONTAL_PIXELS_PER_TILE, TILE_PALETTE_HORIZONTAL_PIXELS,
+        self, HORIZONTAL_PIXELS_PER_TILE, TILE_PALETTE_HORIZONTAL_PIXELS,
         TILE_PALETTE_HORIZONTAL_TILE_COUNT, TILE_PALETTE_VERTICAL_PIXELS, VERTICAL_PIXELS_PER_TILE,
     },
 };
@@ -22,12 +22,12 @@ const ZOOMED_TILE_PALETTE_VERTICAL_PIXEL_COUNT: usize =
     TILE_PALETTE_VERTICAL_PIXELS * TILE_PALETTE_ZOOM_FACTOR;
 
 impl<'a> TilePalette<'a> {
-    pub fn new(tiles_pixels: &[u8]) -> Self {
+    pub fn new(tiles_pixels: &ppu::TilePalettePixels) -> Self {
         TilePalette {
             tile_palette_widget: widget::Image::new(image::Handle::from_rgba(
                 TILE_PALETTE_HORIZONTAL_PIXELS as u32,
                 TILE_PALETTE_VERTICAL_PIXELS as u32,
-                image::Bytes::copy_from_slice(tiles_pixels),
+                image::Bytes::copy_from_slice(&tiles_pixels.pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(image::FilterMethod::Nearest)

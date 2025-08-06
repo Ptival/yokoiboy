@@ -3,6 +3,7 @@ use std::{
     collections::VecDeque,
     num::Wrapping,
 };
+use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use super::{Fetcher, TileAddressingMode};
@@ -13,7 +14,7 @@ use crate::{
     utils::is_bit_set,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 enum FetcherState {
     GetTileDelay,
     GetTile,
@@ -24,7 +25,7 @@ enum FetcherState {
     PushRow,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Sprite {
     pub attributes: u8,
     pub tile_index: u8,
@@ -75,7 +76,7 @@ impl Sprite {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum ObjectPalette {
     ObjectPalette0,
     ObjectPalette1,
@@ -87,7 +88,7 @@ impl Default for ObjectPalette {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ObjectFIFOItem {
     pub bg_over_obj: bool,
     pub color: u8,
@@ -104,7 +105,7 @@ impl Default for ObjectFIFOItem {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ObjectFetcher {
     state: FetcherState,
     count_pixels_queued_this_row: u8,

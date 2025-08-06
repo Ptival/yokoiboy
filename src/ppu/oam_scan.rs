@@ -23,7 +23,7 @@ pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &
 
         // At the start of each scanline, remember SCX
         if ly < LCD_VERTICAL_PIXEL_COUNT {
-            ppu.frame_scxs[ly] = ppu.scx.0;
+            ppu.debug.frame_scxs[ly] = ppu.scx.0;
         }
 
         let mut selected_objects = VecDeque::new();

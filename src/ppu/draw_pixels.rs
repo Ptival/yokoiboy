@@ -65,7 +65,8 @@ pub fn draw_pixels(
         // the nice VRAM frame, not something the console cares about.
         let ly = ppu.read_ly().0;
         if ly == 0 {
-            ppu.frame_scys_at_scanline_0[ppu.drawn_pixels_on_current_row as usize] = ppu.scy.0;
+            ppu.debug.frame_scys_at_scanline_0[ppu.drawn_pixels_on_current_row as usize] =
+                ppu.scy.0;
         }
 
         let bgw_pixel = bgw_fetcher.fifo.pop_front().unwrap();
@@ -103,7 +104,7 @@ pub fn draw_pixels(
             );
         } else {
             let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
-            ppu.lcd_pixels[from..from + 4].copy_from_slice(&rgba);
+            ppu.lcd.pixels[from..from + 4].copy_from_slice(&rgba);
             for i in from..from + 4 {
                 ppu.lcd_pixels_meta[i] = LCDPixelMetadata {
                     bgw_pixel,

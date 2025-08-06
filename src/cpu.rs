@@ -3,6 +3,7 @@ pub mod timers;
 
 use std::num::Wrapping;
 
+use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use crate::{
@@ -17,7 +18,7 @@ use crate::{
     registers::{Registers, R16},
 };
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Deserialize, Hash, Serialize)]
 pub struct CPU {
     // CPU state
     pub low_power_mode: bool,

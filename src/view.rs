@@ -36,7 +36,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 256,
                 256,
-                image::Bytes::copy_from_slice(&machine.ppu().tile_map0_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu().tile_map0.pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -50,7 +50,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 256,
                 256,
-                image::Bytes::copy_from_slice(&machine.ppu().tile_map1_pixels),
+                image::Bytes::copy_from_slice(&machine.ppu().tile_map1.pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -68,13 +68,11 @@ impl ApplicationState {
                         pixel_debugger::view(app.lcd_pixel_under_mouse),
                         tile_debugger::view(app.tile_id_under_mouse)
                     ],
-                    lcd::LCD::new(&machine.ppu.lcd_pixels),
+                    lcd::LCD::new(&machine.ppu.lcd.pixels),
                 ],
                 row![tile_map0, tile_map1],
             ],
-            column![tile_palette::TilePalette::new(
-                &machine.ppu.tile_palette_pixels
-            ),]
+            column![tile_palette::TilePalette::new(&machine.ppu.tile_palette),]
         ]
         .into()
     }

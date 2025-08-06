@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, num::Wrapping};
 
+use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
 
 use super::{FIFOItem, Fetcher, FetcherState};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BackgroundOrWindowFetcher {
     /// BGW fetcher automaton state
     state: FetcherState,
@@ -71,11 +72,11 @@ impl BackgroundOrWindowFetcher {
                 // FIXME: more complex rules for the row base address
                 let tile_map =
                     if utils::is_bit_set(&ppu.lcd_control, LCDC_BACKGROUND_TILE_MAP_AREA_BIT) {
-                        ppu.tile_map1_last_addressing_modes[tile_index_in_its_tile_map] =
+                        ppu.debug.tile_map1_last_addressing_modes[tile_index_in_its_tile_map] =
                             ppu.get_addressing_mode();
                         &ppu.vram_tile_map1
                     } else {
-                        ppu.tile_map0_last_addressing_modes[tile_index_in_its_tile_map] =
+                        ppu.debug.tile_map0_last_addressing_modes[tile_index_in_its_tile_map] =
                             ppu.get_addressing_mode();
                         &ppu.vram_tile_map0
                     };
