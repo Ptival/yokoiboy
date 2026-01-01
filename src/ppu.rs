@@ -60,8 +60,8 @@ const _LCDC_OBJECT_ENABLE_BIT: u8 = 1;
 const LCDC_OBJECT_SIZE_BIT: u8 = 2;
 pub const LCDC_BACKGROUND_TILE_MAP_AREA_BIT: u8 = 3;
 const LCDC_BACKGROUND_AND_WINDOW_TILE_AREA_BIT: u8 = 4;
-const _LCDC_WINDOW_ENABLE_BIT: u8 = 5;
-const _LCDC_WINDOW_TILE_MAP_AREA_BIT: u8 = 6;
+pub const LCDC_WINDOW_ENABLE_BIT: u8 = 5;
+pub const LCDC_WINDOW_TILE_MAP_AREA_BIT: u8 = 6;
 const LCDC_LCD_ENABLE_BIT: u8 = 7;
 
 // LCD status single bits of interest
@@ -124,7 +124,9 @@ pub struct PPU {
     pub scx: Wrapping<u8>,
     pub scy: Wrapping<u8>,
     pub vram_bank: Wrapping<u8>,
-    pub window_x7: Wrapping<u8>,
+
+    // These specify the on-screen coordinates of the window's top-left pixel
+    pub window_x_plus_7: Wrapping<u8>,
     pub window_y: Wrapping<u8>,
 
     // Hardware banks
@@ -132,8 +134,10 @@ pub struct PPU {
     pub object_attribute_memory: [u8; OAM_SIZE], // TODO: make private?
     #[serde(with = "BigArray")]
     pub vram: [u8; VRAM_SIZE],
+    // This is the tile map at address $9800
     #[serde(with = "BigArray")]
     pub vram_tile_map0: [u8; VRAM_TILE_MAP_SIZE],
+    // This is the tile map at address $9C00
     #[serde(with = "BigArray")]
     pub vram_tile_map1: [u8; VRAM_TILE_MAP_SIZE],
     wram_0: Box<WRAM>,
@@ -289,7 +293,7 @@ impl PPU {
             scx: Wrapping(0),
             scy: Wrapping(0),
             vram_bank: Wrapping(0),
-            window_x7: Wrapping(0),
+            window_x_plus_7: Wrapping(0),
             window_y: Wrapping(0),
 
             object_attribute_memory: [0; OAM_SIZE],
@@ -638,6 +642,12 @@ impl PPU {
 
     fn is_background_and_window_enabled(&self) -> bool {
         is_bit_set(&self.read_lcdc(), LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
+    }
+
+    fn is_window_enabled(&self) -> bool {
+        let lcdc = self.read_lcdc();
+        is_bit_set(&lcdc, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT) // Note: this is DMG specific
+            && is_bit_set(&lcdc, LCDC_WINDOW_ENABLE_BIT)
     }
 }
 

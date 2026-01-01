@@ -5,7 +5,10 @@ use tracing::{event, Level};
 
 use crate::{
     pixel_fetcher::{FlipX, FlipY},
-    ppu::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU, TILE_MAP_HORIZONTAL_TILE_COUNT},
+    ppu::{
+        LCDC_BACKGROUND_TILE_MAP_AREA_BIT, LCDC_WINDOW_ENABLE_BIT, LCDC_WINDOW_TILE_MAP_AREA_BIT,
+        PPU, TILE_MAP_HORIZONTAL_TILE_COUNT,
+    },
     utils,
 };
 
@@ -69,21 +72,41 @@ impl BackgroundOrWindowFetcher {
                 let tile_index_in_its_tile_map =
                     tile_row as usize * TILE_MAP_HORIZONTAL_TILE_COUNT + tile_col as usize;
 
-                // FIXME: more complex rules for the row base address
-                let tile_map =
-                    if utils::is_bit_set(&ppu.lcd_control, LCDC_BACKGROUND_TILE_MAP_AREA_BIT) {
-                        ppu.debug.tile_map1_last_addressing_modes[tile_index_in_its_tile_map] =
-                            ppu.get_addressing_mode();
-                        &ppu.vram_tile_map1
+                enum TileMap {
+                    TileMap0,
+                    TileMap1,
+                }
+                // Note: technically, when LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT is 0, we're not
+                // using any tile map and should just return blank tiles
+                let lcdc = ppu.lcd_control;
+                let lcdc_bit_that_determines_tilemap =
+                    if utils::is_bit_set(&lcdc, LCDC_WINDOW_ENABLE_BIT) {
+                        LCDC_WINDOW_TILE_MAP_AREA_BIT
                     } else {
+                        LCDC_BACKGROUND_TILE_MAP_AREA_BIT
+                    };
+                let tilemap_to_use = if utils::is_bit_set(&lcdc, lcdc_bit_that_determines_tilemap) {
+                    TileMap::TileMap1
+                } else {
+                    TileMap::TileMap0
+                };
+
+                let tilemap = match tilemap_to_use {
+                    TileMap::TileMap0 => {
                         ppu.debug.tile_map0_last_addressing_modes[tile_index_in_its_tile_map] =
                             ppu.get_addressing_mode();
                         &ppu.vram_tile_map0
-                    };
+                    }
+                    TileMap::TileMap1 => {
+                        ppu.debug.tile_map1_last_addressing_modes[tile_index_in_its_tile_map] =
+                            ppu.get_addressing_mode();
+                        &ppu.vram_tile_map1
+                    }
+                };
 
                 let row_address = ((tile_row as u16) << 5) + (tile_col as u16);
 
-                self.tile_id = tile_map[row_address as usize];
+                self.tile_id = tilemap[row_address as usize];
                 self.state = FetcherState::GetTileDataLowDelay;
             }
 
