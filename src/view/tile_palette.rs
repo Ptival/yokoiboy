@@ -27,7 +27,7 @@ impl<'a> TilePalette<'a> {
             tile_palette_widget: widget::Image::new(image::Handle::from_rgba(
                 TILE_PALETTE_HORIZONTAL_PIXELS as u32,
                 TILE_PALETTE_VERTICAL_PIXELS as u32,
-                image::Bytes::copy_from_slice(&tiles_pixels.pixels),
+                bytes::Bytes::copy_from_slice(&tiles_pixels.pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(image::FilterMethod::Nearest)
@@ -55,15 +55,16 @@ impl<'a> Widget<Message, iced::Theme, iced::Renderer> for TilePalette<'a> {
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let lcd_layout =
-            self.tile_palette_widget
-                .as_widget()
-                .layout(&mut tree.children[0], renderer, limits);
+        let lcd_layout = self.tile_palette_widget.as_widget_mut().layout(
+            &mut tree.children[0],
+            renderer,
+            limits,
+        );
         layout::Node::with_children(
             Size::new(
                 ZOOMED_TILE_PALETTE_HORIZONTAL_PIXEL_COUNT as f32,

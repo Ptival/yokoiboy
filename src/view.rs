@@ -36,7 +36,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 256,
                 256,
-                image::Bytes::copy_from_slice(&machine.ppu().tile_map0.pixels),
+                bytes::Bytes::copy_from_slice(&machine.ppu().tile_map0.pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)
@@ -50,7 +50,7 @@ impl ApplicationState {
             widget::Image::new(image::Handle::from_rgba(
                 256,
                 256,
-                image::Bytes::copy_from_slice(&machine.ppu().tile_map1.pixels),
+                bytes::Bytes::copy_from_slice(&machine.ppu().tile_map1.pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(FilterMethod::Nearest)

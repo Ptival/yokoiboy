@@ -23,7 +23,7 @@ impl<'a> LCD<'a> {
             lcd_widget: widget::Image::new(image::Handle::from_rgba(
                 LCD_HORIZONTAL_PIXEL_COUNT as u32,
                 LCD_VERTICAL_PIXEL_COUNT as u32,
-                image::Bytes::copy_from_slice(pixels),
+                bytes::Bytes::copy_from_slice(pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(image::FilterMethod::Nearest)
@@ -51,14 +51,14 @@ impl<'a> Widget<Message, iced::Theme, iced::Renderer> for LCD<'a> {
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
         let lcd_layout =
             self.lcd_widget
-                .as_widget()
+                .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, limits);
         layout::Node::with_children(
             Size::new(

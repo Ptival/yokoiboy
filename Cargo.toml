@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.98"
 boolenum = "0.1.0"
+bytes = "1.11.0"
 ciborium = "0.2.2"
 circular-queue = "0.2.7"
 clap = { version = "4.5.41", features = ["derive"] }

@@ -67,23 +67,26 @@ fn main() -> Result<(), iced::Error> {
     .subscription(ApplicationState::subscription)
     .settings(settings)
     .window(window::Settings {
-        size: Size::new(1600.0, 1200.0),
-        maximized: false,
+        blur: false,
+        closeable: true,
+        decorations: false,
+        exit_on_close_request: true,
         fullscreen: false,
+        icon: None,
+        level: window::Level::Normal,
+        max_size: None,
+        maximized: false,
+        min_size: None,
+        minimizable: true,
+        platform_specific: PlatformSpecific::default(),
         position: window::Position::SpecificWith(|window_size, monitor_size| Point {
             x: monitor_size.width - window_size.width,
             y: 0.0,
         }),
-        min_size: None,
-        max_size: None,
-        visible: true,
         resizable: true,
-        decorations: false,
+        size: Size::new(1600.0, 1200.0),
         transparent: false,
-        level: window::Level::Normal,
-        icon: None,
-        platform_specific: PlatformSpecific::default(),
-        exit_on_close_request: true,
+        visible: true,
     })
     .run()
 }

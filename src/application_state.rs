@@ -208,18 +208,23 @@ impl ApplicationState {
 
     pub fn subscription(&self) -> iced::Subscription<Message> {
         Subscription::batch(vec![
-            keyboard::on_key_press(|k, _m| match k {
-                keyboard::Key::Named(keyboard::key::Named::ArrowDown) => Some(
-                    Message::BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint::Yes),
-                ),
-                keyboard::Key::Named(keyboard::key::Named::ArrowRight) => {
-                    Some(Message::RunNextInstruction)
+            keyboard::listen().filter_map(|event| {
+                let keyboard::Event::KeyPressed { key, .. } = event else {
+                    return None;
+                };
+                match key {
+                    keyboard::Key::Named(keyboard::key::Named::ArrowDown) => Some(
+                        Message::BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint::Yes),
+                    ),
+                    keyboard::Key::Named(keyboard::key::Named::ArrowRight) => {
+                        Some(Message::RunNextInstruction)
+                    }
+                    keyboard::Key::Named(keyboard::key::Named::Space) => Some(Message::Pause),
+                    keyboard::Key::Named(keyboard::key::Named::Escape) => Some(Message::Quit),
+                    keyboard::Key::Named(keyboard::key::Named::F5) => Some(Message::QuickSave),
+                    keyboard::Key::Named(keyboard::key::Named::F9) => Some(Message::QuickLoad),
+                    _ => None,
                 }
-                keyboard::Key::Named(keyboard::key::Named::Space) => Some(Message::Pause),
-                keyboard::Key::Named(keyboard::key::Named::Escape) => Some(Message::Quit),
-                keyboard::Key::Named(keyboard::key::Named::F5) => Some(Message::QuickSave),
-                keyboard::Key::Named(keyboard::key::Named::F9) => Some(Message::QuickLoad),
-                _ => None,
             }),
             // other subscriptions possible here
         ])
