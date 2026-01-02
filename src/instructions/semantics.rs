@@ -1,4 +1,4 @@
-use std::num::Wrapping;
+use std::{num::Wrapping, ops::AddAssign};
 
 use tracing::{event, Level};
 
@@ -115,6 +115,12 @@ pub struct ElapsedCycles {
 impl ElapsedCycles {
     pub fn t_cycles(&self) -> u8 {
         self.m_cycles * 4
+    }
+}
+
+impl AddAssign for ElapsedCycles {
+    fn add_assign(&mut self, rhs: Self) {
+        self.m_cycles += rhs.m_cycles
     }
 }
 

@@ -50,7 +50,7 @@ impl Interrupts {
         }
     }
 
-    pub fn handle_interrupts(machine: &mut Machine) -> (Option<DecodedInstruction>, ElapsedCycles) {
+    pub fn handle_interrupts(machine: &mut Machine) -> ElapsedCycles {
         if let Some(interrupt) = machine.interrupts.should_handle_interrupt() {
             event!(Level::DEBUG, "Handling interrupt {:02X}", interrupt);
             machine.interrupts.interrupt_flag =
@@ -63,16 +63,9 @@ impl Interrupts {
             // Currently simulating this whole thing at once, but might need granularity
             CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu().registers.pc));
             machine.cpu_mut().registers.pc = interrupt_handler_offset(interrupt);
-            // Execute the first instruction of the interrupt handler to match GB doctor
-            let (instr, elapsed) = CPU::execute_one_instruction(machine);
-            (
-                instr,
-                ElapsedCycles {
-                    m_cycles: 5 + elapsed.m_cycles,
-                },
-            )
+            ElapsedCycles { m_cycles: 5 }
         } else {
-            (Option::None, ElapsedCycles { m_cycles: 0 })
+            ElapsedCycles { m_cycles: 0 }
         }
     }
 

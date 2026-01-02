@@ -545,14 +545,11 @@ impl Machine {
     }
 
     pub fn step(&mut self) -> MachineStep {
-        let mut instruction_executed: Option<DecodedInstruction>;
-        let mut elapsed: ElapsedCycles;
+        let instruction_executed: Option<DecodedInstruction>;
+        let mut elapsed: ElapsedCycles = ElapsedCycles { m_cycles: 0 };
 
-        (instruction_executed, elapsed) = Interrupts::handle_interrupts(self);
-        // Note: don't test for instruction being None, as low power mode returns None
-        if elapsed.m_cycles == 0 {
-            (instruction_executed, elapsed) = CPU::execute_one_instruction(self);
-        }
+        elapsed += Interrupts::handle_interrupts(self);
+        (instruction_executed, elapsed) = CPU::execute_one_instruction(self);
         let elapsed_t_cycles = elapsed.t_cycles();
 
         self.timers.ticks(&mut self.interrupts, elapsed_t_cycles);
