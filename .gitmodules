@@ -16,3 +16,6 @@
 [submodule "gbmicrotest"]
 	path = gbmicrotest
 	url = https://github.com/aappleby/gbmicrotest.git
+[submodule "mooneye-test-suite"]
+	path = mooneye-test-suite
+	url = https://github.com/Gekkio/mooneye-test-suite.git
