@@ -1,10 +1,10 @@
-use std::num::Wrapping;
+use std::{fmt, num::Wrapping};
 
 use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use crate::{
-    instructions::{decode::DecodedInstruction, semantics::ElapsedCycles, type_def::Immediate16},
+    instructions::{semantics::ElapsedCycles, type_def::Immediate16},
     machine::Machine,
 };
 
@@ -27,6 +27,23 @@ pub struct Interrupts {
     pub interrupt_master_enable_delayed: bool,
     pub interrupt_enable: Wrapping<u8>,
     pub interrupt_flag: Wrapping<u8>,
+}
+
+pub struct Interrupt {
+    pub bit_index: u8,
+}
+
+impl fmt::Display for Interrupt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.bit_index {
+            0 => write!(f, "VBlank"),
+            1 => write!(f, "LCD"),
+            2 => write!(f, "Timer"),
+            3 => write!(f, "Serial"),
+            4 => write!(f, "Joypad"),
+            _ => unreachable!(),
+        }
+    }
 }
 
 fn interrupt_handler_offset(interrupt_bit: u8) -> Wrapping<u16> {
@@ -52,9 +69,14 @@ impl Interrupts {
 
     pub fn handle_interrupts(machine: &mut Machine) -> ElapsedCycles {
         if let Some(interrupt) = machine.interrupts.should_handle_interrupt() {
-            event!(Level::DEBUG, "Handling interrupt {:02X}", interrupt);
+            event!(
+                Level::DEBUG,
+                "  Handling {} interrupt on T-cycle {}",
+                interrupt,
+                machine.t_cycle_count
+            );
             machine.interrupts.interrupt_flag =
-                machine.interrupts.interrupt_flag & Wrapping(!(1 << interrupt));
+                machine.interrupts.interrupt_flag & Wrapping(!(1 << interrupt.bit_index));
             machine.interrupts.interrupt_master_enable = false;
             // Here the CPU:
             // - NOPs twice (2 M-cycles)
@@ -62,7 +84,7 @@ impl Interrupts {
             // - sets PC to the handle (1 M-cycle)
             // Currently simulating this whole thing at once, but might need granularity
             CPU::push_imm16(machine, Immediate16::from_u16(machine.cpu().registers.pc));
-            machine.cpu_mut().registers.pc = interrupt_handler_offset(interrupt);
+            machine.cpu_mut().registers.pc = interrupt_handler_offset(interrupt.bit_index);
             ElapsedCycles { m_cycles: 5 }
         } else {
             ElapsedCycles { m_cycles: 0 }
@@ -75,15 +97,47 @@ impl Interrupts {
         (masked_ie & masked_if) != 0
     }
 
-    pub fn request(&mut self, interrupt_bit: u8) {
-        self.interrupt_flag |= 1 << interrupt_bit;
+    fn request(&mut self, t_cycle_count: u64, interrupt: &Interrupt) {
+        self.interrupt_flag |= 1 << interrupt.bit_index;
+        event!(
+            Level::DEBUG,
+            "Requesting {} interrupt on T-cycle {}.  IF:{:05b} IE:{:05b}",
+            interrupt,
+            t_cycle_count,
+            self.interrupt_flag,
+            self.interrupt_enable
+        );
     }
 
-    // Returns the bit index of the interrupt to handle (0 = VBlank... 4 = Joypad)
-    fn should_handle_interrupt(&self) -> Option<u8> {
-        if !self.interrupt_master_enable {
-            return None;
-        }
+    pub fn request_stat(&mut self, t_cycle_count: u64) {
+        self.request(
+            t_cycle_count,
+            &Interrupt {
+                bit_index: STAT_INTERRUPT_BIT,
+            },
+        );
+    }
+
+    pub fn request_timer(&mut self, t_cycle_count: u64) {
+        self.request(
+            t_cycle_count,
+            &Interrupt {
+                bit_index: TIMER_INTERRUPT_BIT,
+            },
+        );
+    }
+
+    pub fn request_vblank(&mut self, t_cycle_count: u64) {
+        self.request(
+            t_cycle_count,
+            &Interrupt {
+                bit_index: VBLANK_INTERRUPT_BIT,
+            },
+        );
+    }
+
+    fn get_highest_priority_interrupt(&self) -> Option<Interrupt> {
+        // We only want the top 5 bits of IE and IF registers
         let masked_ie = self.interrupt_enable.0 & 0x1F;
         let masked_if = self.interrupt_flag.0 & 0x1F;
         let conjoined = masked_ie & masked_if;
@@ -91,10 +145,21 @@ impl Interrupts {
         for i in 0..5 {
             let mask = 1 << i;
             if (conjoined & mask) == mask {
-                return Some(i);
+                return Some(Interrupt { bit_index: i });
             }
         }
         None
+    }
+
+    // Returns the bit index of the interrupt to handle (0 = VBlank... 4 = Joypad)
+    fn should_handle_interrupt(&self) -> Option<Interrupt> {
+        if let Some(i) = self.get_highest_priority_interrupt() {
+            if !self.interrupt_master_enable {
+                return None;
+            }
+            return Some(i);
+        }
+        return None;
     }
 }
 

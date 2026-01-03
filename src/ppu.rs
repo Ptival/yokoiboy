@@ -9,7 +9,7 @@ use std::{num::Wrapping, process::exit};
 use tracing::{event, Level};
 
 use crate::{
-    cpu::interrupts::{Interrupts, STAT_INTERRUPT_BIT, VBLANK_INTERRUPT_BIT},
+    cpu::interrupts::Interrupts,
     machine::{FixLY, SkipBoot},
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher,
@@ -112,7 +112,7 @@ pub struct PPU {
     pub cgb_background_palette_data: Wrapping<u8>,
     pub cgb_background_palette_spec: Wrapping<u8>,
     pub lcd_control: Wrapping<u8>,
-    pub lcd_status: Wrapping<u8>,
+    pub lcd_status: Wrapping<u8>, // $FF41
     pub lcd_y_compare: Wrapping<u8>,
     /// LCD Y-coordinate.  Made private to enforce the use of `read_ly()` which allows forcing LY's
     /// value when using GB Doctor.
@@ -335,15 +335,20 @@ impl PPU {
         utils::is_bit_set(&self.lcd_control, LCDC_LCD_ENABLE_BIT)
     }
 
-    pub fn increment_ly(&mut self, interrupts: &mut Interrupts) {
+    pub fn increment_ly(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
         self.lcd_y_coord = self.lcd_y_coord + Wrapping(1);
-        if self.lcd_y_coord == self.lcd_y_compare {
-            utils::set_bit(&mut self.lcd_status, LYC_EQUALS_LY_BIT);
-            if utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_INTERRUPT_SELECT_BIT) {
-                interrupts.request(STAT_INTERRUPT_BIT);
-            }
-        } else {
-            utils::unset_bit(&mut self.lcd_status, LYC_EQUALS_LY_BIT);
+        self.check_if_ly_equals_lyc(interrupts, t_cycle_count);
+    }
+
+    pub fn check_if_ly_equals_lyc(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
+        let previous = utils::is_bit_set(&mut self.lcd_status, LYC_EQUALS_LY_BIT);
+        let current = self.lcd_y_coord == self.lcd_y_compare;
+        utils::write_bit(&mut self.lcd_status, LYC_EQUALS_LY_BIT, current);
+        if current
+            && !previous
+            && utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_INTERRUPT_SELECT_BIT)
+        {
+            interrupts.request_stat(t_cycle_count);
         }
     }
 
@@ -470,9 +475,16 @@ impl PPU {
         obj_fetcher: &mut ObjectFetcher,
         pixel_fetcher: &mut Fetcher,
         dots: u8,
+        t_cycle_count: u64,
     ) {
         for _ in 0..dots {
-            self.tick(bgw_fetcher, obj_fetcher, interrupts, pixel_fetcher);
+            self.tick(
+                bgw_fetcher,
+                obj_fetcher,
+                interrupts,
+                pixel_fetcher,
+                t_cycle_count,
+            );
         }
     }
 
@@ -482,6 +494,7 @@ impl PPU {
         obj_fetcher: &mut ObjectFetcher,
         interrupts: &mut Interrupts,
         pixel_fetcher: &mut Fetcher,
+        t_cycle_count: u64,
     ) {
         if !self.is_lcd_ppu_on() {
             return;
@@ -512,18 +525,18 @@ impl PPU {
             }
 
             PPUState::HorizontalBlank => {
-                hblank(self, bgw_fetcher, obj_fetcher, interrupts);
+                hblank(self, bgw_fetcher, obj_fetcher, interrupts, t_cycle_count);
             }
 
             PPUState::VerticalBlank => {
-                vblank(self, bgw_fetcher, obj_fetcher, interrupts);
+                vblank(self, bgw_fetcher, obj_fetcher, interrupts, t_cycle_count);
             }
         }
 
         // STAT interrupt check
         let stat_line = (self.lcd_status.0 >> 3) & 0xF;
         if self.last_stat_line == 0 && stat_line != 0 {
-            interrupts.request(STAT_INTERRUPT_BIT);
+            interrupts.request_stat(t_cycle_count);
         }
         self.last_stat_line = stat_line;
     }
@@ -630,13 +643,13 @@ impl PPU {
         self.state = PPUState::HorizontalBlank;
     }
 
-    fn switch_to_vertical_blank(&mut self, interrupts: &mut Interrupts) {
+    fn switch_to_vertical_blank(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 1);
         utils::unset_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
         utils::set_bit(&mut self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
         utils::unset_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
-        interrupts.request(VBLANK_INTERRUPT_BIT);
+        interrupts.request_vblank(t_cycle_count);
         self.state = PPUState::VerticalBlank
     }
 
@@ -644,7 +657,7 @@ impl PPU {
         is_bit_set(&self.read_lcdc(), LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
     }
 
-    fn is_window_enabled(&self) -> bool {
+    fn _is_window_enabled(&self) -> bool {
         let lcdc = self.read_lcdc();
         is_bit_set(&lcdc, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT) // Note: this is DMG specific
             && is_bit_set(&lcdc, LCDC_WINDOW_ENABLE_BIT)

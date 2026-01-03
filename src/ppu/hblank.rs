@@ -11,6 +11,7 @@ pub fn hblank(
     bgw_fetcher: &mut BackgroundOrWindowFetcher,
     obj_fetcher: &mut ObjectFetcher,
     interrupts: &mut Interrupts,
+    t_cycle_count: u64,
 ) {
     event!(
         Level::TRACE,
@@ -20,9 +21,9 @@ pub fn hblank(
     );
     if ppu.scanline_dots == DOTS_PER_SCANLINE {
         ppu.scanline_dots = 0;
-        ppu.increment_ly(interrupts);
+        ppu.increment_ly(interrupts, t_cycle_count);
         if ppu.read_ly().0 as usize == LCD_VERTICAL_PIXEL_COUNT {
-            ppu.switch_to_vertical_blank(interrupts)
+            ppu.switch_to_vertical_blank(interrupts, t_cycle_count)
         } else {
             ppu.switch_to_oam_scan(bgw_fetcher, obj_fetcher)
         }

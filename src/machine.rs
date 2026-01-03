@@ -323,10 +323,6 @@ impl Machine {
         res
     }
 
-    pub fn request_interrupt(&mut self, interrupt_bit: u8) {
-        self.interrupts_mut().request(interrupt_bit);
-    }
-
     pub fn write_u8(&mut self, address: Wrapping<u16>, value: Wrapping<u8>) {
         if self.is_dmg_boot_rom_on() && address.0 <= 0xFF {
             panic!("Attempted write in boot ROM")
@@ -465,7 +461,12 @@ impl Machine {
             0xFF44..=0xFF44 => {
                 panic!("Something attempted to write to LY")
             }
-            0xFF45..=0xFF45 => self.ppu.lcd_y_compare = value,
+            0xFF45..=0xFF45 => {
+                let interrupts = &mut self.interrupts;
+                self.ppu.lcd_y_compare = value;
+                self.ppu
+                    .check_if_ly_equals_lyc(interrupts, self.t_cycle_count);
+            }
             0xFF46..=0xFF46 => {
                 // TODO: extract
                 // OAM DMA transfer (should take 640 dots)
@@ -503,7 +504,10 @@ impl Machine {
             }
 
             0xFF80..=0xFFFE => self.memory_mut().hram[address.0 as usize - 0xFF80] = value.0,
-            0xFFFF..=0xFFFF => self.interrupts_mut().interrupt_enable = value,
+            0xFFFF..=0xFFFF => {
+                event!(Level::DEBUG, "Write to interrupt enable: {:05b}", value);
+                self.interrupts_mut().interrupt_enable = value
+            }
             _ => panic!(
                 "Memory write at address {:04X} needs to be handle (at PC 0x{:04X})",
                 address,
@@ -551,16 +555,18 @@ impl Machine {
         elapsed += Interrupts::handle_interrupts(self);
         (instruction_executed, elapsed) = CPU::execute_one_instruction(self);
         let elapsed_t_cycles = elapsed.t_cycles();
+        self.t_cycle_count += elapsed_t_cycles as u64;
 
-        self.timers.ticks(&mut self.interrupts, elapsed_t_cycles);
+        self.timers
+            .ticks(&mut self.interrupts, self.t_cycle_count, elapsed_t_cycles);
         self.ppu.ticks(
             &mut self.background_window_fetcher,
             &mut self.interrupts,
             &mut self.object_fetcher,
             &mut self.pixel_fetcher,
             elapsed_t_cycles,
+            self.t_cycle_count,
         );
-        self.t_cycle_count += elapsed_t_cycles as u64;
 
         MachineStep {
             t_cycles: elapsed_t_cycles as u128,

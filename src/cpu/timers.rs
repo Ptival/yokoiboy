@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::machine::Machine;
 
-use super::interrupts::{Interrupts, TIMER_INTERRUPT_BIT};
+use super::interrupts::Interrupts;
 
 const DIVIDE_REGISTER_ADDRESS: u16 = 0xFF04;
 const TIMER_COUNTER_ADDRESS: u16 = 0xFF05;
@@ -48,7 +48,7 @@ impl Timers {
         }
     }
 
-    pub fn tick(&mut self, interrupts: &mut Interrupts) {
+    pub fn tick(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
         // TODO: Reset this on STOP
         // TODO: Freeze this while in STOP mode
         self.divide_register_dots += 1;
@@ -64,15 +64,15 @@ impl Timers {
                 self.timer_counter += 1;
                 if self.timer_counter.0 == 0 {
                     self.timer_counter = self.timer_modulo;
-                    interrupts.request(TIMER_INTERRUPT_BIT);
+                    interrupts.request_timer(t_cycle_count);
                 }
             }
         }
     }
 
-    pub fn ticks(&mut self, interrupts: &mut Interrupts, dots: u8) {
+    pub fn ticks(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64, dots: u8) {
         for _ in 0..dots {
-            self.tick(interrupts);
+            self.tick(interrupts, t_cycle_count);
         }
         if self.divide_register_to_be_reset {
             self.divide_register_to_be_reset = false;
