@@ -171,7 +171,7 @@ impl ApplicationState {
                             return InstructionStep {
                                 t_cycles: total_t_cycles,
                                 _instruction_executed: decoded_instruction,
-                            }
+                            };
                         }
                         None => {
                             let step = machine.step();

@@ -8,7 +8,7 @@ use crate::{
     application_state::{MapperType, ROMInformation},
     cpu::{interrupts::Interrupts, timers::Timers, CPU},
     inputs::Inputs,
-    instructions::{decode::DecodedInstruction, semantics::ElapsedCycles},
+    instructions::decode::DecodedInstruction,
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher, object::ObjectFetcher, Fetcher,
     },
@@ -549,12 +549,25 @@ impl Machine {
     }
 
     pub fn step(&mut self) -> MachineStep {
-        let instruction_executed: Option<DecodedInstruction>;
-        let mut elapsed: ElapsedCycles = ElapsedCycles { m_cycles: 0 };
-
-        elapsed += Interrupts::handle_interrupts(self);
-        (instruction_executed, elapsed) = CPU::execute_one_instruction(self);
-        let elapsed_t_cycles = elapsed.t_cycles();
+        // First we check for interrupts, which might end up moving the program pointer to an
+        // interrupt handler before we execute the next instruction
+        let elapsed_handling_interrupts = Interrupts::handle_interrupts(self);
+        if elapsed_handling_interrupts.m_cycles != 0 {
+            event!(
+                Level::DEBUG,
+                "Spent {} T-cycles handling an interrupt",
+                elapsed_handling_interrupts.t_cycles()
+            );
+        }
+        let (instruction_executed, elapsed_handling_instruction) =
+            CPU::execute_one_instruction(self);
+        event!(
+            Level::DEBUG,
+            "Spent {} T-cycles executing an instruction",
+            elapsed_handling_instruction.t_cycles()
+        );
+        let elapsed_t_cycles =
+            elapsed_handling_interrupts.t_cycles() + elapsed_handling_instruction.t_cycles();
         self.t_cycle_count += elapsed_t_cycles as u64;
 
         self.timers
@@ -567,6 +580,13 @@ impl Machine {
             elapsed_t_cycles,
             self.t_cycle_count,
         );
+
+        // event!(
+        //     Level::DEBUG,
+        //     "Cycle count: {}, LY: {}",
+        //     self.t_cycle_count,
+        //     self.ppu.read_ly()
+        // );
 
         MachineStep {
             t_cycles: elapsed_t_cycles as u128,

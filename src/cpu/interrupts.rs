@@ -75,8 +75,18 @@ impl Interrupts {
                 interrupt,
                 machine.t_cycle_count
             );
+            event!(
+                Level::DEBUG,
+                "Interrupt flag before handling: {:05b}",
+                machine.interrupts.interrupt_flag
+            );
             machine.interrupts.interrupt_flag =
                 machine.interrupts.interrupt_flag & Wrapping(!(1 << interrupt.bit_index));
+            event!(
+                Level::DEBUG,
+                "Interrupt flag after handling: {:05b}",
+                machine.interrupts.interrupt_flag
+            );
             machine.interrupts.interrupt_master_enable = false;
             // Here the CPU:
             // - NOPs twice (2 M-cycles)

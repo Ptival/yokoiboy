@@ -23,7 +23,7 @@ impl ApplicationState {
 
         let debugger = widget::Container::new(debugger_view)
             .width(300)
-            .height(432)
+            .height(500)
             .style(|_theme| {
                 container::Style::default().border(Border {
                     color: Color::BLACK,

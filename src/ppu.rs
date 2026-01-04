@@ -456,6 +456,7 @@ impl PPU {
         bgw_fetcher: &mut BackgroundOrWindowFetcher,
         obj_fetcher: &mut ObjectFetcher,
     ) {
+        // TODO: I think this can trigger a LY==LYC interrupt?
         self.lcd_y_coord = Wrapping(0);
 
         bgw_fetcher.prepare_for_new_frame();
@@ -477,6 +478,7 @@ impl PPU {
         dots: u8,
         t_cycle_count: u64,
     ) {
+        event!(Level::DEBUG, "Ticking the PPU {} dots", dots);
         for _ in 0..dots {
             self.tick(
                 bgw_fetcher,

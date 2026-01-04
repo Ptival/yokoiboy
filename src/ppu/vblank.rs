@@ -21,6 +21,7 @@ pub fn vblank(
     );
     if ppu.scanline_dots == DOTS_PER_SCANLINE {
         ppu.scanline_dots = 0;
+        event!(Level::DEBUG, "Incrementing LY for VBlank");
         ppu.increment_ly(interrupts, t_cycle_count);
         if ppu.read_ly().0 == 153 {
             ppu.prepare_for_new_frame(bgw_fetcher, obj_fetcher);

@@ -48,9 +48,13 @@ impl CPU {
         if machine.cpu_mut().low_power_mode {
             if machine.interrupts.is_interrupt_pending() {
                 machine.cpu_mut().low_power_mode = false;
-                // Not returning here in order to all through on wakeup and execute one instruction
+                // Not returning here in order to fall through on wakeup and execute one instruction
             } else {
                 // Otherwise, force the other components to move forward
+                event!(
+                    Level::DEBUG,
+                    "Not executing an instruction (low power mode)"
+                );
                 return (None, ElapsedCycles { m_cycles: 1 });
             }
         }
