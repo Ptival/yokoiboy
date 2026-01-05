@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     collections::VecDeque,
+    fmt,
     num::Wrapping,
 };
-use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
 
 use super::{Fetcher, TileAddressingMode};
@@ -48,6 +49,23 @@ pub struct Sprite {
     /// touches the bottom of the screen, and starts going off-screen.  At 160, the object is fully
     /// off-screen at the bottom.
     pub y_screen_plus_16: u8,
+
+    /// This is the offset of the object in the OAM.  This helps with "Drawing priority", as when
+    /// two objects have been selected that have the same X coordinate, the pixel should come from
+    /// the object lowest in OAM.
+    pub oam_offset: usize,
+}
+
+impl fmt::Display for Sprite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Sprite(x={:3},y={:3}, OAM#{})",
+            self.x_screen_plus_8 - 8,
+            self.y_screen_plus_16 - 16,
+            self.oam_offset
+        )
+    }
 }
 
 const FLIP_X_BIT: u8 = 5;
@@ -149,13 +167,13 @@ impl ObjectFetcher {
     pub fn tick(&mut self, ppu: &mut PPU) {
         match self.state {
             FetcherState::GetTileDelay => {
-                event!(Level::DEBUG, "OBJ fetcher awaiting tile");
+                event!(Level::TRACE, "OBJ fetcher awaiting tile");
                 self.state = FetcherState::GetTile
             }
 
             FetcherState::GetTile => {
-                event!(Level::DEBUG, "OBJ fetcher getting tile");
                 let current_x = self.count_pixels_queued_this_row as i16;
+                event!(Level::DEBUG, "OBJ fetcher getting tile for X={}", current_x);
                 let x_range = (current_x, current_x + 7);
 
                 // Technically we should only tick this when there is going to be a match
@@ -172,12 +190,12 @@ impl ObjectFetcher {
             }
 
             FetcherState::GetTileDataLowDelay => {
-                event!(Level::DEBUG, "OBJ fetcher awaiting tile low data");
+                event!(Level::TRACE, "OBJ fetcher awaiting tile low data");
                 self.state = FetcherState::GetTileDataLow
             }
 
             FetcherState::GetTileDataLow => {
-                event!(Level::DEBUG, "OBJ fetcher getting tile low data");
+                event!(Level::TRACE, "OBJ fetcher getting tile low data");
                 let ly = ppu.read_ly();
                 match self.sprite.clone() {
                     Some(sprite) => Fetcher::read_tile_row(
@@ -200,12 +218,12 @@ impl ObjectFetcher {
             }
 
             FetcherState::GetTileDataHighDelay => {
-                event!(Level::DEBUG, "OBJ fetcher awaiting tile high data");
+                event!(Level::TRACE, "OBJ fetcher awaiting tile high data");
                 self.state = FetcherState::GetTileDataHigh
             }
 
             FetcherState::GetTileDataHigh => {
-                event!(Level::DEBUG, "OBJ fetcher getting tile high data");
+                event!(Level::TRACE, "OBJ fetcher getting tile high data");
                 let ly = ppu.read_ly();
                 match self.sprite.clone() {
                     Some(sprite) => Fetcher::read_tile_row(
@@ -229,7 +247,7 @@ impl ObjectFetcher {
             FetcherState::PushRow => {
                 let obj_fifo_len = self.fifo.len();
                 event!(
-                    Level::DEBUG,
+                    Level::TRACE,
                     "OBJ fetcher pushing pixels over {obj_fifo_len} pixels"
                 );
                 // Object FIFO pixels are merged with existing object FIFO pixels:

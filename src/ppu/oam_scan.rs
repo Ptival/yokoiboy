@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt};
 
 use tracing::{event, Level};
 
@@ -12,12 +12,6 @@ use crate::{
 };
 
 pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &mut Fetcher) {
-    event!(
-        Level::TRACE,
-        "OAM scanning, LY={ly}, dot {dots}/80",
-        ly = ppu.read_ly(),
-        dots = ppu.scanline_dots
-    );
     if ppu.scanline_dots == 80 {
         let ly = ppu.read_ly().0 as usize;
 
@@ -61,9 +55,28 @@ pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &
                     y_screen_plus_16,
                     tile_index,
                     attributes: ppu.object_attribute_memory[object_offset + 3],
+                    oam_offset: object_offset,
                 });
             }
         }
+
+        struct DisplaySelectedObjects<'a>(&'a VecDeque<Sprite>);
+        impl<'a> fmt::Display for DisplaySelectedObjects<'a> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "\n")?;
+                for s in self.0 {
+                    write!(f, "{}\n", s)?;
+                }
+                Ok(())
+            }
+        }
+
+        event!(
+            Level::DEBUG,
+            "OAM scan finished, LY={}, selected objects: {}",
+            ppu.read_ly(),
+            DisplaySelectedObjects(&selected_objects)
+        );
 
         obj_fetcher.selected_objects = selected_objects;
         ppu.switch_to_drawing_pixels(pixel_fetcher);
