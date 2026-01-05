@@ -12,6 +12,7 @@ use crate::{
 };
 
 pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &mut Fetcher) {
+    // Note: we simulate OAM as one big step at the 80 dots mark
     if ppu.scanline_dots == 80 {
         let ly = ppu.read_ly().0 as usize;
 
@@ -79,6 +80,9 @@ pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &
         );
 
         obj_fetcher.selected_objects = selected_objects;
+        if !obj_fetcher.is_idle() {
+            panic!("This should not happen: {:?}", obj_fetcher.state)
+        }
         ppu.switch_to_drawing_pixels(pixel_fetcher);
     }
 }

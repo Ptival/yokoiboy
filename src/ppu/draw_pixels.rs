@@ -1,9 +1,11 @@
+use core::panic;
+
 use tracing::{event, Level};
 
 use crate::{
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher,
-        object::{ObjectFetcher, ObjectPalette},
+        object::{ObjectFIFOItem, ObjectFetcher, ObjectPalette},
         Fetcher, FetchingFor,
     },
     ppu::{
@@ -40,19 +42,39 @@ pub fn draw_pixels(
     }
 
     let fetcher_state = &pixel_fetcher.fetching_for;
-    if obj_fifo_len == 0 && bgw_fifo_len != 0 {
-        if *fetcher_state == FetchingFor::BackgroundOrWindowFIFO {
+
+    // Check if we should fetch a sprite
+    if obj_fetcher.is_idle() {
+        if obj_fetcher
+            .selected_objects
+            .get(0)
+            .is_some_and(|o| o.x_screen_plus_8 - 8 == ppu.lcd_x_coord.0)
+        {
+            event!(Level::DEBUG, "Switching pixel fetcher to OBJ FIFO");
             pixel_fetcher.switch_to_object_fifo();
+            let obj = obj_fetcher.selected_objects.pop_front().unwrap();
+            obj_fetcher.prepare_for_fetch(obj);
+        } else if *fetcher_state == FetchingFor::ObjectFIFO {
+            event!(Level::DEBUG, "Switching pixel fetcher back to BGW FIFO");
+            pixel_fetcher.switch_to_background_or_window_fifo();
+        } else {
+            event!(
+                Level::TRACE,
+                "Remaining in fetcher state {:?} for LX={}",
+                *fetcher_state,
+                ppu.lcd_x_coord
+            );
         }
     } else {
-        if *fetcher_state == FetchingFor::ObjectFIFO {
-            pixel_fetcher.switch_to_background_or_window_fifo();
-        }
+        event!(Level::DEBUG, "Awaiting OBJ fetcher to go idle",);
     }
+
+    event!(Level::TRACE, "Ticking {:?}", pixel_fetcher.fetching_for);
     pixel_fetcher.tick(bgw_fetcher, obj_fetcher, ppu);
 
     // Pixel mixing only happens when both FIFO are non-empty
-    if !bgw_fetcher.fifo.is_empty() && !obj_fetcher.fifo.is_empty() {
+    if !bgw_fetcher.fifo.is_empty() && obj_fetcher.is_idle() {
+        // && !obj_fetcher.fifo.is_empty() {
         // To support fine scrolling, the first (scx % 8) pixels are dropped from FIFOs
         if dropped_pixels < ppu.scx.0 % 8 {
             bgw_fetcher.fifo.pop_front();
@@ -70,7 +92,22 @@ pub fn draw_pixels(
         }
 
         let bgw_pixel = bgw_fetcher.fifo.pop_front().unwrap();
-        let obj_pixel = obj_fetcher.fifo.pop_front().unwrap();
+        let obj_pixel = match obj_fetcher.fifo.pop_front() {
+            Some(obj_pixel) => {
+                event!(
+                    Level::DEBUG,
+                    "For X={}, popped an OBJ pixel {:?}",
+                    ppu.drawn_pixels_on_current_row,
+                    obj_pixel
+                );
+                obj_pixel
+            }
+            None => ObjectFIFOItem {
+                bg_over_obj: false,
+                color: 0,
+                palette: ObjectPalette::ObjectPalette0,
+            },
+        };
         let pixel_x = ppu.drawn_pixels_on_current_row;
         let pixel_y = ly;
 
@@ -114,6 +151,7 @@ pub fn draw_pixels(
             }
         }
         ppu.drawn_pixels_on_current_row += 1;
+        ppu.lcd_x_coord += 1;
 
         if ppu.drawn_pixels_on_current_row as usize == LCD_HORIZONTAL_PIXEL_COUNT {
             ppu.switch_to_horizontal_blank()

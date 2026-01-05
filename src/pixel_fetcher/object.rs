@@ -15,8 +15,8 @@ use crate::{
     utils::is_bit_set,
 };
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-enum FetcherState {
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FetcherNonIdleState {
     GetTileDelay,
     GetTile,
     GetTileDataLowDelay,
@@ -26,7 +26,13 @@ enum FetcherState {
     PushRow,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FetcherState {
+    Idle,
+    NonIdle(FetcherNonIdleState, Sprite),
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Sprite {
     pub attributes: u8,
     pub tile_index: u8,
@@ -125,10 +131,8 @@ impl Default for ObjectFIFOItem {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ObjectFetcher {
-    state: FetcherState,
-    count_pixels_queued_this_row: u8,
+    pub state: FetcherState,
     pub fifo: VecDeque<ObjectFIFOItem>,
-    sprite: Option<Sprite>,
     tile_row_data: [u8; 8],
     /// During OAM scan, the PPU will populate this with the first 10 (or fewer) objects it finds
     /// intersecting with the current scanline.  These will get rendered, additional objects on the
@@ -143,200 +147,146 @@ pub fn inclusive_ranges_overlap((s1, e1): (i16, i16), (s2, e2): (i16, i16)) -> b
 impl ObjectFetcher {
     pub fn new() -> Self {
         ObjectFetcher {
-            count_pixels_queued_this_row: 0,
-            state: FetcherState::GetTileDelay,
+            state: FetcherState::Idle,
             fifo: VecDeque::new(),
-            sprite: None,
             tile_row_data: [0; 8],
             selected_objects: VecDeque::new(),
         }
     }
 
+    pub fn is_idle(&self) -> bool {
+        return self.state == FetcherState::Idle;
+    }
+
+    pub fn prepare_for_fetch(&mut self, sprite: Sprite) {
+        self.state = FetcherState::NonIdle(FetcherNonIdleState::GetTileDelay, sprite);
+        self.tile_row_data = [0; 8];
+    }
+
     pub fn prepare_for_new_row(&mut self) {
-        self.state = FetcherState::GetTileDelay;
-        self.count_pixels_queued_this_row = 0;
+        self.state = FetcherState::Idle;
         self.fifo.clear();
         self.tile_row_data = [0; 8];
     }
 
     pub fn prepare_for_new_frame(&mut self) {
-        self.state = FetcherState::GetTileDelay;
+        self.state = FetcherState::Idle;
         self.fifo.clear();
+        self.tile_row_data = [0; 8];
     }
 
+    // TODO: Technically, the OBJ fetcher might have to wait if the BGW fetcher is already accessing
+    // VRAM
     pub fn tick(&mut self, ppu: &mut PPU) {
         match self.state {
-            FetcherState::GetTileDelay => {
-                event!(Level::TRACE, "OBJ fetcher awaiting tile");
-                self.state = FetcherState::GetTile
+            FetcherState::Idle => {
+                panic!("The object fetcher was ticked while idle, please report.")
             }
 
-            FetcherState::GetTile => {
-                let current_x = self.count_pixels_queued_this_row as i16;
-                event!(Level::DEBUG, "OBJ fetcher getting tile for X={}", current_x);
-                let x_range = (current_x, current_x + 7);
-
-                // Technically we should only tick this when there is going to be a match
-                self.sprite = self
-                    .selected_objects
-                    .iter()
-                    .find(|item| {
-                        let item_x_screen = item.x_screen_plus_8 as u16 as i16 - 8;
-                        inclusive_ranges_overlap(x_range, (item_x_screen, item_x_screen + 7))
-                    })
-                    .map(|i| i.clone());
-
-                self.state = FetcherState::GetTileDataLowDelay
-            }
-
-            FetcherState::GetTileDataLowDelay => {
-                event!(Level::TRACE, "OBJ fetcher awaiting tile low data");
-                self.state = FetcherState::GetTileDataLow
-            }
-
-            FetcherState::GetTileDataLow => {
-                event!(Level::TRACE, "OBJ fetcher getting tile low data");
-                let ly = ppu.read_ly();
-                match self.sprite.clone() {
-                    Some(sprite) => Fetcher::read_tile_row(
-                        &ppu.vram,
-                        // Objects always use $8000 addressing
-                        &TileAddressingMode::UnsignedFrom0x8000,
-                        ly.0,
-                        ppu.scy.0,
-                        sprite.tile_index,
-                        sprite.flip_x(),
-                        sprite.flip_y(),
-                        false,
-                        &mut self.tile_row_data,
-                    ),
-                    None => {
-                        self.tile_row_data = [0; 8];
+            FetcherState::NonIdle(non_idle_state, sprite) => {
+                match non_idle_state {
+                    FetcherNonIdleState::GetTileDelay => {
+                        event!(Level::TRACE, "OBJ fetcher awaiting tile");
+                        self.state = FetcherState::NonIdle(FetcherNonIdleState::GetTile, sprite)
                     }
-                }
-                self.state = FetcherState::GetTileDataHighDelay
-            }
 
-            FetcherState::GetTileDataHighDelay => {
-                event!(Level::TRACE, "OBJ fetcher awaiting tile high data");
-                self.state = FetcherState::GetTileDataHigh
-            }
-
-            FetcherState::GetTileDataHigh => {
-                event!(Level::TRACE, "OBJ fetcher getting tile high data");
-                let ly = ppu.read_ly();
-                match self.sprite.clone() {
-                    Some(sprite) => Fetcher::read_tile_row(
-                        &ppu.vram,
-                        &TileAddressingMode::UnsignedFrom0x8000,
-                        ly.0,
-                        ppu.scy.0,
-                        sprite.tile_index,
-                        sprite.flip_x(),
-                        sprite.flip_y(),
-                        true,
-                        &mut self.tile_row_data,
-                    ),
-                    None => {
-                        self.tile_row_data = [0; 8];
+                    FetcherNonIdleState::GetTile => {
+                        event!(Level::TRACE, "OBJ fetcher selected sprite");
+                        self.state =
+                            FetcherState::NonIdle(FetcherNonIdleState::GetTileDataLowDelay, sprite)
                     }
-                }
-                self.state = FetcherState::PushRow
-            }
 
-            FetcherState::PushRow => {
-                let obj_fifo_len = self.fifo.len();
-                event!(
-                    Level::TRACE,
-                    "OBJ fetcher pushing pixels over {obj_fifo_len} pixels"
-                );
-                // Object FIFO pixels are merged with existing object FIFO pixels:
-                // Those with ID 0 are overwritten by latter ones, otherwise the existing one wins
-                if let Some(sprite) = self.sprite.clone() {
-                    for i in 0..8 {
-                        // Here, the color to use depends on the X displacement of the sprite.  For
-                        // X coordinates to the left of the sprite, we want to push transparent
-                        // pixels.  Then we want to push pixels from the sprite.
-                        let x_of_pixel_to_draw = self.count_pixels_queued_this_row as i16;
-                        let sprite_leftmost_x = sprite.x_screen_plus_8 as i16 - 8;
-                        let sprite_rightmost_x = sprite.x_screen_plus_8 as i16 - 1;
+                    FetcherNonIdleState::GetTileDataLowDelay => {
+                        event!(Level::TRACE, "OBJ fetcher awaiting tile low data");
+                        self.state =
+                            FetcherState::NonIdle(FetcherNonIdleState::GetTileDataLow, sprite)
+                    }
 
-                        // Three cases here:
-                        //
-                        // 1. The current X to draw is before the sprite start.  We should push a
-                        // transparent pixel.
-                        //
-                        // 2. The current X to draw is beyond the sprint end.  We should **not**
-                        // push anything.  Some other object might need to be drawn here.
-                        //
-                        // 3. Otherwise, the current X to draw overlaps the sprite, we should push
-                        // the appropriate pixel from the sprite.
+                    FetcherNonIdleState::GetTileDataLow => {
+                        event!(Level::TRACE, "OBJ fetcher getting tile low data");
+                        let ly = ppu.read_ly();
+                        Fetcher::read_tile_row(
+                            &ppu.vram,
+                            // Objects always use $8000 addressing
+                            &TileAddressingMode::UnsignedFrom0x8000,
+                            ly.0,
+                            ppu.scy.0,
+                            sprite.tile_index,
+                            sprite.flip_x(),
+                            sprite.flip_y(),
+                            false,
+                            &mut self.tile_row_data,
+                        );
+                        self.state =
+                            FetcherState::NonIdle(FetcherNonIdleState::GetTileDataHighDelay, sprite)
+                    }
 
-                        if x_of_pixel_to_draw < sprite_leftmost_x {
-                            self.fifo.push_back(ObjectFIFOItem::default());
-                            self.count_pixels_queued_this_row += 1;
-                        } else if x_of_pixel_to_draw > sprite_rightmost_x {
-                            // do nothing, do **not** push a transparent pixel!!!
-                        } else {
-                            // if X is 123 and spriteX is 123, we want to grab pixel 0
-                            // if X is 123 and spriteX is 120, we want to grab pixel 3
-                            let color = self.tile_row_data
-                                [(x_of_pixel_to_draw - sprite_leftmost_x) as usize];
+                    FetcherNonIdleState::GetTileDataHighDelay => {
+                        event!(Level::TRACE, "OBJ fetcher awaiting tile high data");
+                        self.state =
+                            FetcherState::NonIdle(FetcherNonIdleState::GetTileDataHigh, sprite)
+                    }
 
+                    FetcherNonIdleState::GetTileDataHigh => {
+                        event!(Level::TRACE, "OBJ fetcher getting tile high data");
+                        let ly = ppu.read_ly();
+                        Fetcher::read_tile_row(
+                            &ppu.vram,
+                            &TileAddressingMode::UnsignedFrom0x8000,
+                            ly.0,
+                            ppu.scy.0,
+                            sprite.tile_index,
+                            sprite.flip_x(),
+                            sprite.flip_y(),
+                            true,
+                            &mut self.tile_row_data,
+                        );
+                        self.state = FetcherState::NonIdle(FetcherNonIdleState::PushRow, sprite)
+                    }
+
+                    FetcherNonIdleState::PushRow => {
+                        let obj_fifo_len = self.fifo.len();
+                        event!(
+                            Level::TRACE,
+                            "OBJ fetcher pushing pixels over {obj_fifo_len} pixels"
+                        );
+                        // Object FIFO pixels are merged with existing object FIFO pixels:
+                        // Those with ID 0 are overwritten by latter ones, otherwise the existing one wins
+                        for i in 0..8 {
+                            let color = self.tile_row_data[i];
                             if i < obj_fifo_len {
                                 // Pixel merging following OBJ-to-OBJ priority
                                 let old_item = self.fifo[i].clone();
                                 if old_item.color == 0 {
                                     self.fifo[i] = ObjectFIFOItem {
-                                        bg_over_obj: self
-                                            .sprite
-                                            .as_ref()
-                                            .map_or(false, |s| s.bg_over_obj()),
+                                        bg_over_obj: sprite.bg_over_obj(),
                                         color,
-                                        palette: palette_for_sprite(self.sprite.as_ref()),
+                                        palette: palette_for_sprite(&sprite),
                                     };
                                 }
                             } else {
                                 let item = ObjectFIFOItem {
-                                    bg_over_obj: self
-                                        .sprite
-                                        .as_ref()
-                                        .map_or(false, |s| s.bg_over_obj()),
+                                    bg_over_obj: sprite.bg_over_obj(),
                                     color,
-                                    palette: palette_for_sprite(self.sprite.as_ref()),
+                                    palette: palette_for_sprite(&sprite),
                                 };
                                 event!(Level::TRACE, "Pushing OBJ {:#?}", item);
                                 // No pixel to merge with, just push
                                 self.fifo.push_back(item);
-                                self.count_pixels_queued_this_row += 1;
                             }
                         }
+                        self.state = FetcherState::Idle
                     }
-                } else {
-                    for _ in 0..8 {
-                        self.fifo.push_back(ObjectFIFOItem {
-                            bg_over_obj: false,
-                            color: 0,
-                            palette: ObjectPalette::ObjectPalette0,
-                        });
-                    }
-                    self.count_pixels_queued_this_row += 8;
                 }
-                // clean up so that GetTileData can assume 0
-                self.tile_row_data = [0; 8];
-                self.state = FetcherState::GetTileDelay
             }
         }
     }
 }
 
-fn palette_for_sprite(sprite: Option<&Sprite>) -> ObjectPalette {
-    match sprite {
-        Some(sprite) => match (sprite.attributes >> 4) & 1 {
-            0b0 => ObjectPalette::ObjectPalette0,
-            0b1 => ObjectPalette::ObjectPalette1,
-            _ => unreachable!(),
-        },
-        None => ObjectPalette::ObjectPalette0, // does not matter
+fn palette_for_sprite(sprite: &Sprite) -> ObjectPalette {
+    match (sprite.attributes >> 4) & 1 {
+        0b0 => ObjectPalette::ObjectPalette0,
+        0b1 => ObjectPalette::ObjectPalette1,
+        _ => unreachable!(),
     }
 }

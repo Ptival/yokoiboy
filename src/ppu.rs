@@ -99,7 +99,10 @@ impl Default for LCDPixelMetadata {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PPU {
     /** PPU state **/
+    // The actual number of pixels output to the LCD
     pub drawn_pixels_on_current_row: u8,
+    // The running X coordinate for the PPU.  0 here corresponds to -8 on the LCD.
+    lcd_x_coord: Wrapping<u8>,
     fix_ly_for_gb_doctor: FixLY,
     /// Because the STAT interrupt is triggered on a rising edge of the STAT line, we need to
     /// remember its previous value.
@@ -274,6 +277,7 @@ impl PPU {
     pub fn new(fix_ly: FixLY, skip_boot: SkipBoot) -> Self {
         PPU {
             drawn_pixels_on_current_row: 0,
+            lcd_x_coord: Wrapping(0),
             fix_ly_for_gb_doctor: fix_ly,
             last_stat_line: 0,
             scanline_dots: 0,
@@ -512,10 +516,12 @@ impl PPU {
         }
 
         match self.state {
+            // Mode 2: searching for objects that overlap with the scanline
             PPUState::OAMScan => {
                 oam_scan(self, obj_fetcher, pixel_fetcher);
             }
 
+            // Mode 3: sending pixels to LCD
             PPUState::DrawingPixels(dropped_pixels) => {
                 draw_pixels(
                     self,
@@ -526,10 +532,12 @@ impl PPU {
                 );
             }
 
+            // Mode 0: waiting until the end of this scanline
             PPUState::HorizontalBlank => {
                 hblank(self, bgw_fetcher, obj_fetcher, interrupts, t_cycle_count);
             }
 
+            // Mode 1: waiting until the end of this frame
             PPUState::VerticalBlank => {
                 vblank(self, bgw_fetcher, obj_fetcher, interrupts, t_cycle_count);
             }
@@ -619,6 +627,7 @@ impl PPU {
         obj_fetcher: &mut ObjectFetcher,
     ) {
         self.drawn_pixels_on_current_row = 0;
+        self.lcd_x_coord = Wrapping(0);
         bgw_fetcher.prepare_for_new_row();
         obj_fetcher.prepare_for_new_row();
         // Disabled because it locks LCD for Dr. Mario:
