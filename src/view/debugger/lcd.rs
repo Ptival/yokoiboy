@@ -2,7 +2,7 @@ use iced::widget::{self, row, Column};
 
 use crate::{machine::Machine, message::Message};
 
-pub fn view(machine: &Machine) -> Column<Message> {
+pub fn view(machine: &Machine) -> Column<'_, Message> {
     let mut lcdc_grid_right = Column::new();
     lcdc_grid_right = lcdc_grid_right.push(row![
         widget::text("      "), // same length as "LCDC: "

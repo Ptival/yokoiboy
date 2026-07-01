@@ -5,7 +5,7 @@ use crate::{
     registers::{Flag, Registers},
 };
 
-pub fn view(registers: &Registers) -> Column<Message> {
+pub fn view(registers: &Registers) -> Column<'_, Message> {
     let mut registers_grid = Column::new();
 
     registers_grid = registers_grid.push(row![

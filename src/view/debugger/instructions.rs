@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{application_state::ApplicationState, memory::Memory, message::Message};
 
-pub fn view(app: &ApplicationState) -> Column<Message> {
+pub fn view(app: &ApplicationState) -> Column<'_, Message> {
     let mut instructions_grid = Column::new();
     let history_size = app.snaps.len() - 1;
     let history_style = |_: &Theme| widget::text::Style {

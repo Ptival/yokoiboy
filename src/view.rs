@@ -14,7 +14,7 @@ use crate::application_state::ApplicationState;
 use crate::message::Message;
 
 impl ApplicationState {
-    pub fn view(app: &ApplicationState) -> Element<Message> {
+    pub fn view(app: &ApplicationState) -> Element<'_, Message> {
         let machine = app.current_machine();
         let debugger_view = debugger::view(app);
 

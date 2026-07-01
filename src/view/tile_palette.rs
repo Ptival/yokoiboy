@@ -46,12 +46,8 @@ impl<'a> Widget<Message, iced::Theme, iced::Renderer> for TilePalette<'a> {
         }
     }
 
-    fn children(&self) -> Vec<Tree> {
-        vec![Tree::new(&self.tile_palette_widget)]
-    }
-
-    fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(&[&self.tile_palette_widget]);
+    fn diff(&mut self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_mut(&mut self.tile_palette_widget));
     }
 
     fn layout(
@@ -106,7 +102,7 @@ impl<'a> Widget<Message, iced::Theme, iced::Renderer> for TilePalette<'a> {
         layout: layout::Layout<'_>,
         _cursor: iced::advanced::mouse::Cursor,
         _renderer: &iced::Renderer,
-        _clipboard: &mut dyn iced::advanced::Clipboard,
+        // _clipboard: &mut dyn iced::advanced::Clipboard,
         shell: &mut iced::advanced::Shell<'_, Message>,
         _viewport: &iced::Rectangle,
     ) {

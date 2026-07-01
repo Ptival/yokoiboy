@@ -7,7 +7,7 @@ use iced::widget::{self, row, Column};
 
 use crate::{machine::Machine, message::Message};
 
-pub fn view(machine: &Machine) -> Column<Message> {
+pub fn view(machine: &Machine) -> Column<'_, Message> {
     let mut stack_grid = Column::new();
     stack_grid = stack_grid.push(row![widget::text("Stack:")]);
 
