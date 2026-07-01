@@ -239,7 +239,7 @@ impl ApplicationState {
                 if step_before_check.into() {
                     self.execute_one_instruction(PreserveHistory::DontPreserveHistory);
                 }
-                Task::done(Message::ContinueRunUntilBreakpoint)
+                Task::future(async { Message::ContinueRunUntilBreakpoint })
             }
             Message::ContinueRunUntilBreakpoint => {
                 let initial_time = time::Instant::now();
@@ -273,7 +273,7 @@ impl ApplicationState {
                     // Note: I think technically we should save this time, so that we can account
                     // for the application rendering time as part of the next frame time.  Currently
                     // does not matter much though.
-                    Task::done(Message::ContinueRunUntilBreakpoint)
+                    Task::future(async { Message::ContinueRunUntilBreakpoint })
                 } else {
                     // If we're stopping for a breakpoint, no need for frame accuracy
                     Task::none()
