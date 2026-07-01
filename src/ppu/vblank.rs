@@ -15,14 +15,19 @@ pub fn vblank(
 ) {
     event!(
         Level::TRACE,
-        "VBlank, scanline: {scanline}, LY: {ly}",
+        "VBlank, dots on this scanline: {scanline}, LY: {ly}",
         scanline = ppu.scanline_dots,
         ly = ppu.read_ly()
     );
     if ppu.scanline_dots == DOTS_PER_SCANLINE {
         ppu.scanline_dots = 0;
-        event!(Level::DEBUG, "Incrementing LY for VBlank");
         ppu.increment_ly(interrupts, t_cycle_count);
+        event!(
+            Level::DEBUG,
+            "Incremented LY to {} during VBlank (LYC = {})",
+            ppu.read_ly(),
+            ppu.lcd_y_compare
+        );
         if ppu.read_ly().0 == 153 {
             ppu.prepare_for_new_frame(bgw_fetcher, obj_fetcher);
             ppu.switch_to_oam_scan(bgw_fetcher, obj_fetcher)

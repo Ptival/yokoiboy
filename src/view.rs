@@ -68,7 +68,8 @@ impl ApplicationState {
                         pixel_debugger::view(app.lcd_pixel_under_mouse),
                         tile_debugger::view(app.tile_id_under_mouse)
                     ],
-                    lcd::LCD::new(&machine.ppu.lcd.pixels),
+                    lcd::LCD::new(&machine.ppu.lcd_last_finished_frame.pixels),
+                    lcd::LCD::new(&machine.ppu.lcd_for_next_frame.pixels),
                 ],
                 row![tile_map0, tile_map1],
             ],

@@ -28,6 +28,7 @@ const WRAM_SIZE: usize = 0x1000;
 
 pub const LCD_HORIZONTAL_PIXEL_COUNT: usize = 160;
 pub const LCD_VERTICAL_PIXEL_COUNT: usize = 144;
+pub const LCD_PIXEL_COUNT: usize = LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT;
 
 const DOTS_PER_SCANLINE: u16 = 456;
 
@@ -148,7 +149,9 @@ pub struct PPU {
 
     // Rendered pixel surfaces
     #[serde(skip)]
-    pub lcd: Box<LCDPixels>,
+    pub lcd_last_finished_frame: Box<LCDPixels>,
+    #[serde(skip)]
+    pub lcd_for_next_frame: Box<LCDPixels>,
     #[serde(skip)]
     pub tile_map0: Box<TileMapPixels>,
     #[serde(skip)]
@@ -157,8 +160,7 @@ pub struct PPU {
     pub tile_palette: Box<TilePalettePixels>,
 
     #[serde(with = "BigArray")]
-    pub lcd_pixels_meta:
-        [LCDPixelMetadata; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
+    pub lcd_pixels_meta: [LCDPixelMetadata; LCD_PIXEL_COUNT * PIXEL_DATA_SIZE],
 
     #[serde(skip)]
     pub debug: PPUDebug,
@@ -180,13 +182,13 @@ impl Default for WRAM {
 
 #[derive(Clone, Debug)]
 pub struct LCDPixels {
-    pub pixels: [u8; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
+    pub pixels: [u8; LCD_PIXEL_COUNT * PIXEL_DATA_SIZE],
 }
 
 impl Default for LCDPixels {
     fn default() -> Self {
         Self {
-            pixels: [0; LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
+            pixels: [0; LCD_PIXEL_COUNT * PIXEL_DATA_SIZE],
         }
     }
 }
@@ -315,13 +317,13 @@ impl PPU {
             // 2. Insert SIZE elements
             // 3. into_boxed_slice()
             // 4. Box::from_raw(Box::into_raw(b) as *mut [T; n])
-            lcd: Box::new(LCDPixels::default()),
+            lcd_for_next_frame: Box::new(LCDPixels::default()),
+            lcd_last_finished_frame: Box::new(LCDPixels::default()),
             tile_map0: Box::new(TileMapPixels::default()),
             tile_map1: Box::new(TileMapPixels::default()),
             tile_palette: Box::new(TilePalettePixels::default()),
 
-            lcd_pixels_meta: [LCDPixelMetadata::default();
-                LCD_HORIZONTAL_PIXEL_COUNT * LCD_VERTICAL_PIXEL_COUNT * PIXEL_DATA_SIZE],
+            lcd_pixels_meta: [LCDPixelMetadata::default(); LCD_PIXEL_COUNT * PIXEL_DATA_SIZE],
 
             debug: PPUDebug::default(),
         }
@@ -482,7 +484,7 @@ impl PPU {
         dots: u8,
         t_cycle_count: u64,
     ) {
-        event!(Level::DEBUG, "Ticking the PPU {} dots", dots);
+        // event!(Level::DEBUG, "Ticking the PPU {} dots", dots);
         for _ in 0..dots {
             self.tick(
                 bgw_fetcher,
@@ -655,6 +657,13 @@ impl PPU {
     }
 
     fn switch_to_vertical_blank(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
+        event!(
+            Level::DEBUG,
+            "Copying LCD next frame to last finished frame"
+        );
+        self.lcd_last_finished_frame
+            .pixels
+            .copy_from_slice(&self.lcd_for_next_frame.pixels);
         // Disabled because it locks LCD for Dr. Mario:
         // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 1);
         utils::unset_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);

@@ -155,11 +155,11 @@ impl Fetcher {
     ) {
         match self.fetching_for {
             FetchingFor::BackgroundOrWindowFIFO => {
-                event!(Level::DEBUG, "Fetching pixels for BGW FIFO");
+                event!(Level::TRACE, "Fetching pixels for BGW FIFO");
                 bgw_fetcher.tick(ppu);
             }
             FetchingFor::ObjectFIFO => {
-                event!(Level::DEBUG, "Fetching pixels for OBJ FIFO");
+                event!(Level::TRACE, "Fetching pixels for OBJ FIFO");
                 obj_fetcher.tick(ppu);
             }
         }

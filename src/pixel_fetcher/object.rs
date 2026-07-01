@@ -270,7 +270,7 @@ impl ObjectFetcher {
                                     color,
                                     palette: palette_for_sprite(&sprite),
                                 };
-                                event!(Level::TRACE, "Pushing OBJ {:#?}", item);
+                                event!(Level::DEBUG, "Pushing OBJ {:#?} for sprite {}", item, sprite);
                                 // No pixel to merge with, just push
                                 self.fifo.push_back(item);
                             }

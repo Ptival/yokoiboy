@@ -16,5 +16,6 @@ pub enum Message {
     QuickLoad,
     QuickSave,
     Quit,
+    RunNextCycles,
     RunNextInstruction,
 }

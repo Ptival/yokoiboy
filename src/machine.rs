@@ -561,11 +561,23 @@ impl Machine {
         }
         let (instruction_executed, elapsed_handling_instruction) =
             CPU::execute_one_instruction(self);
-        event!(
-            Level::DEBUG,
-            "Spent {} T-cycles executing an instruction",
-            elapsed_handling_instruction.t_cycles()
-        );
+        match &instruction_executed {
+            Some(instr) => {
+                event!(
+                    Level::DEBUG,
+                    "Spent {} T-cycles executing an instruction: {}",
+                    elapsed_handling_instruction.t_cycles(),
+                    instr
+                );
+            }
+            None => {
+                event!(
+                    Level::TRACE,
+                    "Spent {} T-cycles awaiting in low-power mode",
+                    elapsed_handling_instruction.t_cycles()
+                )
+            }
+        }
         let elapsed_t_cycles =
             elapsed_handling_interrupts.t_cycles() + elapsed_handling_instruction.t_cycles();
         self.t_cycle_count += elapsed_t_cycles as u64;

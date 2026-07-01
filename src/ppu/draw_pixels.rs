@@ -141,7 +141,7 @@ pub fn draw_pixels(
             );
         } else {
             let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
-            ppu.lcd.pixels[from..from + 4].copy_from_slice(&rgba);
+            ppu.lcd_for_next_frame.pixels[from..from + 4].copy_from_slice(&rgba);
             for i in from..from + 4 {
                 ppu.lcd_pixels_meta[i] = LCDPixelMetadata {
                     bgw_pixel,

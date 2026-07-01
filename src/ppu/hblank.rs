@@ -21,8 +21,13 @@ pub fn hblank(
     );
     if ppu.scanline_dots == DOTS_PER_SCANLINE {
         ppu.scanline_dots = 0;
-        event!(Level::DEBUG, "Incrementing LY for HBlank");
         ppu.increment_ly(interrupts, t_cycle_count);
+        event!(
+            Level::DEBUG,
+            "Incremented LY to {} during HBlank (LYC={})",
+            ppu.read_ly(),
+            ppu.lcd_y_compare
+        );
         if ppu.read_ly().0 as usize == LCD_VERTICAL_PIXEL_COUNT {
             ppu.switch_to_vertical_blank(interrupts, t_cycle_count)
         } else {

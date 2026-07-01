@@ -52,7 +52,7 @@ impl CPU {
             } else {
                 // Otherwise, force the other components to move forward
                 event!(
-                    Level::DEBUG,
+                    Level::TRACE,
                     "Not executing an instruction (low power mode)"
                 );
                 return (None, ElapsedCycles { m_cycles: 1 });

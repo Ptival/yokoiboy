@@ -216,9 +216,11 @@ impl ApplicationState {
                     keyboard::Key::Named(keyboard::key::Named::ArrowDown) => Some(
                         Message::BeginRunUntilBreakpoint(StepBeforeCheckingBreakpoint::Yes),
                     ),
-                    keyboard::Key::Named(keyboard::key::Named::ArrowRight) => {
-                        Some(Message::RunNextInstruction)
-                    }
+                    keyboard::Key::Character(c) => match c.as_str() {
+                        "s" => Some(Message::RunNextCycles),
+                        "n" => Some(Message::RunNextInstruction),
+                        _ => None,
+                    },
                     keyboard::Key::Named(keyboard::key::Named::Space) => Some(Message::Pause),
                     keyboard::Key::Named(keyboard::key::Named::Escape) => Some(Message::Quit),
                     keyboard::Key::Named(keyboard::key::Named::F5) => Some(Message::QuickSave),
@@ -294,6 +296,13 @@ impl ApplicationState {
                     output_file.flush().expect("flush failed");
                 }
                 exit()
+            }
+            Message::RunNextCycles => {
+                let mut next_machine = self.current_machine_mut().clone();
+                next_machine.step();
+                self.snaps.push(next_machine);
+                self.current_machine_mut().ppu_mut().render();
+                Task::none()
             }
             Message::RunNextInstruction => {
                 let _step = self.execute_one_instruction(PreserveHistory::PreserveHistory);

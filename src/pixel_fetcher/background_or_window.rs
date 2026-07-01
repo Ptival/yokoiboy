@@ -55,12 +55,12 @@ impl BackgroundOrWindowFetcher {
     pub fn tick(&mut self, ppu: &mut PPU) {
         match self.state {
             FetcherState::GetTileDelay => {
-                event!(Level::DEBUG, "BGW fetcher awaiting tile");
+                event!(Level::TRACE, "BGW fetcher awaiting tile");
                 self.state = FetcherState::GetTile
             }
 
             FetcherState::GetTile => {
-                event!(Level::DEBUG, "BGW fetcher getting tile");
+                event!(Level::TRACE, "BGW fetcher getting tile");
                 // NOTE: Because the following operations are done via Wrapping at u8, they
                 // automatically perform the necessary "mod 256"
                 let vram_pixel_row = (ppu.read_ly() + ppu.scy).0;
@@ -111,12 +111,12 @@ impl BackgroundOrWindowFetcher {
             }
 
             FetcherState::GetTileDataLowDelay => {
-                event!(Level::DEBUG, "BGW fetcher awaiting tile low data");
+                event!(Level::TRACE, "BGW fetcher awaiting tile low data");
                 self.state = FetcherState::GetTileDataLow;
             }
 
             FetcherState::GetTileDataLow => {
-                event!(Level::DEBUG, "BGW fetcher getting tile low data");
+                event!(Level::TRACE, "BGW fetcher getting tile low data");
                 let ly = ppu.read_ly();
                 Fetcher::read_tile_row(
                     &ppu.vram,
@@ -133,12 +133,12 @@ impl BackgroundOrWindowFetcher {
             }
 
             FetcherState::GetTileDataHighDelay => {
-                event!(Level::DEBUG, "BGW fetcher awaiting tile low data");
+                event!(Level::TRACE, "BGW fetcher awaiting tile low data");
                 self.state = FetcherState::GetTileDataHigh;
             }
 
             FetcherState::GetTileDataHigh => {
-                event!(Level::DEBUG, "BGW fetcher getting tile low data");
+                event!(Level::TRACE, "BGW fetcher getting tile low data");
                 let ly = ppu.read_ly();
                 Fetcher::read_tile_row(
                     &ppu.vram,
@@ -157,7 +157,7 @@ impl BackgroundOrWindowFetcher {
             FetcherState::PushRow => {
                 // Background/Window FIFO pixels only get pushed when the FIFO is empty
                 if self.fifo.len() == 0 {
-                    event!(Level::DEBUG, "BGW fetcher pushing row of pixels");
+                    event!(Level::TRACE, "BGW fetcher pushing row of pixels");
                     for i in 0..8 {
                         let color = self.tile_row_data[i];
                         self.fifo.push_back(FIFOItem {
@@ -171,7 +171,7 @@ impl BackgroundOrWindowFetcher {
                     self.state = FetcherState::GetTileDelay;
                 } else {
                     event!(
-                        Level::DEBUG,
+                        Level::TRACE,
                         "BGW fetcher awaiting space to push row of pixels"
                     );
                 }
