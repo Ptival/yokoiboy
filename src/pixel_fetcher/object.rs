@@ -282,6 +282,13 @@ impl ObjectFetcher {
                                 self.fifo.push_back(item);
                             }
                         }
+                        // Discard pixels that are off-screen to the left
+                        if sprite.x_screen_plus_8 < 8 {
+                            let pixels_to_discard = 8 - sprite.x_screen_plus_8;
+                            for _ in 0..pixels_to_discard {
+                                self.fifo.pop_front();
+                            }
+                        }
                         self.state = FetcherState::Idle
                     }
                 }

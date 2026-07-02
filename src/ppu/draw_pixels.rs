@@ -45,11 +45,17 @@ pub fn draw_pixels(
 
     // Check if we should fetch a sprite
     if obj_fetcher.is_idle() {
-        if obj_fetcher
-            .selected_objects
-            .get(0)
-            .is_some_and(|o| o.x_screen_plus_8 - 8 == ppu.lcd_x_coord.0)
-        {
+        if obj_fetcher.selected_objects.get(0).is_some_and(|o| {
+            // For objects that are on-screen, trigger when their x matched the LCD x
+            if o.x_screen_plus_8 >= 8 {
+                o.x_screen_plus_8 - 8 == ppu.lcd_x_coord.0
+            }
+            // For objects that are off-screen to the left, they should trigger when LCD x is 0, as
+            // they will partially be on screen, and LCD x does not start negative
+            else {
+                ppu.lcd_x_coord.0 == 0
+            }
+        }) {
             event!(Level::DEBUG, "Switching pixel fetcher to OBJ FIFO");
             pixel_fetcher.switch_to_object_fifo();
             let obj = obj_fetcher.selected_objects.pop_front().unwrap();
