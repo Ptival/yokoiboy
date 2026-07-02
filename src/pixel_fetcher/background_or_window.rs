@@ -5,10 +5,7 @@ use tracing::{event, Level};
 
 use crate::{
     pixel_fetcher::{FlipX, FlipY},
-    ppu::{
-        LCDC_BACKGROUND_TILE_MAP_AREA_BIT, LCDC_WINDOW_ENABLE_BIT, LCDC_WINDOW_TILE_MAP_AREA_BIT,
-        PPU, TILE_MAP_HORIZONTAL_TILE_COUNT,
-    },
+    ppu::{LCDC_BACKGROUND_TILE_MAP_AREA_BIT, PPU, TILE_MAP_HORIZONTAL_TILE_COUNT},
     utils,
 };
 
@@ -79,12 +76,14 @@ impl BackgroundOrWindowFetcher {
                 // Note: technically, when LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT is 0, we're not
                 // using any tile map and should just return blank tiles
                 let lcdc = ppu.lcd_control;
-                let lcdc_bit_that_determines_tilemap =
-                    if utils::is_bit_set(&lcdc, LCDC_WINDOW_ENABLE_BIT) {
-                        LCDC_WINDOW_TILE_MAP_AREA_BIT
-                    } else {
-                        LCDC_BACKGROUND_TILE_MAP_AREA_BIT
-                    };
+                // Note: eventually, we should keep track of whether we are rendering a window or
+                // not, and use that to pick between the two tile map area bits.
+                // Since window rendering is not implemented yet, hardcoding background.
+                // Note: previously, I was checking whether the LCDC_WINDOW_ENABLE_BIT was set to
+                // pick between the two.  But that's not correct.  That bit only tells us whether
+                // window rendering may happen, but it does not keep track of whether we are
+                // currently rendering a window.
+                let lcdc_bit_that_determines_tilemap = LCDC_BACKGROUND_TILE_MAP_AREA_BIT; // should be LCDC_WINDOW_TILE_MAP_AREA_BIT when rendering a window
                 let tilemap_to_use = if utils::is_bit_set(&lcdc, lcdc_bit_that_determines_tilemap) {
                     TileMap::TileMap1
                 } else {
