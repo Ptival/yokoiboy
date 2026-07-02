@@ -554,6 +554,12 @@ impl PPU {
             || (utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_INTERRUPT_SELECT_BIT)
                 && utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_BIT));
         if !self.last_stat_line && stat_line {
+            event!(
+                Level::DEBUG,
+                "STAT rising edge: LY={}, mode={}",
+                self.lcd_y_coord,
+                mode
+            );
             interrupts.request_stat(t_cycle_count);
         }
         self.last_stat_line = stat_line;

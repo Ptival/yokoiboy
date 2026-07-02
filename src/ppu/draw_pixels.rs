@@ -72,7 +72,7 @@ pub fn draw_pixels(
             );
         }
     } else {
-        event!(Level::DEBUG, "Awaiting OBJ fetcher to go idle",);
+        event!(Level::TRACE, "Awaiting OBJ fetcher to go idle",);
     }
 
     event!(Level::TRACE, "Ticking {:?}", pixel_fetcher.fetching_for);
@@ -101,7 +101,7 @@ pub fn draw_pixels(
         let obj_pixel = match obj_fetcher.fifo.pop_front() {
             Some(obj_pixel) => {
                 event!(
-                    Level::DEBUG,
+                    Level::TRACE,
                     "For X={}, popped an OBJ pixel {:?}",
                     ppu.drawn_pixels_on_current_row,
                     obj_pixel

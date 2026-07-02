@@ -23,7 +23,7 @@ pub fn hblank(
         ppu.scanline_dots = 0;
         ppu.increment_ly(interrupts, t_cycle_count);
         event!(
-            Level::DEBUG,
+            Level::TRACE,
             "Incremented LY to {} during HBlank (LYC={})",
             ppu.read_ly(),
             ppu.lcd_y_compare
