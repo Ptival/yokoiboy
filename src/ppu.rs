@@ -67,9 +67,9 @@ const LCDC_LCD_ENABLE_BIT: u8 = 7;
 
 // LCD status single bits of interest
 const LYC_EQUALS_LY_BIT: u8 = 2;
-const _MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
-const _MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
-const _MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
+const MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
+const MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
+const MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
 const LYC_EQUALS_LY_INTERRUPT_SELECT_BIT: u8 = 6;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -107,7 +107,7 @@ pub struct PPU {
     fix_ly_for_gb_doctor: FixLY,
     /// Because the STAT interrupt is triggered on a rising edge of the STAT line, we need to
     /// remember its previous value.
-    last_stat_line: u8,
+    last_stat_line: bool,
     scanline_dots: u16,
     state: PPUState,
 
@@ -281,7 +281,7 @@ impl PPU {
             drawn_pixels_on_current_row: 0,
             lcd_x_coord: Wrapping(0),
             fix_ly_for_gb_doctor: fix_ly,
-            last_stat_line: 0,
+            last_stat_line: false,
             scanline_dots: 0,
             state: PPUState::OAMScan,
 
@@ -546,8 +546,14 @@ impl PPU {
         }
 
         // STAT interrupt check
-        let stat_line = (self.lcd_status.0 >> 3) & 0xF;
-        if self.last_stat_line == 0 && stat_line != 0 {
+        let mode = self.lcd_status.0 & 0x03;
+        let stat_line = (utils::is_bit_set(&self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT)
+            && mode == 0)
+            || (utils::is_bit_set(&self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT) && mode == 1)
+            || (utils::is_bit_set(&self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT) && mode == 2)
+            || (utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_INTERRUPT_SELECT_BIT)
+                && utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_BIT));
+        if !self.last_stat_line && stat_line {
             interrupts.request_stat(t_cycle_count);
         }
         self.last_stat_line = stat_line;
