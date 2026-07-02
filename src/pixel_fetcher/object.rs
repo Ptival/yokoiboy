@@ -205,12 +205,13 @@ impl ObjectFetcher {
                     FetcherNonIdleState::GetTileDataLow => {
                         event!(Level::TRACE, "OBJ fetcher getting tile low data");
                         let ly = ppu.read_ly();
+                        let row_in_sprite = ly - (Wrapping(sprite.y_screen_plus_16) - Wrapping(16));
                         Fetcher::read_tile_row(
                             &ppu.vram,
                             // Objects always use $8000 addressing
                             &TileAddressingMode::UnsignedFrom0x8000,
-                            ly.0,
-                            ppu.scy.0,
+                            row_in_sprite.0,
+                            0,
                             sprite.tile_index,
                             sprite.flip_x(),
                             sprite.flip_y(),
@@ -230,11 +231,12 @@ impl ObjectFetcher {
                     FetcherNonIdleState::GetTileDataHigh => {
                         event!(Level::TRACE, "OBJ fetcher getting tile high data");
                         let ly = ppu.read_ly();
+                        let row_in_sprite = ly - (Wrapping(sprite.y_screen_plus_16) - Wrapping(16));
                         Fetcher::read_tile_row(
                             &ppu.vram,
                             &TileAddressingMode::UnsignedFrom0x8000,
-                            ly.0,
-                            ppu.scy.0,
+                            row_in_sprite.0,
+                            0,
                             sprite.tile_index,
                             sprite.flip_x(),
                             sprite.flip_y(),
@@ -270,7 +272,12 @@ impl ObjectFetcher {
                                     color,
                                     palette: palette_for_sprite(&sprite),
                                 };
-                                event!(Level::DEBUG, "Pushing OBJ {:#?} for sprite {}", item, sprite);
+                                event!(
+                                    Level::DEBUG,
+                                    "Pushing OBJ {:#?} for sprite {}",
+                                    item,
+                                    sprite
+                                );
                                 // No pixel to merge with, just push
                                 self.fifo.push_back(item);
                             }
