@@ -441,7 +441,8 @@ impl Machine {
             0xFF30..=0xFF3F => self.slice_ff30_ff3f[address.0 as usize - 0xFF30] = value,
 
             0xFF40..=0xFF40 => self.ppu.write_lcdc(value),
-            0xFF41..=0xFF41 => self.ppu.lcd_status = value,
+            // Note: bits 0, 1, and 2 are readonly and should only be modified by the PPU
+            0xFF41..=0xFF41 => self.ppu.lcd_status = Wrapping((self.ppu.lcd_status.0 & 0x07) | (value.0 & 0x78)),
             0xFF42..=0xFF42 => {
                 event!(
                     Level::DEBUG,
