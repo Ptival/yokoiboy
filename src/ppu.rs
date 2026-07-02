@@ -67,9 +67,9 @@ const LCDC_LCD_ENABLE_BIT: u8 = 7;
 
 // LCD status single bits of interest
 const LYC_EQUALS_LY_BIT: u8 = 2;
-const MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
-const MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
-const MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
+const _MODE_0_INTERRUPT_SELECT_BIT: u8 = 3;
+const _MODE_1_INTERRUPT_SELECT_BIT: u8 = 4;
+const _MODE_2_INTERRUPT_SELECT_BIT: u8 = 5;
 const LYC_EQUALS_LY_INTERRUPT_SELECT_BIT: u8 = 6;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -632,27 +632,18 @@ impl PPU {
         self.lcd_x_coord = Wrapping(0);
         bgw_fetcher.prepare_for_new_row();
         obj_fetcher.prepare_for_new_row();
-        // Disabled because it locks LCD for Dr. Mario:
-        // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 2);
-        utils::unset_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(&mut self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
-        utils::set_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
+        self.lcd_status = Wrapping((self.lcd_status.0 & 0xFC) | 2);
         self.state = PPUState::OAMScan;
     }
 
     fn switch_to_drawing_pixels(&mut self, pixel_fetcher: &mut Fetcher) {
         pixel_fetcher.switch_to_background_or_window_fifo();
-        // Disabled because it locks LCD for Dr. Mario:
-        // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 3);
+        self.lcd_status = Wrapping((self.lcd_status.0 & 0xFC) | 3);
         self.state = PPUState::DrawingPixels(0);
     }
 
     fn switch_to_horizontal_blank(&mut self) {
-        // Disabled because it locks LCD for Dr. Mario:
-        // machine.ppu_mut().lcd_status = Wrapping(machine.ppu().lcd_status.0 & 0xFC);
-        utils::set_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(&mut self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
+        self.lcd_status = Wrapping(self.lcd_status.0 & 0xFC);
         self.state = PPUState::HorizontalBlank;
     }
 
@@ -664,11 +655,7 @@ impl PPU {
         self.lcd_last_finished_frame
             .pixels
             .copy_from_slice(&self.lcd_for_next_frame.pixels);
-        // Disabled because it locks LCD for Dr. Mario:
-        // machine.ppu_mut().lcd_status = Wrapping((machine.ppu().lcd_status.0 & 0xFC) | 1);
-        utils::unset_bit(&mut self.lcd_status, MODE_0_INTERRUPT_SELECT_BIT);
-        utils::set_bit(&mut self.lcd_status, MODE_1_INTERRUPT_SELECT_BIT);
-        utils::unset_bit(&mut self.lcd_status, MODE_2_INTERRUPT_SELECT_BIT);
+        self.lcd_status = Wrapping((self.lcd_status.0 & 0xFC) | 1);
         interrupts.request_vblank(t_cycle_count);
         self.state = PPUState::VerticalBlank
     }
