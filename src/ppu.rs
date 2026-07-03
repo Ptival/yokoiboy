@@ -48,7 +48,7 @@ pub const TILE_PALETTE_PIXELS_TOTAL: usize =
 pub const TILE_MAP_HORIZONTAL_TILE_COUNT: usize = 32;
 pub const TILE_MAP_VERTICAL_TILE_COUNT: usize = 32;
 const TILE_MAP_TILE_TOTAL: usize = TILE_MAP_HORIZONTAL_TILE_COUNT * TILE_MAP_VERTICAL_TILE_COUNT;
-const TILE_MAP_HORIZONTAL_PIXELS: usize =
+pub const TILE_MAP_HORIZONTAL_PIXELS: usize =
     TILE_MAP_HORIZONTAL_TILE_COUNT * HORIZONTAL_PIXELS_PER_TILE;
 const TILE_MAP_VERTICAL_PIXELS: usize = TILE_MAP_VERTICAL_TILE_COUNT * VERTICAL_PIXELS_PER_TILE;
 const TILE_MAP_PIXELS_TOTAL: usize = TILE_MAP_HORIZONTAL_PIXELS * TILE_MAP_VERTICAL_PIXELS;
@@ -159,8 +159,8 @@ pub struct PPU {
     #[serde(skip)]
     pub tile_palette: Box<TilePalettePixels>,
 
-    #[serde(with = "BigArray")]
-    pub lcd_pixels_meta: [LCDPixelMetadata; LCD_PIXEL_COUNT * PIXEL_DATA_SIZE],
+    #[serde(skip, default = "default_lcd_pixels_meta")]
+    pub lcd_pixels_meta: Box<[LCDPixelMetadata; LCD_PIXEL_COUNT]>,
 
     #[serde(skip)]
     pub debug: PPUDebug,
@@ -246,6 +246,10 @@ impl Default for PPUDebug {
     }
 }
 
+fn default_lcd_pixels_meta() -> Box<[LCDPixelMetadata; LCD_PIXEL_COUNT]> {
+    Box::new([LCDPixelMetadata::default(); LCD_PIXEL_COUNT])
+}
+
 const BLACK: [u8; 4] = [0, 0, 0, 255];
 const DARK_GRAY: [u8; 4] = [0x55, 0x55, 0x55, 255];
 const LIGHT_GRAY: [u8; 4] = [0xAA, 0xAA, 0xAA, 255];
@@ -323,7 +327,7 @@ impl PPU {
             tile_map1: Box::new(TileMapPixels::default()),
             tile_palette: Box::new(TilePalettePixels::default()),
 
-            lcd_pixels_meta: [LCDPixelMetadata::default(); LCD_PIXEL_COUNT * PIXEL_DATA_SIZE],
+            lcd_pixels_meta: Box::new([LCDPixelMetadata::default(); LCD_PIXEL_COUNT]),
 
             debug: PPUDebug::default(),
         }

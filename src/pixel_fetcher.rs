@@ -39,6 +39,10 @@ pub struct FIFOItem {
 
     // These fields are for debugging purposes
     pub tile_id: u8,
+    pub tile_map_x: u8,
+    pub tile_map_y: u8,
+    pub pixel_in_tile_x: u8,
+    pub pixel_in_tile_y: u8,
 }
 
 impl Default for FIFOItem {
@@ -46,6 +50,10 @@ impl Default for FIFOItem {
         Self {
             color: 0,
             tile_id: 0,
+            tile_map_x: 0,
+            tile_map_y: 0,
+            pixel_in_tile_x: 0,
+            pixel_in_tile_y: 0,
         }
     }
 }

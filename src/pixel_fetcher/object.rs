@@ -117,6 +117,9 @@ pub struct ObjectFIFOItem {
     pub bg_over_obj: bool,
     pub color: u8,
     pub palette: ObjectPalette,
+    pub sprite: Option<Sprite>,
+    pub pixel_in_sprite_x: u8,
+    pub pixel_in_sprite_y: u8,
 }
 
 impl Default for ObjectFIFOItem {
@@ -125,6 +128,9 @@ impl Default for ObjectFIFOItem {
             bg_over_obj: Default::default(),
             color: Default::default(),
             palette: Default::default(),
+            sprite: None,
+            pixel_in_sprite_x: 0,
+            pixel_in_sprite_y: 0,
         }
     }
 }
@@ -248,6 +254,9 @@ impl ObjectFetcher {
 
                     FetcherNonIdleState::PushRow => {
                         let obj_fifo_len = self.fifo.len();
+                        let ly = ppu.read_ly();
+                        let pixel_row_in_sprite =
+                            (ly - (Wrapping(sprite.y_screen_plus_16) - Wrapping(16))).0;
                         event!(
                             Level::TRACE,
                             "OBJ fetcher pushing pixels over {obj_fifo_len} pixels"
@@ -264,6 +273,9 @@ impl ObjectFetcher {
                                         bg_over_obj: sprite.bg_over_obj(),
                                         color,
                                         palette: palette_for_sprite(&sprite),
+                                        sprite: Some(sprite),
+                                        pixel_in_sprite_x: i as u8,
+                                        pixel_in_sprite_y: pixel_row_in_sprite,
                                     };
                                 }
                             } else {
@@ -271,6 +283,9 @@ impl ObjectFetcher {
                                     bg_over_obj: sprite.bg_over_obj(),
                                     color,
                                     palette: palette_for_sprite(&sprite),
+                                    sprite: Some(sprite),
+                                    pixel_in_sprite_x: i as u8,
+                                    pixel_in_sprite_y: pixel_row_in_sprite,
                                 };
                                 event!(
                                     Level::DEBUG,

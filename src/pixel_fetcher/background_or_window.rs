@@ -22,6 +22,11 @@ pub struct BackgroundOrWindowFetcher {
     /// 8 pixels on the current row, then 1 for the next 8 pixels after we pushed one row.
     pub vram_tile_column: u8,
     tile_row_data: [u8; 8],
+    /// Tile map coordinates (in tiles) for the current fetch, used for debug tracking
+    current_tile_map_col: u8,
+    current_tile_map_row: u8,
+    /// The pixel row within the current tile (0-7)
+    current_pixel_row_in_tile: u8,
 }
 
 impl BackgroundOrWindowFetcher {
@@ -32,6 +37,9 @@ impl BackgroundOrWindowFetcher {
             tile_id: 0,
             vram_tile_column: 0,
             tile_row_data: [0; 8],
+            current_tile_map_col: 0,
+            current_tile_map_row: 0,
+            current_pixel_row_in_tile: 0,
         }
     }
 
@@ -65,6 +73,10 @@ impl BackgroundOrWindowFetcher {
 
                 let tile_row = vram_pixel_row / 8;
                 let tile_col = vram_pixel_col / 8;
+
+                self.current_tile_map_col = tile_col;
+                self.current_tile_map_row = tile_row;
+                self.current_pixel_row_in_tile = vram_pixel_row % 8;
 
                 let tile_index_in_its_tile_map =
                     tile_row as usize * TILE_MAP_HORIZONTAL_TILE_COUNT + tile_col as usize;
@@ -162,6 +174,10 @@ impl BackgroundOrWindowFetcher {
                         self.fifo.push_back(FIFOItem {
                             color,
                             tile_id: self.tile_id,
+                            tile_map_x: self.current_tile_map_col,
+                            tile_map_y: self.current_tile_map_row,
+                            pixel_in_tile_x: i as u8,
+                            pixel_in_tile_y: self.current_pixel_row_in_tile,
                         });
                     }
                     self.vram_tile_column += 1;

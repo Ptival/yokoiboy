@@ -112,6 +112,9 @@ pub fn draw_pixels(
                 bg_over_obj: false,
                 color: 0,
                 palette: ObjectPalette::ObjectPalette0,
+                sprite: None,
+                pixel_in_sprite_x: 0,
+                pixel_in_sprite_y: 0,
             },
         };
         let pixel_x = ppu.drawn_pixels_on_current_row;
@@ -148,13 +151,12 @@ pub fn draw_pixels(
         } else {
             let from = pixel_coordinates_in_rgba_slice(pixel_x, pixel_y);
             ppu.lcd_for_next_frame.pixels[from..from + 4].copy_from_slice(&rgba);
-            for i in from..from + 4 {
-                ppu.lcd_pixels_meta[i] = LCDPixelMetadata {
-                    bgw_pixel,
-                    obj_pixel,
-                    choose_bgw,
-                };
-            }
+            let pixel_index = pixel_y as usize * LCD_HORIZONTAL_PIXEL_COUNT + pixel_x as usize;
+            ppu.lcd_pixels_meta[pixel_index] = LCDPixelMetadata {
+                bgw_pixel,
+                obj_pixel,
+                choose_bgw,
+            };
         }
         ppu.drawn_pixels_on_current_row += 1;
         ppu.lcd_x_coord += 1;

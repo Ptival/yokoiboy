@@ -23,11 +23,15 @@ const ZOOMED_TILE_PALETTE_VERTICAL_PIXEL_COUNT: usize =
 
 impl<'a> TilePalette<'a> {
     pub fn new(tiles_pixels: &ppu::TilePalettePixels) -> Self {
+        Self::new_with_pixels(&tiles_pixels.pixels)
+    }
+
+    pub fn new_with_pixels(pixels: &[u8]) -> Self {
         TilePalette {
             tile_palette_widget: widget::Image::new(image::Handle::from_rgba(
                 TILE_PALETTE_HORIZONTAL_PIXELS as u32,
                 TILE_PALETTE_VERTICAL_PIXELS as u32,
-                bytes::Bytes::copy_from_slice(&tiles_pixels.pixels),
+                bytes::Bytes::copy_from_slice(pixels),
             ))
             .content_fit(iced::ContentFit::Fill)
             .filter_method(image::FilterMethod::Nearest)
