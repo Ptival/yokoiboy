@@ -667,6 +667,8 @@ impl PPU {
         self.lcd_last_finished_frame
             .pixels
             .copy_from_slice(&self.lcd_for_next_frame.pixels);
+        // Clearing the pixels for the next frame to make progress easier to follow when debugging
+        self.lcd_for_next_frame.pixels = [0; _];
         self.lcd_status = Wrapping((self.lcd_status.0 & 0xFC) | 1);
         interrupts.request_vblank(t_cycle_count);
         self.state = PPUState::VerticalBlank
