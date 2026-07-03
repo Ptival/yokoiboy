@@ -18,4 +18,5 @@ pub enum Message {
     Quit,
     RunNextCycles,
     RunNextInstruction,
+    RunUntilVBlank,
 }

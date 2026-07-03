@@ -3,7 +3,7 @@ mod lcd;
 mod registers;
 mod stack;
 
-use iced::widget::{self, row, Column, Row};
+use iced::widget::{self, button, row, Column, Row};
 
 use crate::{application_state::ApplicationState, message::Message};
 
@@ -17,6 +17,7 @@ pub fn view(app: &ApplicationState) -> Column<'_, Message> {
         widget::text("LY: "),
         widget::text(format!("{}", machine.ppu.read_ly()))
     ]);
+    let vblank_button = button("Run to VBlank").on_press(Message::RunUntilVBlank);
 
     widget::Column::new()
         .width(450)
@@ -26,4 +27,5 @@ pub fn view(app: &ApplicationState) -> Column<'_, Message> {
         .push(stack)
         .push(lcd)
         .push(ly_grid)
+        .push(vblank_button)
 }

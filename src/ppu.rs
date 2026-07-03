@@ -109,7 +109,7 @@ pub struct PPU {
     /// remember its previous value.
     last_stat_line: bool,
     scanline_dots: u16,
-    state: PPUState,
+    pub state: PPUState,
 
     // Hardware registers
     pub background_palette_data: u8,

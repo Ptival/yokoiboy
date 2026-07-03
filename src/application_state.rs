@@ -20,6 +20,7 @@ use crate::{
     machine::{FixLY, Machine, SkipBoot},
     memory::{load_boot_rom, load_game_rom},
     message::{Message, StepBeforeCheckingBreakpoint},
+    ppu::PPUState,
 };
 
 const CPU_SNAPS_CAPACITY: usize = 5;
@@ -307,6 +308,18 @@ impl ApplicationState {
             Message::RunNextInstruction => {
                 let _step = self.execute_one_instruction(PreserveHistory::PreserveHistory);
                 self.current_machine_mut().ppu_mut().render();
+                Task::none()
+            }
+            Message::RunUntilVBlank => {
+                let machine = self.current_machine_mut();
+                while matches!(machine.ppu.state, PPUState::VerticalBlank) {
+                    machine.step();
+                }
+                while !matches!(machine.ppu.state, PPUState::VerticalBlank) {
+                    machine.step();
+                }
+                machine.ppu_mut().render();
+                self.paused = true;
                 Task::none()
             }
             Message::QuickLoad => {
