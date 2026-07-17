@@ -219,6 +219,8 @@ impl Default for TilePalettePixels {
     }
 }
 
+pub const TILE_COUNT: usize = TILE_PALETTE_HORIZONTAL_TILE_COUNT * TILE_PALETTE_VERTICAL_TILE_COUNT;
+
 #[derive(Clone, Debug)]
 pub struct PPUDebug {
     // Transient state saved for debug view purposes
@@ -229,6 +231,8 @@ pub struct PPUDebug {
     // TODO: make this private? move it to pixel fetcher?
     pub tile_map0_last_addressing_modes: [TileAddressingMode; TILE_MAP_TILE_TOTAL],
     pub tile_map1_last_addressing_modes: [TileAddressingMode; TILE_MAP_TILE_TOTAL],
+    pub tile_last_palette: [u8; TILE_COUNT],
+    pub tile_has_palette: [bool; TILE_COUNT],
 }
 
 impl Default for PPUDebug {
@@ -242,6 +246,8 @@ impl Default for PPUDebug {
                 TILE_MAP_TILE_TOTAL],
             tile_map1_last_addressing_modes: [TileAddressingMode::UnsignedFrom0x8000;
                 TILE_MAP_TILE_TOTAL],
+            tile_last_palette: [0; TILE_COUNT],
+            tile_has_palette: [false; TILE_COUNT],
         }
     }
 }
@@ -374,7 +380,13 @@ impl PPU {
     pub fn render_tile_palette(&mut self) {
         for tile_palette_y in 0..TILE_PALETTE_VERTICAL_TILE_COUNT {
             for tile_palette_x in 0..TILE_PALETTE_HORIZONTAL_TILE_COUNT {
-                let tile_data_from = (tile_palette_y * 16 + tile_palette_x) * 16;
+                let tile_index = tile_palette_y * TILE_PALETTE_HORIZONTAL_TILE_COUNT + tile_palette_x;
+                let palette = if self.debug.tile_has_palette[tile_index] {
+                    self.debug.tile_last_palette[tile_index]
+                } else {
+                    self.background_palette_data
+                };
+                let tile_data_from = tile_index * 16;
                 let tile_data = &self.vram[tile_data_from..tile_data_from + 16];
                 for tile_pixel_y in 0..VERTICAL_PIXELS_PER_TILE {
                     let row_data_from = tile_pixel_y * 2;
@@ -383,8 +395,7 @@ impl PPU {
                     for tile_pixel_x in 0..HORIZONTAL_PIXELS_PER_TILE {
                         let pixel_code = (((high_bits >> (7 - tile_pixel_x)) & 1) << 1)
                             | ((low_bits >> (7 - tile_pixel_x)) & 1);
-                        let pixel_rgba =
-                            pixel_code_to_rgba(pixel_code, self.background_palette_data);
+                        let pixel_rgba = pixel_code_to_rgba(pixel_code, palette);
                         let vram_pixel_x = tile_palette_x * 8 + tile_pixel_x;
                         let vram_pixel_y = tile_palette_y * 8 + tile_pixel_y;
                         let vram_pixels_from =

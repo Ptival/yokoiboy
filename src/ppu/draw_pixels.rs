@@ -5,12 +5,13 @@ use tracing::{event, Level};
 use crate::{
     pixel_fetcher::{
         background_or_window::BackgroundOrWindowFetcher,
+        get_tile_index_in_palette,
         object::{ObjectFIFOItem, ObjectFetcher, ObjectPalette},
-        Fetcher, FetchingFor,
+        Fetcher, FetchingFor, TileAddressingMode,
     },
     ppu::{
         pixel_code_to_rgba, pixel_coordinates_in_rgba_slice, LCDPixelMetadata, PPUState,
-        LCD_HORIZONTAL_PIXEL_COUNT, LCD_VERTICAL_PIXEL_COUNT, PPU,
+        LCD_HORIZONTAL_PIXEL_COUNT, LCD_VERTICAL_PIXEL_COUNT, TILE_COUNT, PPU,
     },
 };
 
@@ -157,6 +158,27 @@ pub fn draw_pixels(
                 obj_pixel,
                 choose_bgw,
             };
+
+            // Track which palette was last used for each tile pushed to screen
+            if choose_bgw {
+                let tile_index = get_tile_index_in_palette(
+                    bgw_pixel.tile_id,
+                    &ppu.get_addressing_mode(),
+                ) as usize;
+                if tile_index < TILE_COUNT {
+                    ppu.debug.tile_last_palette[tile_index] = ppu.background_palette_data;
+                    ppu.debug.tile_has_palette[tile_index] = true;
+                }
+            } else if let Some(sprite) = obj_pixel.sprite {
+                let tile_index = get_tile_index_in_palette(
+                    sprite.tile_index,
+                    &TileAddressingMode::UnsignedFrom0x8000,
+                ) as usize;
+                if tile_index < TILE_COUNT {
+                    ppu.debug.tile_last_palette[tile_index] = palette;
+                    ppu.debug.tile_has_palette[tile_index] = true;
+                }
+            }
         }
         ppu.drawn_pixels_on_current_row += 1;
         ppu.lcd_x_coord += 1;
