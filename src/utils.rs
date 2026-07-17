@@ -4,7 +4,10 @@ pub fn is_bit_set(value: &Wrapping<u8>, bit_position: u8) -> bool {
     (value.0 & (1 << bit_position)) != 0
 }
 
-pub fn write_bit(value: &Wrapping<u8>, bit_position: u8, bit_value: bool) -> Wrapping<u8> {
+// Added #[must_use] because I frequantly believe this mutates the input bit in place, even though
+// it doesn't even take a mutable reference in...
+#[must_use]
+pub fn overwrite_bit(value: &Wrapping<u8>, bit_position: u8, bit_value: bool) -> Wrapping<u8> {
     if bit_value {
         compute_set_bit(value, bit_position)
     } else {

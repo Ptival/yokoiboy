@@ -359,7 +359,7 @@ impl PPU {
     pub fn check_if_ly_equals_lyc(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
         let previous = utils::is_bit_set(&mut self.lcd_status, LYC_EQUALS_LY_BIT);
         let current = self.lcd_y_coord == self.lcd_y_compare;
-        utils::write_bit(&mut self.lcd_status, LYC_EQUALS_LY_BIT, current);
+        self.lcd_status = utils::overwrite_bit(&self.lcd_status, LYC_EQUALS_LY_BIT, current);
         if current
             && !previous
             && utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_INTERRUPT_SELECT_BIT)
