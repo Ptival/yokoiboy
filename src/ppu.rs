@@ -351,21 +351,20 @@ impl PPU {
         utils::is_bit_set(&self.lcd_control, LCDC_LCD_ENABLE_BIT)
     }
 
-    pub fn increment_ly(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
+    pub fn increment_ly(&mut self) {
         self.lcd_y_coord = self.lcd_y_coord + Wrapping(1);
-        self.check_if_ly_equals_lyc(interrupts, t_cycle_count);
+        self.check_if_ly_equals_lyc();
     }
 
-    pub fn check_if_ly_equals_lyc(&mut self, interrupts: &mut Interrupts, t_cycle_count: u64) {
-        let previous = utils::is_bit_set(&mut self.lcd_status, LYC_EQUALS_LY_BIT);
+    // Updates the LYC=LY coincidence flag (STAT bit 2). The STAT interrupt itself is raised by the
+    // unified rising-edge detector at the end of `tick`, which ORs this coincidence together with
+    // the mode interrupts into a single STAT line, matching the hardware's single shared IRQ signal.
+    // Firing directly from here as well would inject an extra interrupt whenever the line was
+    // already high (e.g. LYC coincidence on an enabled mode-0 line), throwing off per-scanline
+    // scroll handlers.
+    pub fn check_if_ly_equals_lyc(&mut self) {
         let current = self.lcd_y_coord == self.lcd_y_compare;
         self.lcd_status = utils::overwrite_bit(&self.lcd_status, LYC_EQUALS_LY_BIT, current);
-        if current
-            && !previous
-            && utils::is_bit_set(&self.lcd_status, LYC_EQUALS_LY_INTERRUPT_SELECT_BIT)
-        {
-            interrupts.request_stat(t_cycle_count);
-        }
     }
 
     pub fn read_ly(&self) -> Wrapping<u8> {
@@ -477,8 +476,11 @@ impl PPU {
         bgw_fetcher: &mut BackgroundOrWindowFetcher,
         obj_fetcher: &mut ObjectFetcher,
     ) {
-        // TODO: I think this can trigger a LY==LYC interrupt?
         self.lcd_y_coord = Wrapping(0);
+        // The LY -> 0 transition updates the LYC=LY coincidence flag; the STAT interrupt it may
+        // raise is handled by the unified rising-edge detector in `tick`. Games rely on this to
+        // arm a per-scanline scroll chain at the top of the frame.
+        self.check_if_ly_equals_lyc();
 
         bgw_fetcher.prepare_for_new_frame();
         obj_fetcher.prepare_for_new_frame();
@@ -556,7 +558,7 @@ impl PPU {
 
             // Mode 1: waiting until the end of this frame
             PPUState::VerticalBlank => {
-                vblank(self, bgw_fetcher, obj_fetcher, interrupts, t_cycle_count);
+                vblank(self, bgw_fetcher, obj_fetcher);
             }
         }
 

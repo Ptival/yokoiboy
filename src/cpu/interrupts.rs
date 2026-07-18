@@ -88,6 +88,10 @@ impl Interrupts {
                 machine.interrupts.interrupt_flag
             );
             machine.interrupts.interrupt_master_enable = false;
+            // Servicing an interrupt also wakes the CPU from HALT. Without this, a CPU that HALTed
+            // with IME enabled jumps to the handler but stays in low-power mode, so it never
+            // executes the handler until some later interrupt happens to wake it.
+            machine.cpu_mut().low_power_mode = false;
             // Here the CPU:
             // - NOPs twice (2 M-cycles)
             // - PUSHes PC (2 M-cycles)

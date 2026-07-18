@@ -463,10 +463,8 @@ impl Machine {
                 panic!("Something attempted to write to LY")
             }
             0xFF45..=0xFF45 => {
-                let interrupts = &mut self.interrupts;
                 self.ppu.lcd_y_compare = value;
-                self.ppu
-                    .check_if_ly_equals_lyc(interrupts, self.t_cycle_count);
+                self.ppu.check_if_ly_equals_lyc();
             }
             0xFF46..=0xFF46 => {
                 // TODO: extract

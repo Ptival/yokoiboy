@@ -1,7 +1,6 @@
 use tracing::{event, Level};
 
 use crate::{
-    cpu::interrupts::Interrupts,
     pixel_fetcher::{background_or_window::BackgroundOrWindowFetcher, object::ObjectFetcher},
     ppu::{DOTS_PER_SCANLINE, PPU},
 };
@@ -10,8 +9,6 @@ pub fn vblank(
     ppu: &mut PPU,
     bgw_fetcher: &mut BackgroundOrWindowFetcher,
     obj_fetcher: &mut ObjectFetcher,
-    interrupts: &mut Interrupts,
-    t_cycle_count: u64,
 ) {
     event!(
         Level::TRACE,
@@ -21,7 +18,7 @@ pub fn vblank(
     );
     if ppu.scanline_dots == DOTS_PER_SCANLINE {
         ppu.scanline_dots = 0;
-        ppu.increment_ly(interrupts, t_cycle_count);
+        ppu.increment_ly();
         event!(
             Level::TRACE,
             "Incremented LY to {} during VBlank (LYC = {})",

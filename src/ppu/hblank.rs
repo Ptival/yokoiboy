@@ -21,7 +21,7 @@ pub fn hblank(
     );
     if ppu.scanline_dots == DOTS_PER_SCANLINE {
         ppu.scanline_dots = 0;
-        ppu.increment_ly(interrupts, t_cycle_count);
+        ppu.increment_ly();
         event!(
             Level::TRACE,
             "Incremented LY to {} during HBlank (LYC={})",
