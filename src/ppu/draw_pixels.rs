@@ -42,6 +42,26 @@ pub fn draw_pixels(
         return;
     }
 
+    // Once the on-screen X reaches the window's left edge (and the window's WY condition has been
+    // latched for this frame), the background fetch is abandoned and the fetcher restarts fetching
+    // from the window tile map.  We only do this while the BGW fetcher is the active one, so that
+    // an in-progress object fetch isn't disturbed.
+    if !bgw_fetcher.is_rendering_window()
+        && pixel_fetcher.fetching_for == FetchingFor::BackgroundOrWindowFIFO
+        && ppu
+            .window_trigger_x()
+            .is_some_and(|window_x| ppu.drawn_pixels_on_current_row == window_x)
+    {
+        event!(
+            Level::DEBUG,
+            "Window triggered at X={}, LY={}",
+            ppu.drawn_pixels_on_current_row,
+            ppu.read_ly()
+        );
+        bgw_fetcher.start_window();
+        ppu.mark_window_rendered_this_scanline();
+    }
+
     let fetcher_state = &pixel_fetcher.fetching_for;
 
     // Check if we should fetch a sprite
@@ -82,8 +102,10 @@ pub fn draw_pixels(
     // Pixel mixing only happens when both FIFO are non-empty
     if !bgw_fetcher.fifo.is_empty() && obj_fetcher.is_idle() {
         // && !obj_fetcher.fifo.is_empty() {
-        // To support fine scrolling, the first (scx % 8) pixels are dropped from FIFOs
-        if dropped_pixels < ppu.scx.0 % 8 {
+        // To support fine scrolling, the first (scx % 8) pixels are dropped from FIFOs.  This only
+        // applies to the background: the window is not affected by SCX, so we never drop window
+        // pixels (relevant when the window starts at screen X=0, i.e. WX <= 7).
+        if !bgw_fetcher.is_rendering_window() && dropped_pixels < ppu.scx.0 % 8 {
             bgw_fetcher.fifo.pop_front();
             obj_fetcher.fifo.pop_front();
             ppu.state = PPUState::DrawingPixels(dropped_pixels + 1);

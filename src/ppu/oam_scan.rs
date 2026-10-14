@@ -12,6 +12,10 @@ use crate::{
 };
 
 pub fn oam_scan(ppu: &mut PPU, obj_fetcher: &mut ObjectFetcher, pixel_fetcher: &mut Fetcher) {
+    // The window's "WY == LY" trigger condition is evaluated once per scanline and latched for the
+    // rest of the frame.  We check it here, at the end of OAM scan, before pixel drawing starts.
+    ppu.update_wy_condition();
+
     // Note: we simulate OAM as one big step at the 80 dots mark
     if ppu.scanline_dots == 80 {
         let ly = ppu.read_ly().0 as usize;

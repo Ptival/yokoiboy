@@ -111,6 +111,16 @@ pub struct PPU {
     scanline_dots: u16,
     pub state: PPUState,
 
+    /// The window keeps its own internal line counter, separate from LY.  It only increments on
+    /// scanlines where the window was actually rendered, and is *not* affected by SCY.
+    pub window_line_counter: Wrapping<u8>,
+    /// Latched once per frame when LY == WY while the window is enabled.  The window can only start
+    /// rendering after this has been met, and it stays met until the end of the frame.
+    wy_condition_met: bool,
+    /// Whether the window was rendered (i.e. reached its trigger X) on the current scanline.  Used
+    /// to decide whether to advance `window_line_counter` at the end of the scanline.
+    window_rendered_this_scanline: bool,
+
     // Hardware registers
     pub background_palette_data: u8,
     pub cgb_background_palette_data: Wrapping<u8>,
@@ -294,6 +304,10 @@ impl PPU {
             last_stat_line: false,
             scanline_dots: 0,
             state: PPUState::OAMScan,
+
+            window_line_counter: Wrapping(0),
+            wy_condition_met: false,
+            window_rendered_this_scanline: false,
 
             background_palette_data: 0,
             cgb_background_palette_spec: Wrapping(0),
@@ -485,6 +499,11 @@ impl PPU {
         bgw_fetcher.prepare_for_new_frame();
         obj_fetcher.prepare_for_new_frame();
 
+        // The window's internal line counter and its once-per-frame WY latch both reset here.
+        self.window_line_counter = Wrapping(0);
+        self.wy_condition_met = false;
+        self.window_rendered_this_scanline = false;
+
         self.debug.frame_scxs = [0; LCD_VERTICAL_PIXEL_COUNT];
         self.debug.frame_scxs_valid = [true; LCD_VERTICAL_PIXEL_COUNT];
 
@@ -659,6 +678,7 @@ impl PPU {
     ) {
         self.drawn_pixels_on_current_row = 0;
         self.lcd_x_coord = Wrapping(0);
+        self.window_rendered_this_scanline = false;
         bgw_fetcher.prepare_for_new_row();
         obj_fetcher.prepare_for_new_row();
         self.lcd_status = Wrapping((self.lcd_status.0 & 0xFC) | 2);
@@ -672,6 +692,12 @@ impl PPU {
     }
 
     fn switch_to_horizontal_blank(&mut self) {
+        // The window's internal line counter only advances on scanlines where the window was
+        // actually drawn.  This is what lets a game freeze the window vertically by only enabling
+        // it for part of the frame, and is checked here (once per row) rather than against LY.
+        if self.window_rendered_this_scanline {
+            self.window_line_counter += Wrapping(1);
+        }
         self.lcd_status = Wrapping(self.lcd_status.0 & 0xFC);
         self.state = PPUState::HorizontalBlank;
     }
@@ -695,10 +721,39 @@ impl PPU {
         is_bit_set(&self.read_lcdc(), LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT)
     }
 
-    fn _is_window_enabled(&self) -> bool {
+    pub fn is_window_enabled(&self) -> bool {
         let lcdc = self.read_lcdc();
         is_bit_set(&lcdc, LCDC_BACKGROUND_AND_WINDOW_ENABLE_BIT) // Note: this is DMG specific
             && is_bit_set(&lcdc, LCDC_WINDOW_ENABLE_BIT)
+    }
+
+    /// The window can only begin rendering once, during a given frame, the LCD Y coordinate has
+    /// matched the WY register while the window was enabled.  This latch is checked every dot and
+    /// stays set until the end of the frame (it is cleared in `prepare_for_new_frame`).
+    pub fn update_wy_condition(&mut self) {
+        if self.is_window_enabled() && self.read_ly() == self.window_y {
+            self.wy_condition_met = true;
+        }
+    }
+
+    /// Returns the on-screen X coordinate at which the window starts, if the window should be
+    /// rendered on the current scanline.  Returns `None` when the window is not to be shown.
+    ///
+    /// WX (`window_x_plus_7`) holds the window's left edge plus 7, so the window's first pixel
+    /// lands at screen X = WX - 7.  When WX < 7 the window would start off-screen to the left; we
+    /// approximate by clamping the trigger to X = 0 (the sub-pixel shift quirk is not emulated).
+    fn window_trigger_x(&self) -> Option<u8> {
+        if self.is_window_enabled() && self.wy_condition_met {
+            Some((self.window_x_plus_7.0 as i16 - 7).max(0) as u8)
+        } else {
+            None
+        }
+    }
+
+    /// Records that the window began rendering on the current scanline, so that the window line
+    /// counter is advanced when the scanline ends (see `switch_to_horizontal_blank`).
+    fn mark_window_rendered_this_scanline(&mut self) {
+        self.window_rendered_this_scanline = true;
     }
 }
 
